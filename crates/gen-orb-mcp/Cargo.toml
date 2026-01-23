@@ -1,0 +1,50 @@
+[package]
+name = "gen-orb-mcp"
+version = "0.1.0"
+description = "Generate MCP servers from CircleCI orb definitions"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme = "README.md"
+
+[dependencies]
+# MCP Protocol
+pmcp.workspace = true
+
+# YAML Processing
+serde.workspace = true
+serde_yaml.workspace = true
+
+# CLI
+clap.workspace = true
+
+# Error Handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# Async Runtime
+tokio.workspace = true
+
+# Template Engine
+handlebars.workspace = true
+
+# Logging
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+trycmd.workspace = true
+criterion.workspace = true
+
+[[bin]]
+name = "gen-orb-mcp"
+path = "src/main.rs"
+
+[lib]
+name = "gen_orb_mcp"
+path = "src/lib.rs"

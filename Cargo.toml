@@ -1,0 +1,42 @@
+[workspace]
+members = ["crates/gen-orb-mcp"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+authors = ["Jeremiah Russell <jrussell@jerus.ie>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/jerus-org/gen-orb-mcp"
+rust-version = "1.85"
+keywords = ["mcp", "circleci", "orb", "codegen"]
+categories = ["development-tools", "command-line-utilities"]
+
+[workspace.dependencies]
+# MCP Protocol
+pmcp = "1.8"
+
+# YAML Processing
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+
+# CLI
+clap = { version = "4.0", features = ["derive"] }
+
+# Error Handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Async Runtime
+tokio = { version = "1.0", features = ["full"] }
+
+# Template Engine
+handlebars = "5.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Testing
+tempfile = "3.0"
+trycmd = "0.15"
+criterion = "0.5"

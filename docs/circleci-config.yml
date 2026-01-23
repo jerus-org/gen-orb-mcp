@@ -1,0 +1,125 @@
+version: 2.1
+
+parameters:
+  min_rust_version:
+    type: string
+    default: "1.85"
+  fingerprint:
+    type: string
+    default: SHA256:OkxsH8Z6Iim6WDJBaII9eTT9aaO1f3eDc6IpsgYYPVg
+  validation_flag:
+    type: boolean
+    default: false
+    description: "If true, the validation pipeline will be executed."
+  success_flag:
+    type: boolean
+    default: false
+    description: "If true, the success pipeline will be executed."
+  release_flag:
+    type: boolean
+    default: false
+    description: "If true, the release pipeline will be executed."
+
+orbs:
+  toolkit: jerus-org/circleci-toolkit@4.2.0
+
+workflows:
+  check_last_commit:
+    when:
+      and:
+        - not:
+            equal: ["main", << pipeline.git.branch >>]
+        - not:
+            equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+        - not: << pipeline.parameters.success_flag >>
+        - not: << pipeline.parameters.validation_flag >>
+
+    jobs:
+      - toolkit/choose_pipeline:
+          name: choose pipeline based on committer
+          context: bot-check
+
+  validation:
+    when:
+      or:
+        - equal: ["main", << pipeline.git.branch >>]
+        - and:
+            - << pipeline.parameters.validation_flag >>
+            - not:
+                equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+            - not: << pipeline.parameters.success_flag >>
+    jobs:
+      - toolkit/label:
+          min_rust_version: << pipeline.parameters.min_rust_version >>
+          context: gen-orb-mcp-app
+          filters:
+            branches:
+              only:
+                - main
+      - toolkit/required_builds:
+          name: required-builds
+          min_rust_version: << pipeline.parameters.min_rust_version >>
+      - toolkit/optional_builds:
+          min_rust_version: << pipeline.parameters.min_rust_version >>
+      - toolkit/test_doc_build:
+          name: docs
+          min_rust_version: << pipeline.parameters.min_rust_version >>
+      - toolkit/common_tests:
+          min_rust_version: << pipeline.parameters.min_rust_version >>
+      - toolkit/idiomatic_rust:
+          min_rust_version: << pipeline.parameters.min_rust_version >>
+      - toolkit/security:
+          filters:
+            branches:
+              ignore:
+                - main
+          context: SonarCloud
+      - toolkit/update_prlog:
+          filters:
+            branches:
+              ignore:
+                - main
+          requires:
+            - toolkit/common_tests
+            - toolkit/security
+            - required-builds
+            - docs
+            - toolkit/idiomatic_rust
+          context:
+            - release
+            - bot-check
+          ssh_fingerprint: << pipeline.parameters.fingerprint >>
+          min_rust_version: << pipeline.parameters.min_rust_version >>
+
+  on_success:
+    when:
+      and:
+        - not:
+            equal: ["main", <<pipeline.git.branch >>]
+        - not:
+            equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+        - << pipeline.parameters.success_flag >>
+        - not: << pipeline.parameters.validation_flag >>
+        - not: << pipeline.parameters.release_flag >>
+
+    jobs:
+      - toolkit/end_success
+
+  release:
+    when:
+      and:
+        - or:
+            - and:
+                - equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+                - equal: ["release check", << pipeline.schedule.name >>]
+            - <<  pipeline.parameters.release_flag >>
+        - not: << pipeline.parameters.success_flag >>
+        - not: << pipeline.parameters.validation_flag >>
+        - <<  pipeline.parameters.release_flag >>
+    jobs:
+      - toolkit/make_release:
+          context:
+            - release
+            - bot-check
+          ssh_fingerprint: << pipeline.parameters.fingerprint >>
+          min_rust_version: << pipeline.parameters.min_rust_version >>
