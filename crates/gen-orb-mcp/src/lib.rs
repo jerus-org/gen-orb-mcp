@@ -29,11 +29,11 @@ enum Commands {
     /// Generate an MCP server from an orb definition
     Generate {
         /// Path to the orb YAML file (e.g., src/@orb.yml)
-        #[arg(short, long)]
+        #[arg(short = 'p', long)]
         orb_path: std::path::PathBuf,
 
         /// Output directory for generated server
-        #[arg(short, long, default_value = "./dist")]
+        #[arg(short = 'o', long, default_value = "./dist")]
         output: std::path::PathBuf,
 
         /// Output format
@@ -43,7 +43,7 @@ enum Commands {
     /// Validate an orb definition without generating
     Validate {
         /// Path to the orb YAML file
-        #[arg(short, long)]
+        #[arg(short = 'p', long)]
         orb_path: std::path::PathBuf,
     },
 }
