@@ -42,7 +42,7 @@ gen-orb-mcp validate --orb-path ./src/@orb.yml
 gen-orb-mcp generate [OPTIONS] --orb-path <ORB_PATH>
 
 Options:
-  -o, --orb-path <ORB_PATH>  Path to the orb YAML file (e.g., src/@orb.yml)
+  -p, --orb-path <ORB_PATH>  Path to the orb YAML file (e.g., src/@orb.yml)
   -o, --output <OUTPUT>      Output directory for generated server [default: ./dist]
   -f, --format <FORMAT>      Output format [default: binary] [possible values: binary, source]
   -h, --help                 Print help
