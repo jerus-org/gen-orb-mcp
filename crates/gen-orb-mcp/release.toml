@@ -2,6 +2,4 @@ pre-release-commit-message = "chore: Release gen-orb-mcp v{{version}}"
 tag-message = "{{tag_name}}"
 tag-name = "gen-orb-mcp-v{{version}}"
 pre-release-hook = ["./release-hook.sh"]
-pre-release-replacements = [
-    { file = "README.md", search = "gen-orb-mcp = \"\\d+\\.\\d+\\.\\d+\"", replace = "gen-orb-mcp = \"{{version}}\"", exactly = 1 },
-]
+pre-release-replacements = []
