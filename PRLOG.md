@@ -10,5 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Correct CircleCI config for release(pr [#4])
+- Correct release config for pre-release(pr [#5])
 
 [#4]: https://github.com/jerus-org/gen-orb-mcp/pull/4
+[#5]: https://github.com/jerus-org/gen-orb-mcp/pull/5
