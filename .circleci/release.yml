@@ -1,0 +1,372 @@
+version: 2.1
+
+parameters:
+  min_rust_version:
+    type: string
+    default: "1.85"
+  fingerprint:
+    type: string
+    default: SHA256:OkxsH8Z6Iim6WDJBaII9eTT9aaO1f3eDc6IpsgYYPVg
+
+orbs:
+  toolkit: jerus-org/circleci-toolkit@4.2.1
+
+# Commands designed for future migration to circleci-toolkit
+# These extend existing toolkit patterns with backward-compatible parameters
+commands:
+  # Enhanced version of toolkit/get_next_version with prefix and subdir support
+  # Backward compatible: existing behavior when prefix/subdir not provided
+  get_next_version:
+    description: >
+      Calculate the next version number and save it to the NEXT_VERSION environment variable.
+      Enhanced version that supports --prefix and --subdir for crate-specific version detection.
+      When prefix/subdir are empty, behaves identically to toolkit/get_next_version.
+    parameters:
+      version:
+        type: string
+        default: ""
+        description: "Specific version number to release (overrides calculation)"
+      package:
+        type: string
+        default: ""
+        description: "Package to release and/or publish"
+      prefix:
+        type: string
+        default: ""
+        description: "Tag prefix for version detection (e.g., gen-orb-mcp-v)"
+      subdir:
+        type: string
+        default: ""
+        description: "Subdirectory containing the crate (for monorepo support)"
+      verbosity:
+        type: string
+        default: "-q"
+        description: "Verbosity flag for nextsv command"
+    steps:
+      - run:
+          name: Calculate next version
+          command: |
+            set -eo pipefail
+
+            # If specific version provided, use it directly
+            if [ "<< parameters.version >>" != "" ]; then
+              version="<< parameters.version >>"
+              echo "Using specified version: $version"
+              echo "export NEXT_VERSION=$version" >> "$BASH_ENV"
+              echo "export SEMVER=$version" >> "$BASH_ENV"
+              exit 0
+            fi
+
+            # Build nextsv arguments
+            nextsv_args="<< parameters.verbosity >> -bn calculate"
+
+            if [ "<< parameters.package >>" != "" ]; then
+              nextsv_args="$nextsv_args --package << parameters.package >>"
+            fi
+
+            if [ "<< parameters.prefix >>" != "" ]; then
+              nextsv_args="$nextsv_args --prefix << parameters.prefix >>"
+            fi
+
+            if [ "<< parameters.subdir >>" != "" ]; then
+              nextsv_args="$nextsv_args --subdir << parameters.subdir >>"
+            fi
+
+            # Calculate version
+            version=$(nextsv $nextsv_args 2>/dev/null || echo "")
+
+            if [ -z "$version" ]; then
+              echo "No release needed"
+              version="none"
+            else
+              echo "Next version: $version"
+            fi
+
+            # Set both NEXT_VERSION (toolkit standard) and SEMVER (for make_cargo_release)
+            echo "export NEXT_VERSION=$version" >> "$BASH_ENV"
+            echo "export SEMVER=$version" >> "$BASH_ENV"
+
+  # New command: Check if version exists on crates.io
+  # Used for recovery scenarios where publish succeeded but workflow failed
+  check_crates_io_version:
+    description: >
+      Check if a version already exists on crates.io.
+      Sets SKIP_PUBLISH=true if version exists, false otherwise.
+      Used for recovery scenarios where crates.io publish succeeded but workflow failed afterward.
+    parameters:
+      package:
+        type: string
+        description: "Crate name on crates.io"
+    steps:
+      - run:
+          name: Check crates.io for << parameters.package >>
+          command: |
+            set -eo pipefail
+
+            # Use SEMVER or NEXT_VERSION (whichever is set)
+            VERSION="${SEMVER:-${NEXT_VERSION:-none}}"
+
+            if [ "$VERSION" = "none" ]; then
+              echo "No version to check"
+              echo "export SKIP_PUBLISH=false" >> "$BASH_ENV"
+              exit 0
+            fi
+
+            USER_AGENT="circleci-toolkit/1.0 (https://github.com/jerus-org/circleci-toolkit)"
+
+            if curl -s -H "User-Agent: ${USER_AGENT}" "https://crates.io/api/v1/crates/<< parameters.package >>/versions" | \
+               jq -e ".versions[] | select(.num == \"${VERSION}\")" > /dev/null 2>&1; then
+              echo "Version ${VERSION} exists on crates.io - will skip publish"
+              echo "export SKIP_PUBLISH=true" >> "$BASH_ENV"
+            else
+              echo "Version ${VERSION} not found on crates.io - will publish"
+              echo "export SKIP_PUBLISH=false" >> "$BASH_ENV"
+            fi
+
+  # Enhanced make_cargo_release with conditional publish support
+  # Backward compatible: publishes by default unless SKIP_PUBLISH=true or publish=false
+  make_cargo_release:
+    description: >
+      Make a release using cargo release.
+      Enhanced version that respects SKIP_PUBLISH environment variable for recovery scenarios.
+      When SKIP_PUBLISH=true, adds --no-publish flag to skip crates.io publish.
+      The publish parameter controls default behavior; SKIP_PUBLISH overrides it at runtime.
+    parameters:
+      package:
+        type: string
+        default: ""
+        description: "Package to release"
+      verbosity:
+        type: string
+        default: "-vv"
+        description: "Verbosity for cargo release"
+      publish:
+        type: boolean
+        default: true
+        description: "If true, the release will be published to crates.io"
+      no_push:
+        type: boolean
+        default: false
+        description: "Whether cargo release should push the changes"
+    steps:
+      - run:
+          name: List changes using cargo release
+          command: |
+            set -exo pipefail
+            cargo release changes
+      - run:
+          name: Execute cargo release
+          command: |
+            set -exo pipefail
+
+            # Use SEMVER or NEXT_VERSION
+            VERSION="${SEMVER:-${NEXT_VERSION:-none}}"
+
+            if [ "$VERSION" = "none" ]; then
+              echo "No version to release - skipping"
+              exit 0
+            fi
+
+            echo "Releasing version: $VERSION"
+
+            # Build cargo release arguments
+            release_args="--execute --no-confirm --sign-tag"
+
+            if [ "<< parameters.package >>" != "" ]; then
+              release_args="$release_args --package << parameters.package >>"
+            fi
+
+            if [ "<< parameters.no_push >>" = "true" ]; then
+              release_args="$release_args --no-push"
+            fi
+
+            # Handle publish: parameter controls default, SKIP_PUBLISH overrides at runtime
+            if [ "<< parameters.publish >>" = "false" ]; then
+              release_args="$release_args --no-publish"
+              echo "Publishing disabled by parameter"
+            elif [ "$SKIP_PUBLISH" = "true" ]; then
+              release_args="$release_args --no-publish"
+              echo "Skipping publish (version already on crates.io)"
+            fi
+
+            # Map verbosity
+            case "<< parameters.verbosity >>" in
+              "-vvv"|"-vvvv")
+                release_args="-vv $release_args"
+                ;;
+            esac
+
+            cargo release $release_args "$VERSION"
+
+  # Enhanced make_github_release with package support
+  make_github_release:
+    description: >
+      Create a GitHub release using the pcu utility.
+      When package is provided, uses 'pcu release package' which derives the correct tag prefix.
+      When package is empty, uses 'pcu release version' with the specified prefix.
+    parameters:
+      prefix:
+        type: string
+        default: "v"
+        description: "Tag prefix for the release (used when package is empty)"
+      package:
+        type: string
+        default: ""
+        description: "Package name - when provided, derives tag prefix automatically"
+      verbosity:
+        type: string
+        default: "-vv"
+        description: "Verbosity for pcu command"
+      update_prlog:
+        type: boolean
+        default: false
+        description: "Update PRLOG when creating the release"
+    steps:
+      - run:
+          name: Create GitHub release
+          command: |
+            set -exo pipefail
+
+            # Use SEMVER or NEXT_VERSION
+            VERSION="${SEMVER:-${NEXT_VERSION:-none}}"
+
+            if [ "$VERSION" = "none" ]; then
+              echo "No version to release - skipping GitHub release"
+              exit 0
+            fi
+
+            pcu_args="<< parameters.verbosity >> release"
+
+            if [ "<< parameters.package >>" != "" ]; then
+              pcu_args="$pcu_args --package << parameters.package >>"
+            else
+              pcu_args="$pcu_args --prefix << parameters.prefix >>"
+            fi
+
+            if [ "<< parameters.update_prlog >>" = "true" ]; then
+              pcu_args="$pcu_args --update-prlog"
+            fi
+
+            pcu $pcu_args
+
+jobs:
+  tools:
+    executor:
+      name: toolkit/rust_env_rolling
+    steps:
+      - run:
+          name: Verify tools
+          command: |
+            set -ex
+            nextsv --version
+            pcu --version
+            cargo release --version
+            jq --version
+
+  # Release a single crate
+  release-crate:
+    parameters:
+      package:
+        type: string
+      version:
+        type: string
+        default: ""
+        description: "Specific version to release (overrides auto-detection)"
+    executor:
+      name: toolkit/rust_env_rolling
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints:
+            - << pipeline.parameters.fingerprint >>
+      - run:
+          name: Remove original SSH key from agent
+          command: |
+            ssh-add -l
+            # GitHub App integration doesn't create id_rsa.pub, handle gracefully
+            if [ -f ~/.ssh/id_rsa.pub ]; then
+              ssh-add -d ~/.ssh/id_rsa.pub
+            else
+              echo "No id_rsa.pub found (GitHub App integration) - skipping removal"
+            fi
+            ssh-add -l
+      - toolkit/gpg_key
+      - toolkit/git_config
+      # Step 1: Detect if release needed (or use specified version)
+      - get_next_version:
+          package: << parameters.package >>
+          version: << parameters.version >>
+      # Step 2: Check crates.io for recovery scenarios
+      - check_crates_io_version:
+          package: << parameters.package >>
+      # Step 3: Run cargo release (respects SKIP_PUBLISH)
+      - make_cargo_release:
+          package: << parameters.package >>
+          verbosity: "-vv"
+      # Step 4: Create GitHub release
+      - make_github_release:
+          package: << parameters.package >>
+          verbosity: "-vv"
+
+  release-prlog:
+    executor:
+      name: toolkit/rust_env_rolling
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints:
+            - << pipeline.parameters.fingerprint >>
+      - run:
+          name: Remove original SSH key from agent
+          command: |
+            ssh-add -l
+            # GitHub App integration doesn't create id_rsa.pub, handle gracefully
+            if [ -f ~/.ssh/id_rsa.pub ]; then
+              ssh-add -d ~/.ssh/id_rsa.pub
+            else
+              echo "No id_rsa.pub found (GitHub App integration) - skipping removal"
+            fi
+            ssh-add -l
+      - toolkit/gpg_key
+      - toolkit/git_config
+      - run:
+          name: Detect and release PRLOG
+          command: |
+            set -exo pipefail
+            chmod +x scripts/*.sh
+
+            # Use standard v prefix for PRLOG
+            BUMP=$(nextsv calculate --prefix "v" 2>/dev/null || echo "none")
+
+            if [ "$BUMP" = "none" ]; then
+              echo "No PRLOG release needed"
+              exit 0
+            fi
+
+            VERSION=$(nextsv --number calculate --prefix "v" | tail -1)
+
+            ./scripts/release-prlog.sh "$VERSION"
+            git push origin main --tags
+
+workflows:
+  release:
+    jobs:
+      - tools
+
+      # Release gen-orb-mcp crate
+      # For pre-release, specify version parameter
+      - release-crate:
+          name: release-gen-orb-mcp
+          requires: [tools]
+          package: gen-orb-mcp
+          version: "0.1.0-alpha.1"
+          context:
+            - release
+            - bot-check
+
+      # Release PRLOG (after crate released)
+      - release-prlog:
+          requires: [release-gen-orb-mcp]
+          context:
+            - release
+            - bot-check
