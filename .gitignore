@@ -28,6 +28,3 @@ tarpaulin-report.html
 # OS
 .DS_Store
 Thumbs.db
-
-# CircleCI alternate release workflow (kept for potential future use)
-.circleci/release.yml

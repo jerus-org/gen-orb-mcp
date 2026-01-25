@@ -19,6 +19,162 @@ parameters:
 orbs:
   toolkit: jerus-org/circleci-toolkit@4.2.1
 
+# Custom command extending toolkit/update_log with --from-merge support
+# To be migrated to toolkit once tested
+commands:
+  update_log_from_merge:
+    description: |
+      Update PRLOG from a merge commit on main branch.
+      Extends toolkit/update_log with --from-merge flag support.
+    parameters:
+      pcu_allow_no_pull_request:
+        default: ""
+        description: Optional flag to allow successful exit if no pull request in CI environment
+        enum:
+          - ""
+          - --allow-no-pull-request
+        type: enum
+      pcu_allow_push_fail:
+        default: ""
+        description: Optional flag to allow the push to fail
+        enum:
+          - ""
+          - --allow-push-fail
+        type: enum
+      pcu_from_merge:
+        default: ""
+        description: Optional flag to run on main branch from a merge commit
+        enum:
+          - ""
+          - --from-merge
+        type: enum
+      pcu_halt_signal:
+        default: halt
+        description: The signal to halt the step
+        type: string
+      pcu_verbosity:
+        default: -vv
+        description: The verbosity of the pcu command
+        type: string
+    steps:
+      - run:
+          name: Update PRLOG or halt step
+          command: |
+            set -ex
+
+            result=$(pcu <<parameters.pcu_verbosity>> pr \
+              --early-exit \
+              --push \
+              << parameters.pcu_from_merge >> \
+              << parameters.pcu_allow_push_fail >> \
+              << parameters.pcu_allow_no_pull_request >>)
+
+            if [ "$result" == << parameters.pcu_halt_signal >> ]; then
+              circleci-agent step halt
+            fi
+
+# Custom job extending toolkit/update_prlog with --from-merge support
+# To be migrated to toolkit once tested
+jobs:
+  update_prlog:
+    description: |
+      Add the pull request to the PRLOG.
+      Extends toolkit/update_prlog with --from-merge flag for post-merge updates on main.
+    executor:
+      name: toolkit/rust_env
+      min_rust_version: <<parameters.min_rust_version>>
+    parameters:
+      min_rust_version:
+        description: The minimum version of the rust compiler to use
+        type: string
+      pcu_allow_no_pull_request:
+        default: ""
+        description: Optional flag to allow successful exit if no pull request in CI environment
+        enum:
+          - ""
+          - --allow-no-pull-request
+        type: enum
+      pcu_allow_push_fail:
+        default: ""
+        description: Optional flag to allow the push to fail
+        enum:
+          - ""
+          - --allow-push-fail
+        type: enum
+      pcu_from_merge:
+        default: ""
+        description: Optional flag to run on main branch from a merge commit
+        enum:
+          - ""
+          - --from-merge
+        type: enum
+      pcu_halt_signal:
+        default: halt
+        description: The signal to halt the step
+        type: string
+      pcu_verbosity:
+        default: -vv
+        description: The verbosity of the pcu command
+        type: string
+      update_log_option:
+        default: halt
+        description: The option to halt or continue with new pipeline when a change log does not need to be updated
+        enum:
+          - halt
+          - pipeline
+        type: enum
+      remove_ssh_key:
+        default: true
+        description: Remove the original SSH key from the agent
+        type: boolean
+      ssh_fingerprint:
+        description: The fingerprint of the ssh key to use
+        type: string
+      update_pcu:
+        default: false
+        description: Update pcu to the latest code from the git repo
+        type: boolean
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints:
+            - <<parameters.ssh_fingerprint>>
+      - when:
+          condition: << parameters.remove_ssh_key >>
+          steps:
+            - run:
+                name: Remove original SSH key from agent
+                command: |
+                  ssh-add -l
+                  if [ -f ~/.ssh/id_rsa.pub ]; then
+                    ssh-add -d ~/.ssh/id_rsa.pub
+                  else
+                    echo "No id_rsa.pub found (GitHub App integration) - skipping removal"
+                  fi
+                  ssh-add -l
+      - toolkit/gpg_key
+      - toolkit/git_config
+      - when:
+          condition: << parameters.update_pcu >>
+          name: Install pcu from main branch on GitHub
+          steps:
+            - toolkit/install_latest_pcu
+      - run:
+          name: pcu version
+          command: pcu --version
+      - when:
+          condition:
+            equal:
+              - halt
+              - << parameters.update_log_option >>
+          steps:
+            - update_log_from_merge:
+                pcu_allow_no_pull_request: <<parameters.pcu_allow_no_pull_request>>
+                pcu_allow_push_fail: <<parameters.pcu_allow_push_fail>>
+                pcu_from_merge: <<parameters.pcu_from_merge>>
+                pcu_halt_signal: <<parameters.pcu_halt_signal>>
+                pcu_verbosity: <<parameters.pcu_verbosity>>
+
 workflows:
   validation:
     when:
@@ -49,7 +205,7 @@ workflows:
               only: /pull\/[0-9]+/
       - toolkit/label:
           min_rust_version: << pipeline.parameters.min_rust_version >>
-          context: gen-orb-mcp-app
+          context: pcu-app
           filters:
             branches:
               only:
@@ -111,14 +267,15 @@ workflows:
         - not: << pipeline.parameters.release_flag >>
 
     jobs:
-      - toolkit/update_prlog:
+      - update_prlog:
           context:
             - release
             - bot-check
           min_rust_version: << pipeline.parameters.min_rust_version >>
           ssh_fingerprint: << pipeline.parameters.fingerprint >>
           update_log_option: halt
-          update_pcu: false
+          update_pcu: true
+          pcu_from_merge: --from-merge
           pcu_verbosity: -vvv
           filters:
             branches:
@@ -151,26 +308,20 @@ workflows:
     jobs:
       - toolkit/save_next_version:
           min_rust_version: << pipeline.parameters.min_rust_version >>
+          package: gen-orb-mcp
           version: 0.1.0-alpha.1
 
       - toolkit/make_release:
           requires:
             - toolkit/save_next_version
-          pre-steps:
-            - attach_workspace:
-                at: /tmp/workspace
-            - run:
-                name: Set SEMVER based on next-version file
-                command: |
-                  set +ex
-                  export SEMVER=$(cat /tmp/workspace/next-version)
-                  echo $SEMVER
-                  echo "export SEMVER=$SEMVER" >> "$BASH_ENV"
           context:
             - release
             - bot-check
           min_rust_version: << pipeline.parameters.min_rust_version >>
-          when_use_workspace: false
+          package: gen-orb-mcp
+          specific_version: true
+          version: 0.1.0-alpha.1
+          when_use_workspace: true
           when_update_pcu: false
           ssh_fingerprint: << pipeline.parameters.fingerprint >>
 
