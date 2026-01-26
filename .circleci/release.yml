@@ -300,9 +300,10 @@ jobs:
       - check_crates_io_version:
           package: << parameters.package >>
       # Step 3: Run cargo release (respects SKIP_PUBLISH)
-      - make_cargo_release:
-          package: << parameters.package >>
-          verbosity: "-vv"
+      # TEMPORARILY DISABLED: Crate already published, skip to test GitHub release step
+      # - make_cargo_release:
+      #     package: << parameters.package >>
+      #     verbosity: "-vv"
       # Step 4: Create GitHub release
       - make_github_release:
           package: << parameters.package >>
