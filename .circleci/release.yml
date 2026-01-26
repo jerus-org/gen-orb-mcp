@@ -340,6 +340,21 @@ jobs:
             set -exo pipefail
             chmod +x scripts/*.sh
 
+            # Check if any v* tag exists (bootstrap detection)
+            if ! git tag -l 'v*' | grep -q .; then
+              echo "No v* tag found - checking for bootstrap version in PRLOG.md"
+              # Extract first version from PRLOG.md (bootstrap case)
+              BOOTSTRAP_VERSION=$(grep -oP '## \[\K[0-9]+\.[0-9]+\.[0-9]+' PRLOG.md | head -1 || echo "")
+              if [ -n "$BOOTSTRAP_VERSION" ]; then
+                echo "Bootstrap: Creating initial tag v${BOOTSTRAP_VERSION}"
+                git tag -s -m "v${BOOTSTRAP_VERSION}" "v${BOOTSTRAP_VERSION}"
+                git push origin main --tags
+                exit 0
+              fi
+              echo "No bootstrap version found in PRLOG.md"
+              exit 0
+            fi
+
             # Use standard v prefix for PRLOG
             BUMP=$(nextsv calculate --prefix "v" 2>/dev/null || echo "none")
 
