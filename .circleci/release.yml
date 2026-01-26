@@ -288,11 +288,21 @@ commands:
               TAG="<< parameters.prefix >>${VERSION}"
             fi
 
-            # Check if GitHub release already exists
-            if gh release view "$TAG" > /dev/null 2>&1; then
+            # Check if GitHub release already exists using API
+            # Extract owner/repo from git remote
+            REPO_URL=$(git remote get-url origin)
+            REPO_PATH=$(echo "$REPO_URL" | sed -E 's|.*github\.com[:/]||' | sed 's|\.git$||')
+
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${REPO_PATH}/releases/tags/${TAG}")
+
+            if [ "$HTTP_STATUS" = "200" ]; then
               echo "GitHub release ${TAG} already exists - skipping"
               exit 0
             fi
+            echo "GitHub release ${TAG} not found (HTTP ${HTTP_STATUS}) - will create"
 
             pcu_args="<< parameters.verbosity >> release"
 
