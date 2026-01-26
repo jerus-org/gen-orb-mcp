@@ -299,11 +299,10 @@ jobs:
       # Step 2: Check crates.io for recovery scenarios
       - check_crates_io_version:
           package: << parameters.package >>
-      # Step 3: Run cargo release (respects SKIP_PUBLISH)
-      # TEMPORARILY DISABLED: Crate already published, skip to test GitHub release step
-      # - make_cargo_release:
-      #     package: << parameters.package >>
-      #     verbosity: "-vv"
+      # Step 3: Run cargo release (respects SKIP_PUBLISH from check_crates_io_version)
+      - make_cargo_release:
+          package: << parameters.package >>
+          verbosity: "-vv"
       # Step 4: Update pcu to latest version (command not yet in toolkit release)
       - run:
           name: Update to latest pcu
