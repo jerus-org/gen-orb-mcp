@@ -123,8 +123,48 @@ commands:
               echo "export SKIP_PUBLISH=false" >> "$BASH_ENV"
             fi
 
+  # New command: Check if release tag already exists
+  # Used for recovery scenarios where tag was created but workflow failed
+  check_tag_exists:
+    description: >
+      Check if the release tag already exists.
+      Sets SKIP_RELEASE=true if tag exists, false otherwise.
+      Used for recovery scenarios where release partially succeeded.
+    parameters:
+      package:
+        type: string
+        description: "Package name (used to construct tag name)"
+    steps:
+      - run:
+          name: Check if tag exists for << parameters.package >>
+          command: |
+            set -eo pipefail
+
+            # Use SEMVER or NEXT_VERSION (whichever is set)
+            VERSION="${SEMVER:-${NEXT_VERSION:-none}}"
+
+            if [ "$VERSION" = "none" ]; then
+              echo "No version to check"
+              echo "export SKIP_RELEASE=false" >> "$BASH_ENV"
+              exit 0
+            fi
+
+            TAG="<< parameters.package >>-v${VERSION}"
+
+            # Fetch tags from remote
+            git fetch --tags
+
+            if git tag -l "$TAG" | grep -q .; then
+              echo "Tag ${TAG} already exists - will skip release"
+              echo "export SKIP_RELEASE=true" >> "$BASH_ENV"
+            else
+              echo "Tag ${TAG} not found - will proceed with release"
+              echo "export SKIP_RELEASE=false" >> "$BASH_ENV"
+            fi
+
   # Enhanced make_cargo_release with conditional publish support
   # Backward compatible: publishes by default unless SKIP_PUBLISH=true or publish=false
+  # Also respects SKIP_RELEASE=true to skip entirely when tag already exists
   make_cargo_release:
     description: >
       Make a release using cargo release.
@@ -158,6 +198,12 @@ commands:
           name: Execute cargo release
           command: |
             set -exo pipefail
+
+            # Check if release should be skipped (tag already exists)
+            if [ "$SKIP_RELEASE" = "true" ]; then
+              echo "Skipping release (tag already exists)"
+              exit 0
+            fi
 
             # Use SEMVER or NEXT_VERSION
             VERSION="${SEMVER:-${NEXT_VERSION:-none}}"
@@ -299,16 +345,19 @@ jobs:
       # Step 2: Check crates.io for recovery scenarios
       - check_crates_io_version:
           package: << parameters.package >>
-      # Step 3: Run cargo release (respects SKIP_PUBLISH from check_crates_io_version)
+      # Step 3: Check if tag already exists for recovery scenarios
+      - check_tag_exists:
+          package: << parameters.package >>
+      # Step 4: Run cargo release (respects SKIP_PUBLISH and SKIP_RELEASE)
       - make_cargo_release:
           package: << parameters.package >>
           verbosity: "-vv"
-      # Step 4: Update pcu to latest version (command not yet in toolkit release)
+      # Step 5: Update pcu to latest version (command not yet in toolkit release)
       - run:
           name: Update to latest pcu
           command: |
             cargo install --force --git https://github.com/jerus-org/pcu --branch main
-      # Step 5: Create GitHub release
+      # Step 6: Create GitHub release
       - make_github_release:
           package: << parameters.package >>
           verbosity: "-vv"
