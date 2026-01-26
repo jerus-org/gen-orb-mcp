@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Bootstrap workspace versioning with v0.1.0(pr [#11])
+- Add check_tag_exists for release resilience(pr [#12])
 
 ## [0.1.0] - 2026-01-26
 
@@ -34,5 +35,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#9]: https://github.com/jerus-org/gen-orb-mcp/pull/9
 [#10]: https://github.com/jerus-org/gen-orb-mcp/pull/10
 [#11]: https://github.com/jerus-org/gen-orb-mcp/pull/11
+[#12]: https://github.com/jerus-org/gen-orb-mcp/pull/12
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jerus-org/gen-orb-mcp/releases/tag/v0.1.0
