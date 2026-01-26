@@ -281,6 +281,19 @@ commands:
               exit 0
             fi
 
+            # Determine the tag name
+            if [ "<< parameters.package >>" != "" ]; then
+              TAG="<< parameters.package >>-v${VERSION}"
+            else
+              TAG="<< parameters.prefix >>${VERSION}"
+            fi
+
+            # Check if GitHub release already exists
+            if gh release view "$TAG" > /dev/null 2>&1; then
+              echo "GitHub release ${TAG} already exists - skipping"
+              exit 0
+            fi
+
             pcu_args="<< parameters.verbosity >> release"
 
             if [ "<< parameters.package >>" != "" ]; then
