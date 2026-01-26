@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- chore-Update Cargo.lock to match version 0.1.0-alpha.1(pr [#10])
+
 ### Fixed
 
 - Correct CircleCI config for release(pr [#4])
@@ -22,3 +26,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#7]: https://github.com/jerus-org/gen-orb-mcp/pull/7
 [#8]: https://github.com/jerus-org/gen-orb-mcp/pull/8
 [#9]: https://github.com/jerus-org/gen-orb-mcp/pull/9
+[#10]: https://github.com/jerus-org/gen-orb-mcp/pull/10
