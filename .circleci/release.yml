@@ -445,13 +445,11 @@ workflows:
     jobs:
       - tools
 
-      # Release gen-orb-mcp crate
-      # For pre-release, specify version parameter
+      # Release gen-orb-mcp crate (version calculated by nextsv)
       - release-crate:
           name: release-gen-orb-mcp
           requires: [tools]
           package: gen-orb-mcp
-          version: "0.1.0-alpha.1"
           context:
             - release
             - bot-check
