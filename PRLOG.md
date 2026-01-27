@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- chore-Use nextsv for version calculation(pr [#15])
+
 ### Fixed
 
 - Bootstrap workspace versioning with v0.1.0(pr [#11])
@@ -40,5 +44,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#12]: https://github.com/jerus-org/gen-orb-mcp/pull/12
 [#13]: https://github.com/jerus-org/gen-orb-mcp/pull/13
 [#14]: https://github.com/jerus-org/gen-orb-mcp/pull/14
+[#15]: https://github.com/jerus-org/gen-orb-mcp/pull/15
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jerus-org/gen-orb-mcp/releases/tag/v0.1.0
