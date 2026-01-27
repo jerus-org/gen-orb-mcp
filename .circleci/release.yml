@@ -332,6 +332,70 @@ jobs:
             cargo release --version
             jq --version
 
+  # Calculate and display versions for approval
+  calculate-versions:
+    executor:
+      name: toolkit/rust_env_rolling
+    steps:
+      - checkout
+      - run:
+          name: Calculate release versions
+          command: |
+            set -eo pipefail
+
+            echo "=============================================="
+            echo "         RELEASE VERSION CALCULATION"
+            echo "=============================================="
+            echo ""
+
+            # Calculate crate version
+            echo "--- Crate: gen-orb-mcp ---"
+            CRATE_VERSION=$(nextsv -bn calculate --package gen-orb-mcp 2>/dev/null || echo "")
+            if [ -z "$CRATE_VERSION" ]; then
+              CRATE_VERSION="none"
+              echo "Result: No crate release needed"
+              echo "Reason: No changes to crates/gen-orb-mcp/ or its dependencies"
+            else
+              echo "Result: Will release version $CRATE_VERSION"
+              echo "Changes detected in crate scope (code, deps, or Cargo.lock)"
+            fi
+            echo ""
+
+            # Calculate workspace version
+            echo "--- Workspace (PRLOG) ---"
+            WORKSPACE_VERSION=$(nextsv -bn calculate --prefix "v" 2>/dev/null || echo "")
+            if [ -z "$WORKSPACE_VERSION" ]; then
+              WORKSPACE_VERSION="none"
+              echo "Result: No workspace release needed"
+              echo "Reason: No changes since last v* tag"
+            else
+              echo "Result: Will release version $WORKSPACE_VERSION"
+              echo "Changes detected in workspace scope"
+            fi
+            echo ""
+
+            echo "=============================================="
+            echo "                  SUMMARY"
+            echo "=============================================="
+            echo "Crate (gen-orb-mcp):  $CRATE_VERSION"
+            echo "Workspace (PRLOG):    $WORKSPACE_VERSION"
+            echo "=============================================="
+            echo ""
+
+            # Validation rules
+            echo "--- Validation ---"
+            if [ "$CRATE_VERSION" != "none" ] && [ "$WORKSPACE_VERSION" = "none" ]; then
+              echo "WARNING: Crate release without workspace release is unusual"
+              echo "         Workspace should increment when crate changes"
+            fi
+
+            if [ "$CRATE_VERSION" = "none" ] && [ "$WORKSPACE_VERSION" = "none" ]; then
+              echo "INFO: No releases needed - workflow will skip release steps"
+            fi
+
+            echo ""
+            echo "Please review the versions above and approve to proceed."
+
   # Release a single crate
   release-crate:
     parameters:
@@ -445,10 +509,19 @@ workflows:
     jobs:
       - tools
 
+      # Calculate and display versions for review
+      - calculate-versions:
+          requires: [tools]
+
+      # Manual approval gate - review calculated versions before release
+      - approve-release:
+          type: approval
+          requires: [calculate-versions]
+
       # Release gen-orb-mcp crate (version calculated by nextsv)
       - release-crate:
           name: release-gen-orb-mcp
-          requires: [tools]
+          requires: [approve-release]
           package: gen-orb-mcp
           context:
             - release
