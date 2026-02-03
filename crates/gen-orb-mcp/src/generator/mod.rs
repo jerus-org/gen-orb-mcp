@@ -12,7 +12,7 @@
 //!
 //! let orb = OrbParser::parse(Path::new("./src/@orb.yml")).unwrap();
 //! let generator = CodeGenerator::new().unwrap();
-//! let server = generator.generate(&orb, "my-orb").unwrap();
+//! let server = generator.generate(&orb, "my-orb", "1.0.0").unwrap();
 //!
 //! // Write to output directory
 //! server.write_to(Path::new("./dist")).unwrap();
@@ -166,6 +166,7 @@ impl<'a> CodeGenerator<'a> {
     ///
     /// * `orb` - The parsed orb definition
     /// * `orb_name` - The name to use for the orb (typically derived from filename)
+    /// * `version` - The semantic version for the generated MCP server crate
     ///
     /// # Returns
     ///
@@ -174,12 +175,13 @@ impl<'a> CodeGenerator<'a> {
         &self,
         orb: &OrbDefinition,
         orb_name: &str,
+        version: &str,
     ) -> Result<GeneratedServer, GeneratorError> {
         // Validate orb name
         validate_orb_name(orb_name)?;
 
         // Build template context
-        let context = GeneratorContext::from_orb(orb, orb_name);
+        let context = GeneratorContext::from_orb(orb, orb_name, version);
 
         // Serialize context for templates
         let ctx_json = serde_json::to_value(&context)
@@ -230,9 +232,10 @@ impl<'a> CodeGenerator<'a> {
         &self,
         orb: &OrbDefinition,
         orb_name: &str,
+        version: &str,
         output_dir: &Path,
     ) -> Result<GeneratedServer, GeneratorError> {
-        let mut server = self.generate(orb, orb_name)?;
+        let mut server = self.generate(orb, orb_name, version)?;
         server.format(output_dir)?;
         Ok(server)
     }
@@ -395,7 +398,7 @@ mod tests {
         let generator = CodeGenerator::new().unwrap();
         let orb = create_test_orb();
 
-        let server = generator.generate(&orb, "test-orb").unwrap();
+        let server = generator.generate(&orb, "test-orb", "1.0.0").unwrap();
 
         assert!(server.files.contains_key(&PathBuf::from("src/main.rs")));
         assert!(server.files.contains_key(&PathBuf::from("src/lib.rs")));
@@ -409,7 +412,7 @@ mod tests {
         let generator = CodeGenerator::new().unwrap();
         let orb = create_test_orb();
 
-        let server = generator.generate(&orb, "test-orb").unwrap();
+        let server = generator.generate(&orb, "test-orb", "1.0.0").unwrap();
         let main_rs = server.files.get(&PathBuf::from("src/main.rs")).unwrap();
 
         assert!(main_rs.contains("#[tokio::main]"));
@@ -421,7 +424,7 @@ mod tests {
         let generator = CodeGenerator::new().unwrap();
         let orb = create_test_orb();
 
-        let server = generator.generate(&orb, "test-orb").unwrap();
+        let server = generator.generate(&orb, "test-orb", "1.0.0").unwrap();
         let lib_rs = server.files.get(&PathBuf::from("src/lib.rs")).unwrap();
 
         assert!(lib_rs.contains("ResourceCollection"));
@@ -435,10 +438,11 @@ mod tests {
         let generator = CodeGenerator::new().unwrap();
         let orb = create_test_orb();
 
-        let server = generator.generate(&orb, "test-orb").unwrap();
+        let server = generator.generate(&orb, "test-orb", "2.5.0").unwrap();
         let cargo = server.files.get(&PathBuf::from("Cargo.toml")).unwrap();
 
         assert!(cargo.contains("name = \"test_orb_mcp\""));
+        assert!(cargo.contains("version = \"2.5.0\""));
         assert!(cargo.contains("pmcp = "));
         assert!(cargo.contains("tokio = "));
     }
@@ -447,7 +451,7 @@ mod tests {
     fn test_write_to_directory() {
         let generator = CodeGenerator::new().unwrap();
         let orb = create_test_orb();
-        let server = generator.generate(&orb, "test-orb").unwrap();
+        let server = generator.generate(&orb, "test-orb", "1.0.0").unwrap();
 
         let temp_dir = TempDir::new().unwrap();
         server.write_to(temp_dir.path()).unwrap();
@@ -475,7 +479,7 @@ mod tests {
         let generator = CodeGenerator::new().unwrap();
         let orb = OrbDefinition::default();
 
-        let server = generator.generate(&orb, "empty-orb").unwrap();
+        let server = generator.generate(&orb, "empty-orb", "0.1.0").unwrap();
 
         // Should still generate valid files even with no commands/jobs/executors
         assert!(server.files.contains_key(&PathBuf::from("src/main.rs")));

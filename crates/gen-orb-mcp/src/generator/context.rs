@@ -154,7 +154,8 @@ impl GeneratorContext {
     ///
     /// * `orb` - The parsed orb definition
     /// * `orb_name` - The name to use for the orb (typically derived from filename)
-    pub fn from_orb(orb: &OrbDefinition, orb_name: &str) -> Self {
+    /// * `version` - The semantic version for the generated MCP server crate
+    pub fn from_orb(orb: &OrbDefinition, orb_name: &str, version: &str) -> Self {
         let crate_name = to_snake_case(orb_name).replace('-', "_") + "_mcp";
         let struct_name = to_pascal_case(orb_name) + "Mcp";
 
@@ -178,14 +179,11 @@ impl GeneratorContext {
 
         let has_resources = !commands.is_empty() || !jobs.is_empty() || !executors.is_empty();
 
-        // Use orb version as base, but ensure it's semver-compatible for Cargo
-        let version = normalize_version(&orb.version);
-
         Self {
             orb_name: orb_name.to_string(),
             crate_name,
             struct_name,
-            version,
+            version: version.to_string(),
             description: orb.description.clone(),
             commands,
             jobs,
@@ -322,23 +320,6 @@ impl ParameterContext {
             required: default.is_none(),
             enum_values: param.enum_values.clone(),
         }
-    }
-}
-
-/// Normalize a version string to be semver-compatible.
-///
-/// CircleCI orb versions like "2.1" are not valid semver. This function
-/// normalizes them to "major.minor.0" format.
-fn normalize_version(version: &str) -> String {
-    if version.is_empty() {
-        return "0.1.0".to_string();
-    }
-
-    let parts: Vec<&str> = version.split('.').collect();
-    match parts.len() {
-        1 => format!("{}.0.0", parts[0]),
-        2 => format!("{}.{}.0", parts[0], parts[1]),
-        _ => version.to_string(),
     }
 }
 
@@ -650,12 +631,12 @@ mod tests {
             },
         );
 
-        let ctx = GeneratorContext::from_orb(&orb, "my-toolkit");
+        let ctx = GeneratorContext::from_orb(&orb, "my-toolkit", "1.5.0");
 
         assert_eq!(ctx.orb_name, "my-toolkit");
         assert_eq!(ctx.crate_name, "my_toolkit_mcp");
         assert_eq!(ctx.struct_name, "MyToolkitMcp");
-        assert_eq!(ctx.version, "2.1.0"); // Normalized to semver
+        assert_eq!(ctx.version, "1.5.0");
         assert_eq!(ctx.description, Some("Test orb".to_string()));
         assert_eq!(ctx.commands.len(), 1);
         assert!(ctx.has_resources);
@@ -683,29 +664,11 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_orb_version_defaults() {
+    fn test_explicit_version() {
         let orb = OrbDefinition::default();
-        let ctx = GeneratorContext::from_orb(&orb, "empty-orb");
+        let ctx = GeneratorContext::from_orb(&orb, "empty-orb", "2.0.0");
 
-        assert_eq!(ctx.version, "0.1.0");
+        assert_eq!(ctx.version, "2.0.0");
         assert!(!ctx.has_resources);
-    }
-
-    #[test]
-    fn test_normalize_version() {
-        assert_eq!(normalize_version(""), "0.1.0");
-        assert_eq!(normalize_version("2"), "2.0.0");
-        assert_eq!(normalize_version("2.1"), "2.1.0");
-        assert_eq!(normalize_version("2.1.0"), "2.1.0");
-        assert_eq!(normalize_version("1.2.3-beta"), "1.2.3-beta");
-    }
-
-    #[test]
-    fn test_orb_version_normalized() {
-        let mut orb = OrbDefinition::default();
-        orb.version = "2.1".to_string();
-
-        let ctx = GeneratorContext::from_orb(&orb, "my-orb");
-        assert_eq!(ctx.version, "2.1.0");
     }
 }

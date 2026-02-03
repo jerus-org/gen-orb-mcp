@@ -49,6 +49,19 @@ enum Commands {
         /// Name for the generated orb server (defaults to filename)
         #[arg(short, long)]
         name: Option<String>,
+
+        /// Version for the generated MCP server crate (e.g., "1.0.0")
+        ///
+        /// Required when regenerating an existing output directory.
+        /// For CI workflows, this should match the orb release version.
+        #[arg(short = 'V', long)]
+        version: Option<String>,
+
+        /// Overwrite existing files without confirmation
+        ///
+        /// Required for non-interactive CI environments when output exists.
+        #[arg(long)]
+        force: bool,
     },
     /// Validate an orb definition without generating
     Validate {
@@ -67,6 +80,9 @@ pub enum OutputFormat {
     Source,
 }
 
+/// Default version for fresh generation when no version is specified.
+const DEFAULT_VERSION: &str = "0.1.0";
+
 impl Cli {
     /// Execute the CLI command
     pub fn run(&self) -> Result<()> {
@@ -76,6 +92,8 @@ impl Cli {
                 output,
                 format,
                 name,
+                version,
+                force,
             } => {
                 tracing::info!(?orb_path, ?output, ?format, "Generating MCP server");
 
@@ -91,10 +109,14 @@ impl Cli {
                 // Derive orb name from path if not specified
                 let orb_name = name.clone().unwrap_or_else(|| derive_orb_name(orb_path));
 
+                // Resolve version based on output state
+                let resolved_version = resolve_version(output, version.as_deref(), *force)?;
+                tracing::info!(version = %resolved_version, "Using version");
+
                 // Create generator and generate code
                 let generator = CodeGenerator::new().map_err(|e| anyhow::anyhow!("{}", e))?;
                 let server = generator
-                    .generate(&orb, &orb_name)
+                    .generate(&orb, &orb_name, &resolved_version)
                     .map_err(|e| anyhow::anyhow!("{}", e))?;
 
                 // Write output
@@ -106,6 +128,7 @@ impl Cli {
                         println!("Generated MCP server source code:");
                         println!("  Output: {}", output.display());
                         println!("  Crate: {}", server.crate_name);
+                        println!("  Version: {}", resolved_version);
                         println!("  Commands: {}", orb.commands.len());
                         println!("  Jobs: {}", orb.jobs.len());
                         println!("  Executors: {}", orb.executors.len());
@@ -131,6 +154,7 @@ impl Cli {
                                     output.join("target/release").join(&server.crate_name);
                                 println!("Successfully compiled MCP server:");
                                 println!("  Binary: {}", binary_path.display());
+                                println!("  Version: {}", resolved_version);
                             }
                             Ok(_) => {
                                 anyhow::bail!(
@@ -203,9 +227,59 @@ fn derive_orb_name(path: &std::path::Path) -> String {
     }
 }
 
+/// Resolve the version to use for the generated MCP server.
+///
+/// # Version Resolution Rules
+///
+/// 1. If `--version` is provided, use it
+/// 2. If output directory exists with Cargo.toml and no `--version`:
+///    - Error: must specify version to regenerate
+/// 3. If fresh generation and no `--version`: use DEFAULT_VERSION
+///
+/// The `--force` flag is required when overwriting existing output.
+fn resolve_version(output: &std::path::Path, version: Option<&str>, force: bool) -> Result<String> {
+    let cargo_toml = output.join("Cargo.toml");
+    let output_exists = cargo_toml.exists();
+
+    match (version, output_exists) {
+        // Explicit version provided - use it
+        (Some(v), false) => {
+            tracing::debug!("Using provided version for fresh generation");
+            Ok(v.to_string())
+        }
+        (Some(v), true) => {
+            if !force {
+                anyhow::bail!(
+                    "Output directory '{}' already exists. Use --force to overwrite.",
+                    output.display()
+                );
+            }
+            tracing::debug!("Using provided version, overwriting existing output");
+            Ok(v.to_string())
+        }
+
+        // No version provided
+        (None, false) => {
+            tracing::debug!("Fresh generation with default version");
+            Ok(DEFAULT_VERSION.to_string())
+        }
+        (None, true) => {
+            anyhow::bail!(
+                "Output directory '{}' already exists.\n\
+                 To regenerate, you must specify the version explicitly:\n\n\
+                 \x20   gen-orb-mcp generate --orb-path <PATH> --output {} --version <VERSION> --force\n\n\
+                 For CI release workflows, use the orb release version (e.g., --version 1.6.0).",
+                output.display(),
+                output.display()
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::TempDir;
 
     #[test]
     fn test_cli_parse_generate() {
@@ -216,6 +290,37 @@ mod tests {
             "test.yml",
             "--output",
             "./out",
+        ]);
+        assert!(cli.is_ok());
+    }
+
+    #[test]
+    fn test_cli_parse_generate_with_version() {
+        let cli = Cli::try_parse_from([
+            "gen-orb-mcp",
+            "generate",
+            "--orb-path",
+            "test.yml",
+            "--output",
+            "./out",
+            "--version",
+            "1.2.3",
+        ]);
+        assert!(cli.is_ok());
+    }
+
+    #[test]
+    fn test_cli_parse_generate_with_force() {
+        let cli = Cli::try_parse_from([
+            "gen-orb-mcp",
+            "generate",
+            "--orb-path",
+            "test.yml",
+            "--output",
+            "./out",
+            "--version",
+            "1.2.3",
+            "--force",
         ]);
         assert!(cli.is_ok());
     }
@@ -244,5 +349,67 @@ mod tests {
 
         let path = Path::new("orb.yml");
         assert_eq!(derive_orb_name(path), "orb");
+    }
+
+    #[test]
+    fn test_resolve_version_fresh_with_explicit() {
+        let temp_dir = TempDir::new().unwrap();
+        let result = resolve_version(temp_dir.path(), Some("2.0.0"), false);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "2.0.0");
+    }
+
+    #[test]
+    fn test_resolve_version_fresh_with_default() {
+        let temp_dir = TempDir::new().unwrap();
+        let result = resolve_version(temp_dir.path(), None, false);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), DEFAULT_VERSION);
+    }
+
+    #[test]
+    fn test_resolve_version_existing_without_version_fails() {
+        let temp_dir = TempDir::new().unwrap();
+        // Create a Cargo.toml to simulate existing output
+        std::fs::write(
+            temp_dir.path().join("Cargo.toml"),
+            "[package]\nname = \"test\"",
+        )
+        .unwrap();
+
+        let result = resolve_version(temp_dir.path(), None, false);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("already exists"));
+        assert!(err.contains("--version"));
+    }
+
+    #[test]
+    fn test_resolve_version_existing_with_version_no_force_fails() {
+        let temp_dir = TempDir::new().unwrap();
+        std::fs::write(
+            temp_dir.path().join("Cargo.toml"),
+            "[package]\nname = \"test\"",
+        )
+        .unwrap();
+
+        let result = resolve_version(temp_dir.path(), Some("1.5.0"), false);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("--force"));
+    }
+
+    #[test]
+    fn test_resolve_version_existing_with_version_and_force_succeeds() {
+        let temp_dir = TempDir::new().unwrap();
+        std::fs::write(
+            temp_dir.path().join("Cargo.toml"),
+            "[package]\nname = \"test\"",
+        )
+        .unwrap();
+
+        let result = resolve_version(temp_dir.path(), Some("1.5.0"), true);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "1.5.0");
     }
 }
