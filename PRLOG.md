@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add manual approval step for release verification(pr [#16])
+- Add OrbParser for CircleCI orb YAML(pr [#17])
 
 ### Changed
 
@@ -50,5 +51,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#14]: https://github.com/jerus-org/gen-orb-mcp/pull/14
 [#15]: https://github.com/jerus-org/gen-orb-mcp/pull/15
 [#16]: https://github.com/jerus-org/gen-orb-mcp/pull/16
+[#17]: https://github.com/jerus-org/gen-orb-mcp/pull/17
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jerus-org/gen-orb-mcp/releases/tag/v0.1.0
