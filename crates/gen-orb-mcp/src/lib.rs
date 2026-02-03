@@ -12,8 +12,12 @@
 //! gen-orb-mcp generate --orb-path ./src/@orb.yml --output ./dist/
 //! ```
 
+pub mod parser;
+
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+
+use parser::OrbParser;
 
 /// Generate MCP servers from CircleCI orb definitions
 #[derive(Debug, Parser)]
@@ -67,10 +71,25 @@ impl Cli {
                 format,
             } => {
                 tracing::info!(?orb_path, ?output, ?format, "Generating MCP server");
-                // TODO: Implement generation
+
+                // Parse the orb definition
+                let orb = OrbParser::parse(orb_path).map_err(|e| anyhow::anyhow!("{}", e))?;
+                tracing::info!(
+                    commands = orb.commands.len(),
+                    jobs = orb.jobs.len(),
+                    executors = orb.executors.len(),
+                    "Parsed orb definition"
+                );
+
+                // TODO: Implement code generation
                 println!(
-                    "Generation not yet implemented. Orb: {}, Output: {}, Format: {:?}",
-                    orb_path.display(),
+                    "Parsed orb with {} commands, {} jobs, {} executors",
+                    orb.commands.len(),
+                    orb.jobs.len(),
+                    orb.executors.len()
+                );
+                println!(
+                    "Code generation not yet implemented. Output: {}, Format: {:?}",
                     output.display(),
                     format
                 );
@@ -78,11 +97,27 @@ impl Cli {
             }
             Commands::Validate { orb_path } => {
                 tracing::info!(?orb_path, "Validating orb definition");
-                // TODO: Implement validation
-                println!(
-                    "Validation not yet implemented. Orb: {}",
-                    orb_path.display()
-                );
+
+                // Parse and validate the orb definition
+                let orb = OrbParser::parse(orb_path).map_err(|e| anyhow::anyhow!("{}", e))?;
+
+                println!("Orb validation successful!");
+                println!("  Version: {}", orb.version);
+                if let Some(desc) = &orb.description {
+                    println!("  Description: {}", desc);
+                }
+                println!("  Commands: {}", orb.commands.len());
+                for name in orb.commands.keys() {
+                    println!("    - {}", name);
+                }
+                println!("  Jobs: {}", orb.jobs.len());
+                for name in orb.jobs.keys() {
+                    println!("    - {}", name);
+                }
+                println!("  Executors: {}", orb.executors.len());
+                for name in orb.executors.keys() {
+                    println!("    - {}", name);
+                }
                 Ok(())
             }
         }
