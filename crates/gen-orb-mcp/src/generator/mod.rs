@@ -359,9 +359,11 @@ mod tests {
     use tempfile::TempDir;
 
     fn create_test_orb() -> OrbDefinition {
-        let mut orb = OrbDefinition::default();
-        orb.version = "2.1".to_string();
-        orb.description = Some("Test orb for unit tests".to_string());
+        let mut orb = OrbDefinition {
+            version: "2.1".to_string(),
+            description: Some("Test orb for unit tests".to_string()),
+            ..Default::default()
+        };
 
         // Add a command
         let mut params = HashMap::new();

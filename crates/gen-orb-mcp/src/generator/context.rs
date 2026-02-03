@@ -607,9 +607,11 @@ mod tests {
 
     #[test]
     fn test_generator_context_from_orb() {
-        let mut orb = OrbDefinition::default();
-        orb.version = "2.1".to_string();
-        orb.description = Some("Test orb".to_string());
+        let mut orb = OrbDefinition {
+            version: "2.1".to_string(),
+            description: Some("Test orb".to_string()),
+            ..Default::default()
+        };
 
         let mut params = HashMap::new();
         params.insert(
