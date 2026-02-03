@@ -284,7 +284,7 @@ resource_class: medium
         // Check executors
         assert!(orb.executors.contains_key("default"));
         let default_exec = &orb.executors["default"];
-        assert!(default_exec.docker.is_some());
+        assert!(default_exec.config.docker.is_some());
     }
 
     #[test]

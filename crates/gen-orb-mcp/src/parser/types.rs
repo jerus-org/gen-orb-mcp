@@ -63,70 +63,10 @@ pub struct Command {
     pub steps: Vec<Step>,
 }
 
-/// A job definition.
+/// Common execution environment configuration shared by jobs and executors.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct Job {
-    /// Human-readable description
-    #[serde(default)]
-    pub description: Option<String>,
-
-    /// Executor to run this job on
-    #[serde(default)]
-    pub executor: Option<ExecutorRef>,
-
-    /// Direct docker configuration (alternative to executor)
-    #[serde(default)]
-    pub docker: Option<Vec<DockerImage>>,
-
-    /// Direct machine configuration (alternative to executor)
-    #[serde(default)]
-    pub machine: Option<MachineConfig>,
-
-    /// Direct macOS configuration (alternative to executor)
-    #[serde(default)]
-    pub macos: Option<MacOsConfig>,
-
-    /// Resource class for compute sizing
-    #[serde(default)]
-    pub resource_class: Option<String>,
-
-    /// Working directory for the job
-    #[serde(default)]
-    pub working_directory: Option<String>,
-
-    /// Environment variables
-    #[serde(default)]
-    pub environment: HashMap<String, String>,
-
-    /// Parameters accepted by this job
-    #[serde(default)]
-    pub parameters: HashMap<String, Parameter>,
-
-    /// Steps to execute
-    #[serde(default)]
-    pub steps: Vec<Step>,
-
-    /// Shell to use for run steps
-    #[serde(default)]
-    pub shell: Option<String>,
-
-    /// Parallelism level
-    #[serde(default)]
-    pub parallelism: Option<u32>,
-
-    /// Circleci IP ranges
-    #[serde(default)]
-    pub circleci_ip_ranges: Option<bool>,
-}
-
-/// An executor definition.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct Executor {
-    /// Human-readable description
-    #[serde(default)]
-    pub description: Option<String>,
-
-    /// Docker images for this executor
+pub struct ExecutorConfig {
+    /// Docker images for execution
     #[serde(default)]
     pub docker: Option<Vec<DockerImage>>,
 
@@ -150,13 +90,57 @@ pub struct Executor {
     #[serde(default)]
     pub environment: HashMap<String, String>,
 
-    /// Parameters accepted by this executor
-    #[serde(default)]
-    pub parameters: HashMap<String, Parameter>,
-
     /// Shell to use
     #[serde(default)]
     pub shell: Option<String>,
+}
+
+/// A job definition.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Job {
+    /// Human-readable description
+    #[serde(default)]
+    pub description: Option<String>,
+
+    /// Executor to run this job on
+    #[serde(default)]
+    pub executor: Option<ExecutorRef>,
+
+    /// Execution environment configuration
+    #[serde(flatten)]
+    pub config: ExecutorConfig,
+
+    /// Parameters accepted by this job
+    #[serde(default)]
+    pub parameters: HashMap<String, Parameter>,
+
+    /// Steps to execute
+    #[serde(default)]
+    pub steps: Vec<Step>,
+
+    /// Parallelism level
+    #[serde(default)]
+    pub parallelism: Option<u32>,
+
+    /// Circleci IP ranges
+    #[serde(default)]
+    pub circleci_ip_ranges: Option<bool>,
+}
+
+/// An executor definition.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Executor {
+    /// Human-readable description
+    #[serde(default)]
+    pub description: Option<String>,
+
+    /// Execution environment configuration
+    #[serde(flatten)]
+    pub config: ExecutorConfig,
+
+    /// Parameters accepted by this executor
+    #[serde(default)]
+    pub parameters: HashMap<String, Parameter>,
 }
 
 /// Reference to an executor with optional parameter overrides.
