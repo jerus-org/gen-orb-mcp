@@ -418,7 +418,7 @@ mod tests {
         let main_rs = server.files.get(&PathBuf::from("src/main.rs")).unwrap();
 
         assert!(main_rs.contains("#[tokio::main]"));
-        assert!(main_rs.contains("test_orb_mcp::create_server"));
+        assert!(main_rs.contains("test_orb_mcp::OrbServer::new"));
     }
 
     #[test]
@@ -429,8 +429,8 @@ mod tests {
         let server = generator.generate(&orb, "test-orb", "1.0.0").unwrap();
         let lib_rs = server.files.get(&PathBuf::from("src/lib.rs")).unwrap();
 
-        assert!(lib_rs.contains("ResourceCollection"));
-        assert!(lib_rs.contains("StaticResource"));
+        assert!(lib_rs.contains("ServerHandler"));
+        assert!(lib_rs.contains("RawResource"));
         assert!(lib_rs.contains("orb://commands/greet"));
         assert!(lib_rs.contains("orb://overview"));
     }
@@ -445,7 +445,7 @@ mod tests {
 
         assert!(cargo.contains("name = \"test_orb_mcp\""));
         assert!(cargo.contains("version = \"2.5.0\""));
-        assert!(cargo.contains("pmcp = "));
+        assert!(cargo.contains("rmcp = "));
         assert!(cargo.contains("tokio = "));
     }
 
