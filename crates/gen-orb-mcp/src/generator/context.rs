@@ -228,7 +228,10 @@ impl CommandContext {
         Self {
             name: name.to_string(),
             description: cmd.description.clone(),
-            description_escaped: cmd.description.as_ref().map(|s| escape_for_string_literal(s)),
+            description_escaped: cmd
+                .description
+                .as_ref()
+                .map(|s| escape_for_string_literal(s)),
             parameters,
             uri: format!("orb://commands/{}", name),
             json_content,
@@ -254,7 +257,10 @@ impl JobContext {
         Self {
             name: name.to_string(),
             description: job.description.clone(),
-            description_escaped: job.description.as_ref().map(|s| escape_for_string_literal(s)),
+            description_escaped: job
+                .description
+                .as_ref()
+                .map(|s| escape_for_string_literal(s)),
             parameters,
             executor,
             config: ExecutorConfigContext::from_config(&job.config),
@@ -277,7 +283,10 @@ impl ExecutorContext {
         Self {
             name: name.to_string(),
             description: exec.description.clone(),
-            description_escaped: exec.description.as_ref().map(|s| escape_for_string_literal(s)),
+            description_escaped: exec
+                .description
+                .as_ref()
+                .map(|s| escape_for_string_literal(s)),
             parameters,
             config: ExecutorConfigContext::from_config(&exec.config),
             uri: format!("orb://executors/{}", name),
@@ -358,9 +367,7 @@ fn extract_docker_images(config: &ExecutorConfig) -> Vec<String> {
 ///
 /// Replaces newlines with spaces and escapes double quotes.
 fn escape_for_string_literal(s: &str) -> String {
-    s.replace('\n', " ")
-        .replace('\r', "")
-        .replace('"', "\\\"")
+    s.replace('\n', " ").replace('\r', "").replace('"', "\\\"")
 }
 
 /// Convert a string to snake_case.
