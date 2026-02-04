@@ -206,18 +206,28 @@ impl Cli {
 
 /// Derive orb name from the orb path.
 ///
-/// Uses the parent directory name if the file is `@orb.yml`, otherwise
-/// uses the file stem (filename without extension).
+/// For unpacked orbs (`@orb.yml`), uses the project directory name.
+/// Handles the common `project/src/@orb.yml` structure by skipping the `src` directory.
+/// For packed orbs, uses the file stem (filename without extension).
 fn derive_orb_name(path: &std::path::Path) -> String {
     let filename = path.file_name().and_then(|s| s.to_str()).unwrap_or("orb");
 
     if filename == "@orb.yml" {
-        // Use parent directory name
-        path.parent()
-            .and_then(|p| p.file_name())
-            .and_then(|s| s.to_str())
-            .unwrap_or("orb")
-            .to_string()
+        // Get parent directory
+        let parent = path.parent();
+        let parent_name = parent.and_then(|p| p.file_name()).and_then(|s| s.to_str());
+
+        // If parent is "src", go up one more level to get project name
+        if parent_name == Some("src") {
+            parent
+                .and_then(|p| p.parent())
+                .and_then(|p| p.file_name())
+                .and_then(|s| s.to_str())
+                .unwrap_or("orb")
+                .to_string()
+        } else {
+            parent_name.unwrap_or("orb").to_string()
+        }
     } else {
         // Use filename without extension
         path.file_stem()
@@ -334,11 +344,17 @@ mod tests {
     #[test]
     fn test_derive_orb_name_from_orb_yml() {
         use std::path::Path;
+        // Standard orb structure: project/src/@orb.yml -> "project"
         let path = Path::new("/path/to/my-toolkit/src/@orb.yml");
-        assert_eq!(derive_orb_name(path), "src");
+        assert_eq!(derive_orb_name(path), "my-toolkit");
 
+        // Non-standard structure without src: my-orb/@orb.yml -> "my-orb"
         let path = Path::new("my-orb/@orb.yml");
         assert_eq!(derive_orb_name(path), "my-orb");
+
+        // Edge case: src/@orb.yml at root -> "orb" (no grandparent, falls back to default)
+        let path = Path::new("src/@orb.yml");
+        assert_eq!(derive_orb_name(path), "orb");
     }
 
     #[test]
