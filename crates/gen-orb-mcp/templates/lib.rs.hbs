@@ -1,7 +1,7 @@
 //! {{orb_name}} MCP Server
 //!
-{{#if description}}
-//! {{description}}
+{{#if description_doc}}
+{{{description_doc}}}
 //!
 {{/if}}
 //! This library provides an MCP server that exposes the {{orb_name}} CircleCI orb
@@ -50,7 +50,7 @@ pub fn create_server() -> Server {
         r##"{{json_content}}"##,
     )
     .with_name("{{name}}")
-    .with_description("Command: {{name}}{{#if description}} - {{description}}{{/if}}");
+    .with_description("Command: {{name}}{{#if description_escaped}} - {{description_escaped}}{{/if}}");
     resources = resources.add_static(resource);
 
 {{/each}}
@@ -61,7 +61,7 @@ pub fn create_server() -> Server {
         r##"{{json_content}}"##,
     )
     .with_name("{{name}}")
-    .with_description("Job: {{name}}{{#if description}} - {{description}}{{/if}}");
+    .with_description("Job: {{name}}{{#if description_escaped}} - {{description_escaped}}{{/if}}");
     resources = resources.add_static(resource);
 
 {{/each}}
@@ -72,7 +72,7 @@ pub fn create_server() -> Server {
         r##"{{json_content}}"##,
     )
     .with_name("{{name}}")
-    .with_description("Executor: {{name}}{{#if description}} - {{description}}{{/if}}");
+    .with_description("Executor: {{name}}{{#if description_escaped}} - {{description_escaped}}{{/if}}");
     resources = resources.add_static(resource);
 
 {{/each}}

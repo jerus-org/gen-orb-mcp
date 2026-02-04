@@ -24,8 +24,11 @@ pub struct GeneratorContext {
     /// Server version string
     pub version: String,
 
-    /// Optional description of the orb
+    /// Optional description of the orb (raw, may contain newlines)
     pub description: Option<String>,
+
+    /// Description formatted for Rust doc comments (each line prefixed with //!)
+    pub description_doc: Option<String>,
 
     /// Command contexts for template rendering
     pub commands: Vec<CommandContext>,
@@ -46,8 +49,11 @@ pub struct CommandContext {
     /// Command name as defined in the orb
     pub name: String,
 
-    /// Optional description
+    /// Optional description (raw)
     pub description: Option<String>,
+
+    /// Description sanitized for use in Rust string literals
+    pub description_escaped: Option<String>,
 
     /// Parameters accepted by this command
     pub parameters: Vec<ParameterContext>,
@@ -65,8 +71,11 @@ pub struct JobContext {
     /// Job name as defined in the orb
     pub name: String,
 
-    /// Optional description
+    /// Optional description (raw)
     pub description: Option<String>,
+
+    /// Description sanitized for use in Rust string literals
+    pub description_escaped: Option<String>,
 
     /// Parameters accepted by this job
     pub parameters: Vec<ParameterContext>,
@@ -90,8 +99,11 @@ pub struct ExecutorContext {
     /// Executor name as defined in the orb
     pub name: String,
 
-    /// Optional description
+    /// Optional description (raw)
     pub description: Option<String>,
+
+    /// Description sanitized for use in Rust string literals
+    pub description_escaped: Option<String>,
 
     /// Parameters accepted by this executor
     pub parameters: Vec<ParameterContext>,
@@ -179,12 +191,21 @@ impl GeneratorContext {
 
         let has_resources = !commands.is_empty() || !jobs.is_empty() || !executors.is_empty();
 
+        // Format description for doc comments (prefix each line with //!)
+        let description_doc = orb.description.as_ref().map(|d| {
+            d.lines()
+                .map(|line| format!("//! {}", line))
+                .collect::<Vec<_>>()
+                .join("\n")
+        });
+
         Self {
             orb_name: orb_name.to_string(),
             crate_name,
             struct_name,
             version: version.to_string(),
             description: orb.description.clone(),
+            description_doc,
             commands,
             jobs,
             executors,
@@ -207,6 +228,10 @@ impl CommandContext {
         Self {
             name: name.to_string(),
             description: cmd.description.clone(),
+            description_escaped: cmd
+                .description
+                .as_ref()
+                .map(|s| escape_for_string_literal(s)),
             parameters,
             uri: format!("orb://commands/{}", name),
             json_content,
@@ -232,6 +257,10 @@ impl JobContext {
         Self {
             name: name.to_string(),
             description: job.description.clone(),
+            description_escaped: job
+                .description
+                .as_ref()
+                .map(|s| escape_for_string_literal(s)),
             parameters,
             executor,
             config: ExecutorConfigContext::from_config(&job.config),
@@ -254,6 +283,10 @@ impl ExecutorContext {
         Self {
             name: name.to_string(),
             description: exec.description.clone(),
+            description_escaped: exec
+                .description
+                .as_ref()
+                .map(|s| escape_for_string_literal(s)),
             parameters,
             config: ExecutorConfigContext::from_config(&exec.config),
             uri: format!("orb://executors/{}", name),
@@ -328,6 +361,13 @@ fn extract_docker_images(config: &ExecutorConfig) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// Escape a string for use in a Rust string literal.
+///
+/// Replaces newlines with spaces and escapes double quotes.
+fn escape_for_string_literal(s: &str) -> String {
+    s.replace('\n', " ").replace('\r', "").replace('"', "\\\"")
 }
 
 /// Convert a string to snake_case.
