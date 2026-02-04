@@ -264,20 +264,6 @@ impl ExecutorContext {
 
 impl ExecutorConfigContext {
     fn from_config(config: &ExecutorConfig) -> Self {
-        let docker_images = config
-            .docker
-            .as_ref()
-            .map(|images| {
-                images
-                    .iter()
-                    .map(|img| match img {
-                        crate::parser::DockerImage::Simple(s) => s.clone(),
-                        crate::parser::DockerImage::Full(f) => f.image.clone(),
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
         let environment: Vec<(String, String)> = config
             .environment
             .iter()
@@ -285,7 +271,7 @@ impl ExecutorConfigContext {
             .collect();
 
         Self {
-            docker_images,
+            docker_images: extract_docker_images(config),
             resource_class: config.resource_class.clone(),
             working_directory: config.working_directory.clone(),
             environment,
@@ -296,16 +282,7 @@ impl ExecutorConfigContext {
 
 impl ParameterContext {
     fn from_parameter(name: &str, param: &Parameter) -> Self {
-        let param_type = match param.param_type {
-            ParameterType::String => "string",
-            ParameterType::Boolean => "boolean",
-            ParameterType::Integer => "integer",
-            ParameterType::Enum => "enum",
-            ParameterType::EnvVarName => "env_var_name",
-            ParameterType::Steps => "steps",
-            ParameterType::Executor => "executor",
-        }
-        .to_string();
+        let param_type = param_type_to_str(&param.param_type).to_string();
 
         let default = param
             .default
@@ -321,6 +298,36 @@ impl ParameterContext {
             enum_values: param.enum_values.clone(),
         }
     }
+}
+
+/// Convert ParameterType to string representation.
+fn param_type_to_str(pt: &ParameterType) -> &'static str {
+    match pt {
+        ParameterType::String => "string",
+        ParameterType::Boolean => "boolean",
+        ParameterType::Integer => "integer",
+        ParameterType::Enum => "enum",
+        ParameterType::EnvVarName => "env_var_name",
+        ParameterType::Steps => "steps",
+        ParameterType::Executor => "executor",
+    }
+}
+
+/// Extract docker image names from ExecutorConfig.
+fn extract_docker_images(config: &ExecutorConfig) -> Vec<String> {
+    config
+        .docker
+        .as_ref()
+        .map(|images| {
+            images
+                .iter()
+                .map(|img| match img {
+                    crate::parser::DockerImage::Simple(s) => s.clone(),
+                    crate::parser::DockerImage::Full(f) => f.image.clone(),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Convert a string to snake_case.
@@ -366,6 +373,34 @@ fn to_pascal_case(s: &str) -> String {
     result
 }
 
+/// JSON representation of a parameter for embedding in resources.
+#[derive(Serialize)]
+struct ParameterJson<'a> {
+    name: &'a str,
+    #[serde(rename = "type")]
+    param_type: &'static str,
+    description: Option<&'a str>,
+    default: Option<&'a serde_yaml::Value>,
+    required: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    enum_values: Option<&'a Vec<String>>,
+}
+
+/// Convert parameters map to JSON-serializable format.
+fn params_to_json(params: &std::collections::HashMap<String, Parameter>) -> Vec<ParameterJson<'_>> {
+    params
+        .iter()
+        .map(|(pname, param)| ParameterJson {
+            name: pname,
+            param_type: param_type_to_str(&param.param_type),
+            description: param.description.as_deref(),
+            default: param.default.as_ref(),
+            required: param.default.is_none(),
+            enum_values: param.enum_values.as_ref(),
+        })
+        .collect()
+}
+
 /// Create JSON representation of a command for embedding in resources.
 fn create_command_json(name: &str, cmd: &Command) -> String {
     #[derive(Serialize)]
@@ -376,47 +411,10 @@ fn create_command_json(name: &str, cmd: &Command) -> String {
         steps_count: usize,
     }
 
-    #[derive(Serialize)]
-    struct ParameterJson<'a> {
-        name: &'a str,
-        #[serde(rename = "type")]
-        param_type: &'a str,
-        description: Option<&'a str>,
-        default: Option<&'a serde_yaml::Value>,
-        required: bool,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        enum_values: Option<&'a Vec<String>>,
-    }
-
-    let parameters: Vec<ParameterJson> = cmd
-        .parameters
-        .iter()
-        .map(|(pname, param)| {
-            let param_type = match param.param_type {
-                ParameterType::String => "string",
-                ParameterType::Boolean => "boolean",
-                ParameterType::Integer => "integer",
-                ParameterType::Enum => "enum",
-                ParameterType::EnvVarName => "env_var_name",
-                ParameterType::Steps => "steps",
-                ParameterType::Executor => "executor",
-            };
-
-            ParameterJson {
-                name: pname,
-                param_type,
-                description: param.description.as_deref(),
-                default: param.default.as_ref(),
-                required: param.default.is_none(),
-                enum_values: param.enum_values.as_ref(),
-            }
-        })
-        .collect();
-
     let json = CommandJson {
         name,
         description: cmd.description.as_deref(),
-        parameters,
+        parameters: params_to_json(&cmd.parameters),
         steps_count: cmd.steps.len(),
     };
 
@@ -436,70 +434,18 @@ fn create_job_json(name: &str, job: &Job) -> String {
         resource_class: Option<&'a str>,
     }
 
-    #[derive(Serialize)]
-    struct ParameterJson<'a> {
-        name: &'a str,
-        #[serde(rename = "type")]
-        param_type: &'a str,
-        description: Option<&'a str>,
-        default: Option<&'a serde_yaml::Value>,
-        required: bool,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        enum_values: Option<&'a Vec<String>>,
-    }
-
-    let parameters: Vec<ParameterJson> = job
-        .parameters
-        .iter()
-        .map(|(pname, param)| {
-            let param_type = match param.param_type {
-                ParameterType::String => "string",
-                ParameterType::Boolean => "boolean",
-                ParameterType::Integer => "integer",
-                ParameterType::Enum => "enum",
-                ParameterType::EnvVarName => "env_var_name",
-                ParameterType::Steps => "steps",
-                ParameterType::Executor => "executor",
-            };
-
-            ParameterJson {
-                name: pname,
-                param_type,
-                description: param.description.as_deref(),
-                default: param.default.as_ref(),
-                required: param.default.is_none(),
-                enum_values: param.enum_values.as_ref(),
-            }
-        })
-        .collect();
-
     let executor = job.executor.as_ref().map(|e| match e {
         crate::parser::ExecutorRef::Name(n) => n.clone(),
         crate::parser::ExecutorRef::WithParams { name, .. } => name.clone(),
     });
 
-    let docker_images = job
-        .config
-        .docker
-        .as_ref()
-        .map(|images| {
-            images
-                .iter()
-                .map(|img| match img {
-                    crate::parser::DockerImage::Simple(s) => s.clone(),
-                    crate::parser::DockerImage::Full(f) => f.image.clone(),
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-
     let json = JobJson {
         name,
         description: job.description.as_deref(),
         executor,
-        parameters,
+        parameters: params_to_json(&job.parameters),
         steps_count: job.steps.len(),
-        docker_images,
+        docker_images: extract_docker_images(&job.config),
         resource_class: job.config.resource_class.as_deref(),
     };
 
@@ -518,63 +464,11 @@ fn create_executor_json(name: &str, exec: &Executor) -> String {
         working_directory: Option<&'a str>,
     }
 
-    #[derive(Serialize)]
-    struct ParameterJson<'a> {
-        name: &'a str,
-        #[serde(rename = "type")]
-        param_type: &'a str,
-        description: Option<&'a str>,
-        default: Option<&'a serde_yaml::Value>,
-        required: bool,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        enum_values: Option<&'a Vec<String>>,
-    }
-
-    let parameters: Vec<ParameterJson> = exec
-        .parameters
-        .iter()
-        .map(|(pname, param)| {
-            let param_type = match param.param_type {
-                ParameterType::String => "string",
-                ParameterType::Boolean => "boolean",
-                ParameterType::Integer => "integer",
-                ParameterType::Enum => "enum",
-                ParameterType::EnvVarName => "env_var_name",
-                ParameterType::Steps => "steps",
-                ParameterType::Executor => "executor",
-            };
-
-            ParameterJson {
-                name: pname,
-                param_type,
-                description: param.description.as_deref(),
-                default: param.default.as_ref(),
-                required: param.default.is_none(),
-                enum_values: param.enum_values.as_ref(),
-            }
-        })
-        .collect();
-
-    let docker_images = exec
-        .config
-        .docker
-        .as_ref()
-        .map(|images| {
-            images
-                .iter()
-                .map(|img| match img {
-                    crate::parser::DockerImage::Simple(s) => s.clone(),
-                    crate::parser::DockerImage::Full(f) => f.image.clone(),
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-
     let json = ExecutorJson {
         name,
         description: exec.description.as_deref(),
-        parameters,
-        docker_images,
+        parameters: params_to_json(&exec.parameters),
+        docker_images: extract_docker_images(&exec.config),
         resource_class: exec.config.resource_class.as_deref(),
         working_directory: exec.config.working_directory.as_deref(),
     };
