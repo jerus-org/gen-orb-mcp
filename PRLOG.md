@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Skip GitHub release if already exists(pr [#13])
 - Use GitHub API to check for existing release(pr [#14])
 - Handle multi-line descriptions in generated code(pr [#19])
+- update templates for rmcp 0.14 API compatibility(pr [#21])
 
 ## [0.1.0] - 2026-01-26
 
@@ -58,5 +59,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#18]: https://github.com/jerus-org/gen-orb-mcp/pull/18
 [#19]: https://github.com/jerus-org/gen-orb-mcp/pull/19
 [#20]: https://github.com/jerus-org/gen-orb-mcp/pull/20
+[#21]: https://github.com/jerus-org/gen-orb-mcp/pull/21
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jerus-org/gen-orb-mcp/releases/tag/v0.1.0
