@@ -518,11 +518,14 @@ workflows:
           type: approval
           requires: [calculate-versions]
 
-      # Release gen-orb-mcp crate (version calculated by nextsv)
+      # Release gen-orb-mcp crate
+      # Note: version specified explicitly for 0.1.0 release from pre-release
+      # Remove 'version' parameter after this release to resume auto-detection
       - release-crate:
           name: release-gen-orb-mcp
           requires: [approve-release]
           package: gen-orb-mcp
+          version: "0.1.0"
           context:
             - release
             - bot-check
