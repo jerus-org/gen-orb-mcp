@@ -9,8 +9,12 @@ parameters:
     default: SHA256:OkxsH8Z6Iim6WDJBaII9eTT9aaO1f3eDc6IpsgYYPVg
   # Version override for crate release (used when nextsv cannot calculate)
   # Set to empty string "" to use nextsv auto-detection
-  # Remove this parameter after 0.1.0 release to resume auto-detection
   crate_version_override:
+    type: string
+    default: "0.1.0"
+  # Version override for workspace/PRLOG release
+  # Set to empty string "" to use nextsv auto-detection
+  workspace_version_override:
     type: string
     default: "0.1.0"
 
@@ -346,6 +350,10 @@ jobs:
         type: string
         default: ""
         description: "Override version for crate release (empty = auto-detect)"
+      workspace_version:
+        type: string
+        default: ""
+        description: "Override version for workspace/PRLOG release (empty = auto-detect)"
     executor:
       name: toolkit/rust_env_rolling
     steps:
@@ -386,14 +394,23 @@ jobs:
 
             # Calculate workspace version
             echo "--- Workspace (PRLOG) ---"
-            WORKSPACE_VERSION=$(nextsv -bn calculate --prefix "v" 2>/dev/null || echo "")
-            if [ -z "$WORKSPACE_VERSION" ]; then
-              WORKSPACE_VERSION="none"
-              echo "Result: No workspace release needed"
-              echo "Reason: No changes since last v* tag"
+            WORKSPACE_OVERRIDE="<< parameters.workspace_version >>"
+            if [ -n "$WORKSPACE_OVERRIDE" ]; then
+              WORKSPACE_VERSION="$WORKSPACE_OVERRIDE"
+              echo "Result: Will release version $WORKSPACE_VERSION (OVERRIDE)"
+              echo "Note: Version explicitly set via workspace_version parameter"
+              NEXTSV_WS=$(nextsv -bn calculate --prefix "v" 2>/dev/null || echo "none")
+              echo "      (nextsv would have calculated: $NEXTSV_WS)"
             else
-              echo "Result: Will release version $WORKSPACE_VERSION"
-              echo "Changes detected in workspace scope"
+              WORKSPACE_VERSION=$(nextsv -bn calculate --prefix "v" 2>/dev/null || echo "")
+              if [ -z "$WORKSPACE_VERSION" ]; then
+                WORKSPACE_VERSION="none"
+                echo "Result: No workspace release needed"
+                echo "Reason: No changes since last v* tag"
+              else
+                echo "Result: Will release version $WORKSPACE_VERSION"
+                echo "Changes detected in workspace scope"
+              fi
             fi
             echo ""
 
@@ -493,11 +510,15 @@ jobs:
           package: << parameters.package >>
           verbosity: "-vv"
 
+  # Release PRLOG/workspace
+  # Reads version from workspace (calculated by calculate-versions job)
   release-prlog:
     executor:
       name: toolkit/rust_env_rolling
     steps:
       - checkout
+      - attach_workspace:
+          at: /tmp
       - add_ssh_keys:
           fingerprints:
             - << pipeline.parameters.fingerprint >>
@@ -515,38 +536,41 @@ jobs:
       - toolkit/gpg_key
       - toolkit/git_config
       - run:
-          name: Detect and release PRLOG
+          name: Release PRLOG
           command: |
             set -exo pipefail
             chmod +x scripts/*.sh
 
-            # Check if any v* tag exists (bootstrap detection)
-            if ! git tag -l 'v*' | grep -q .; then
-              echo "No v* tag found - checking for bootstrap version in PRLOG.md"
-              # Extract first version from PRLOG.md (bootstrap case)
-              BOOTSTRAP_VERSION=$(grep -oP '## \[\K[0-9]+\.[0-9]+\.[0-9]+' PRLOG.md | head -1 || echo "")
-              if [ -n "$BOOTSTRAP_VERSION" ]; then
-                echo "Bootstrap: Creating initial tag v${BOOTSTRAP_VERSION}"
-                git tag -s -m "v${BOOTSTRAP_VERSION}" "v${BOOTSTRAP_VERSION}"
-                git push origin main --tags
-                exit 0
-              fi
-              echo "No bootstrap version found in PRLOG.md"
-              exit 0
+            # Load version from workspace (calculated by calculate-versions)
+            VERSION_FILE="/tmp/release-versions/workspace-version"
+            if [ -f "$VERSION_FILE" ]; then
+              VERSION=$(cat "$VERSION_FILE")
+              echo "Loaded workspace version from workspace: $VERSION"
+            else
+              echo "ERROR: Version file not found at $VERSION_FILE"
+              echo "This job requires calculate-versions to run first"
+              exit 1
             fi
 
-            # Use standard v prefix for PRLOG
-            BUMP=$(nextsv calculate --prefix "v" 2>/dev/null || echo "none")
-
-            if [ "$BUMP" = "none" ]; then
+            if [ "$VERSION" = "none" ]; then
               echo "No PRLOG release needed"
               exit 0
             fi
 
-            VERSION=$(nextsv --number calculate --prefix "v" | tail -1)
-
-            ./scripts/release-prlog.sh "$VERSION"
-            git push origin main --tags
+            # Check if tag already exists
+            TAG="v${VERSION}"
+            git fetch --tags
+            if git tag -l "$TAG" | grep -q .; then
+              echo "Tag $TAG already exists - updating PRLOG without new tag"
+              # Update PRLOG.md with the release date but don't create new tag
+              ./scripts/release-prlog.sh "$VERSION" --no-tag 2>/dev/null || \
+                ./scripts/release-prlog.sh "$VERSION"
+              git push origin main || echo "No changes to push"
+            else
+              echo "Creating new release for version $VERSION"
+              ./scripts/release-prlog.sh "$VERSION"
+              git push origin main --tags
+            fi
 
 workflows:
   release:
@@ -554,10 +578,11 @@ workflows:
       - tools
 
       # Calculate and display versions for review
-      # Pass pipeline parameter to job for version override
+      # Pass pipeline parameters to job for version overrides
       - calculate-versions:
           requires: [tools]
           crate_version: << pipeline.parameters.crate_version_override >>
+          workspace_version: << pipeline.parameters.workspace_version_override >>
 
       # Manual approval gate - review calculated versions before release
       - approve-release:
