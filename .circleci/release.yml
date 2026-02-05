@@ -11,12 +11,12 @@ parameters:
   # Set to empty string "" to use nextsv auto-detection
   crate_version_override:
     type: string
-    default: "0.1.0"
+    default: ""
   # Version override for workspace/PRLOG release
   # Set to empty string "" to use nextsv auto-detection
   workspace_version_override:
     type: string
-    default: "0.1.0"
+    default: ""
 
 orbs:
   toolkit: jerus-org/circleci-toolkit@4.2.1
