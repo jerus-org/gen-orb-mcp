@@ -559,7 +559,11 @@ jobs:
 
             # Check if tag already exists
             TAG="v${VERSION}"
-            git fetch --tags
+            git fetch --tags origin main
+
+            # Pull latest main (release-crate may have pushed commits)
+            git pull --rebase origin main
+
             if git tag -l "$TAG" | grep -q .; then
               echo "Tag $TAG already exists - updating PRLOG without new tag"
               # Update PRLOG.md with the release date but don't create new tag
