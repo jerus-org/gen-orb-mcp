@@ -7,6 +7,12 @@ parameters:
   fingerprint:
     type: string
     default: SHA256:OkxsH8Z6Iim6WDJBaII9eTT9aaO1f3eDc6IpsgYYPVg
+  # Version override for crate release (used when nextsv cannot calculate)
+  # Set to empty string "" to use nextsv auto-detection
+  # Remove this parameter after 0.1.0 release to resume auto-detection
+  crate_version_override:
+    type: string
+    default: "0.1.0"
 
 orbs:
   toolkit: jerus-org/circleci-toolkit@4.2.1
@@ -348,16 +354,27 @@ jobs:
             echo "=============================================="
             echo ""
 
+            # Check for version override
+            VERSION_OVERRIDE="<< pipeline.parameters.crate_version_override >>"
+
             # Calculate crate version
             echo "--- Crate: gen-orb-mcp ---"
-            CRATE_VERSION=$(nextsv -bn calculate --package gen-orb-mcp 2>/dev/null || echo "")
-            if [ -z "$CRATE_VERSION" ]; then
-              CRATE_VERSION="none"
-              echo "Result: No crate release needed"
-              echo "Reason: No changes to crates/gen-orb-mcp/ or its dependencies"
+            if [ -n "$VERSION_OVERRIDE" ]; then
+              CRATE_VERSION="$VERSION_OVERRIDE"
+              echo "Result: Will release version $CRATE_VERSION (OVERRIDE)"
+              echo "Note: Version explicitly set via crate_version_override parameter"
+              NEXTSV_VERSION=$(nextsv -bn calculate --package gen-orb-mcp 2>/dev/null || echo "none")
+              echo "      (nextsv would have calculated: $NEXTSV_VERSION)"
             else
-              echo "Result: Will release version $CRATE_VERSION"
-              echo "Changes detected in crate scope (code, deps, or Cargo.lock)"
+              CRATE_VERSION=$(nextsv -bn calculate --package gen-orb-mcp 2>/dev/null || echo "")
+              if [ -z "$CRATE_VERSION" ]; then
+                CRATE_VERSION="none"
+                echo "Result: No crate release needed"
+                echo "Reason: No changes to crates/gen-orb-mcp/ or its dependencies"
+              else
+                echo "Result: Will release version $CRATE_VERSION"
+                echo "Changes detected in crate scope (code, deps, or Cargo.lock)"
+              fi
             fi
             echo ""
 
@@ -519,13 +536,13 @@ workflows:
           requires: [calculate-versions]
 
       # Release gen-orb-mcp crate
-      # Note: version specified explicitly for 0.1.0 release from pre-release
-      # Remove 'version' parameter after this release to resume auto-detection
+      # Version controlled by pipeline parameter crate_version_override
+      # Set parameter to "" to resume nextsv auto-detection
       - release-crate:
           name: release-gen-orb-mcp
           requires: [approve-release]
           package: gen-orb-mcp
-          version: "0.1.0"
+          version: << pipeline.parameters.crate_version_override >>
           context:
             - release
             - bot-check
