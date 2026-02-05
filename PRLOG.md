@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - improve default orb name derivation(pr [#23])
 - align calculate-versions with release-crate(pr [#25])
 
-## [0.1.0] - 2026-01-26
+## [0.1.0-alpha.1] - 2026-01-26
 
 ### Changed
 
@@ -68,5 +68,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#23]: https://github.com/jerus-org/gen-orb-mcp/pull/23
 [#24]: https://github.com/jerus-org/gen-orb-mcp/pull/24
 [#25]: https://github.com/jerus-org/gen-orb-mcp/pull/25
-[Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/jerus-org/gen-orb-mcp/releases/tag/v0.1.0
+[Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0-alpha.1...HEAD
+[0.1.0-alpha.1]: https://github.com/jerus-org/gen-orb-mcp/releases/tag/v0.1.0-alpha.1
