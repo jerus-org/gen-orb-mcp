@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - update templates for rmcp 0.14 API compatibility(pr [#21])
 - improve default orb name derivation(pr [#23])
 - align calculate-versions with release-crate(pr [#25])
+- add workspace version override for PRLOG release(pr [#26])
 
 ## [0.1.0-alpha.1] - 2026-01-26
 
@@ -68,5 +69,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#23]: https://github.com/jerus-org/gen-orb-mcp/pull/23
 [#24]: https://github.com/jerus-org/gen-orb-mcp/pull/24
 [#25]: https://github.com/jerus-org/gen-orb-mcp/pull/25
+[#26]: https://github.com/jerus-org/gen-orb-mcp/pull/26
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0-alpha.1...HEAD
 [0.1.0-alpha.1]: https://github.com/jerus-org/gen-orb-mcp/releases/tag/v0.1.0-alpha.1
