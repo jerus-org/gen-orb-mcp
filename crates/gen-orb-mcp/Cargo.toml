@@ -1,6 +1,6 @@
 [package]
 name = "gen-orb-mcp"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 description = "Generate MCP servers from CircleCI orb definitions"
 edition.workspace = true
 authors.workspace = true
