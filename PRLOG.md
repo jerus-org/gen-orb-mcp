@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - chore-Use nextsv for version calculation(pr [#15])
 - refactor-migrate MCP SDK from pmcp to rmcp(pr [#20])
 - docs-explain MCP resources vs tools(pr [#22])
+- chore-set explicit version 0.1.0 for release(pr [#24])
 
 ### Fixed
 
@@ -64,5 +65,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#21]: https://github.com/jerus-org/gen-orb-mcp/pull/21
 [#22]: https://github.com/jerus-org/gen-orb-mcp/pull/22
 [#23]: https://github.com/jerus-org/gen-orb-mcp/pull/23
+[#24]: https://github.com/jerus-org/gen-orb-mcp/pull/24
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jerus-org/gen-orb-mcp/releases/tag/v0.1.0
