@@ -7,6 +7,12 @@ parameters:
   fingerprint:
     type: string
     default: SHA256:OkxsH8Z6Iim6WDJBaII9eTT9aaO1f3eDc6IpsgYYPVg
+  # Version override for crate release (used when nextsv cannot calculate)
+  # Set to empty string "" to use nextsv auto-detection
+  # Remove this parameter after 0.1.0 release to resume auto-detection
+  crate_version_override:
+    type: string
+    default: "0.1.0"
 
 orbs:
   toolkit: jerus-org/circleci-toolkit@4.2.1
@@ -333,7 +339,13 @@ jobs:
             jq --version
 
   # Calculate and display versions for approval
+  # Persists calculated versions to workspace for downstream jobs
   calculate-versions:
+    parameters:
+      crate_version:
+        type: string
+        default: ""
+        description: "Override version for crate release (empty = auto-detect)"
     executor:
       name: toolkit/rust_env_rolling
     steps:
@@ -348,16 +360,27 @@ jobs:
             echo "=============================================="
             echo ""
 
+            # Check for version override (passed from workflow)
+            VERSION_OVERRIDE="<< parameters.crate_version >>"
+
             # Calculate crate version
             echo "--- Crate: gen-orb-mcp ---"
-            CRATE_VERSION=$(nextsv -bn calculate --package gen-orb-mcp 2>/dev/null || echo "")
-            if [ -z "$CRATE_VERSION" ]; then
-              CRATE_VERSION="none"
-              echo "Result: No crate release needed"
-              echo "Reason: No changes to crates/gen-orb-mcp/ or its dependencies"
+            if [ -n "$VERSION_OVERRIDE" ]; then
+              CRATE_VERSION="$VERSION_OVERRIDE"
+              echo "Result: Will release version $CRATE_VERSION (OVERRIDE)"
+              echo "Note: Version explicitly set via crate_version parameter"
+              NEXTSV_VERSION=$(nextsv -bn calculate --package gen-orb-mcp 2>/dev/null || echo "none")
+              echo "      (nextsv would have calculated: $NEXTSV_VERSION)"
             else
-              echo "Result: Will release version $CRATE_VERSION"
-              echo "Changes detected in crate scope (code, deps, or Cargo.lock)"
+              CRATE_VERSION=$(nextsv -bn calculate --package gen-orb-mcp 2>/dev/null || echo "")
+              if [ -z "$CRATE_VERSION" ]; then
+                CRATE_VERSION="none"
+                echo "Result: No crate release needed"
+                echo "Reason: No changes to crates/gen-orb-mcp/ or its dependencies"
+              else
+                echo "Result: Will release version $CRATE_VERSION"
+                echo "Changes detected in crate scope (code, deps, or Cargo.lock)"
+              fi
             fi
             echo ""
 
@@ -396,19 +419,28 @@ jobs:
             echo ""
             echo "Please review the versions above and approve to proceed."
 
+            # Persist versions to workspace for downstream jobs
+            mkdir -p /tmp/release-versions
+            echo "$CRATE_VERSION" > /tmp/release-versions/crate-version
+            echo "$WORKSPACE_VERSION" > /tmp/release-versions/workspace-version
+            echo "Versions persisted to workspace for release jobs"
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - release-versions
+
   # Release a single crate
+  # Reads version from workspace (calculated by calculate-versions job)
   release-crate:
     parameters:
       package:
         type: string
-      version:
-        type: string
-        default: ""
-        description: "Specific version to release (overrides auto-detection)"
     executor:
       name: toolkit/rust_env_rolling
     steps:
       - checkout
+      - attach_workspace:
+          at: /tmp
       - add_ssh_keys:
           fingerprints:
             - << pipeline.parameters.fingerprint >>
@@ -425,10 +457,22 @@ jobs:
             ssh-add -l
       - toolkit/gpg_key
       - toolkit/git_config
-      # Step 1: Detect if release needed (or use specified version)
-      - get_next_version:
-          package: << parameters.package >>
-          version: << parameters.version >>
+      # Step 1: Load version from workspace (calculated by calculate-versions)
+      - run:
+          name: Load version from workspace
+          command: |
+            set -eo pipefail
+            VERSION_FILE="/tmp/release-versions/crate-version"
+            if [ -f "$VERSION_FILE" ]; then
+              VERSION=$(cat "$VERSION_FILE")
+              echo "Loaded version from workspace: $VERSION"
+              echo "export NEXT_VERSION=$VERSION" >> "$BASH_ENV"
+              echo "export SEMVER=$VERSION" >> "$BASH_ENV"
+            else
+              echo "ERROR: Version file not found at $VERSION_FILE"
+              echo "This job requires calculate-versions to run first"
+              exit 1
+            fi
       # Step 2: Check crates.io for recovery scenarios
       - check_crates_io_version:
           package: << parameters.package >>
@@ -510,8 +554,10 @@ workflows:
       - tools
 
       # Calculate and display versions for review
+      # Pass pipeline parameter to job for version override
       - calculate-versions:
           requires: [tools]
+          crate_version: << pipeline.parameters.crate_version_override >>
 
       # Manual approval gate - review calculated versions before release
       - approve-release:
@@ -519,13 +565,13 @@ workflows:
           requires: [calculate-versions]
 
       # Release gen-orb-mcp crate
-      # Note: version specified explicitly for 0.1.0 release from pre-release
-      # Remove 'version' parameter after this release to resume auto-detection
+      # Version is read from workspace (set by calculate-versions)
+      # Pipeline parameter crate_version_override controls the override
+      # Set parameter to "" to resume nextsv auto-detection
       - release-crate:
           name: release-gen-orb-mcp
           requires: [approve-release]
           package: gen-orb-mcp
-          version: "0.1.0"
           context:
             - release
             - bot-check
