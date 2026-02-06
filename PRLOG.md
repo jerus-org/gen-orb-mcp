@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - chore-reset version overrides to auto-detect(pr [#28])
 - docs-add AI Diligence Statement(pr [#29])
 - docs-update CLAUDE.md with learnings and current status(pr [#30])
+- docs-add project logo and article cover graphics(pr [#31])
 
 ## [0.1.0] - 2026-02-05
 
@@ -83,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#28]: https://github.com/jerus-org/gen-orb-mcp/pull/28
 [#29]: https://github.com/jerus-org/gen-orb-mcp/pull/29
 [#30]: https://github.com/jerus-org/gen-orb-mcp/pull/30
+[#31]: https://github.com/jerus-org/gen-orb-mcp/pull/31
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0-alpha.1...v0.1.0
 [0.1.0-alpha.1]: https://github.com/jerus-org/gen-orb-mcp/releases/tag/v0.1.0-alpha.1
