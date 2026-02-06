@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="orbGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0EA5E9;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0284C7;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="nodeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#06B6D4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0891B2;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <circle cx="100" cy="100" r="95" fill="none" stroke="#1E293B" stroke-width="1" opacity="0.3"/>
+  <circle cx="65" cy="100" r="35" fill="url(#orbGradient)" filter="url(#glow)"/>
+  <ellipse cx="65" cy="100" rx="25" ry="35" fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.3"/>
+  <ellipse cx="65" cy="100" rx="35" ry="20" fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.3"/>
+
+  <path d="M 105 100 L 125 100" stroke="#64748B" stroke-width="3" stroke-linecap="round"/>
+  <path d="M 120 95 L 128 100 L 120 105" fill="none" stroke="#64748B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <circle cx="155" cy="100" r="12" fill="url(#nodeGradient)" filter="url(#glow)"/>
+  <circle cx="155" cy="65" r="8" fill="url(#nodeGradient)" filter="url(#glow)"/>
+  <circle cx="155" cy="135" r="8" fill="url(#nodeGradient)" filter="url(#glow)"/>
+  <circle cx="180" cy="82" r="6" fill="url(#nodeGradient)" filter="url(#glow)"/>
+  <circle cx="180" cy="118" r="6" fill="url(#nodeGradient)" filter="url(#glow)"/>
+
+  <line x1="155" y1="88" x2="155" y2="73" stroke="#0EA5E9" stroke-width="2" opacity="0.7"/>
+  <line x1="155" y1="112" x2="155" y2="127" stroke="#0EA5E9" stroke-width="2" opacity="0.7"/>
+  <line x1="165" y1="94" x2="175" y2="85" stroke="#0EA5E9" stroke-width="2" opacity="0.7"/>
+  <line x1="165" y1="106" x2="175" y2="115" stroke="#0EA5E9" stroke-width="2" opacity="0.7"/>
+
+  <circle cx="130" cy="85" r="2" fill="#64748B" opacity="0.5"/>
+  <circle cx="135" cy="115" r="2" fill="#64748B" opacity="0.5"/>
+  <circle cx="140" cy="95" r="1.5" fill="#64748B" opacity="0.4"/>
+</svg>
