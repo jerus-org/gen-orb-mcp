@@ -140,19 +140,31 @@ upload_release_asset:
             ASSET_NAME="$(basename "${ASSET_PATH}")"
           fi
 
-          RELEASE_ID=$(curl -sf \
-            -H "Authorization: Bearer ${TOKEN}" \
-            "https://api.github.com/repos/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/releases/tags/${CIRCLE_TAG}" \
-            | jq -r '.id')
+          REPO_SLUG="${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}"
 
-          curl -sf -X POST \
+          RELEASE_RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            "https://api.github.com/repos/${REPO_SLUG}/releases/tags/${CIRCLE_TAG}")
+
+          HTTP_CODE=$(echo "${RELEASE_RESPONSE}" | tail -1)
+          RELEASE_BODY=$(echo "${RELEASE_RESPONSE}" | sed '$d')
+
+          if [[ "${HTTP_CODE}" != "200" ]]; then
+            echo "ERROR: GitHub API returned HTTP ${HTTP_CODE}" >&2
+            echo "${RELEASE_BODY}" | jq -r '.message // .' >&2
+            exit 1
+          fi
+
+          RELEASE_ID=$(echo "${RELEASE_BODY}" | jq -r '.id')
+
+          curl -s -w "\n%{http_code}" -X POST \
             -H "Authorization: Bearer ${TOKEN}" \
             -H "Content-Type: application/octet-stream" \
-            "https://uploads.github.com/repos/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/releases/${RELEASE_ID}/assets?name=${ASSET_NAME}" \
+            "https://uploads.github.com/repos/${REPO_SLUG}/releases/${RELEASE_ID}/assets?name=${ASSET_NAME}" \
             --data-binary "@${ASSET_PATH}"
 ```
 
-Uses `curl` and `jq` to interact with the GitHub Releases API. A dedicated CLI tool may replace this in the future.
+Uses `curl` and `jq` to interact with the GitHub Releases API. Capture HTTP status codes explicitly rather than using `curl -sf`, which suppresses error details and makes failures difficult to diagnose.
 
 ### Complete Job Example
 
@@ -211,7 +223,7 @@ workflows:
           requires:
             - all-test-jobs
           context:
-            - release  # provides GITHUB_TOKEN
+            - your-github-context  # must provide GITHUB_TOKEN with write access
 
       - orb-tools/publish:
           # Does NOT require generate-mcp-server
@@ -237,7 +249,7 @@ Currently only Linux x86_64 is supported (the standard CircleCI executor archite
 
 ## Prerequisites
 
-- **GitHub token** - `contents: write` permission, provided via a CircleCI context
+- **GitHub token** - A `GITHUB_TOKEN` with write access to the GitHub release, provided via a CircleCI context. The upload step creates release assets, which requires `contents: write` permission.
 - **GitHub release** - Must exist before the upload step runs
 - **jq** - Required for parsing GitHub API responses in the upload command
 - **gen-orb-mcp** - Must be available in the executor
@@ -254,6 +266,15 @@ The upload command looks up the release by `CIRCLE_TAG`. Check that:
 - The job runs on a tag-triggered pipeline
 - The GitHub release exists for that tag
 - `CIRCLE_TAG` is set (not available on branch builds)
+
+### Upload fails with HTTP 401 or empty token
+
+The upload step requires a `GITHUB_TOKEN` with write access to the release. Verify that:
+- The CircleCI context attached to the job provides `GITHUB_TOKEN`
+- The token has `contents: write` permission on the repository
+- The correct context name is listed in the workflow entry
+
+If the token is missing or lacks write access, the GitHub API returns `401 Unauthorized` or `403 Forbidden`. The upload command logs the HTTP status code and error message to help diagnose the issue.
 
 ### cargo binstall falls back to source compilation
 
