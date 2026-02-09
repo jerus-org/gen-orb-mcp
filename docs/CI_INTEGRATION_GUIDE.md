@@ -22,7 +22,6 @@ Install gen-orb-mcp in your CI Docker image at build time. This avoids spending 
 
 ```dockerfile
 # In your CI Dockerfile
-# renovate: datasource=crate depName=gen-orb-mcp packageName=gen-orb-mcp versioning=semver-coerced
 ENV GEN_ORB_MCP_VERSION=0.1.0
 
 RUN cargo binstall gen-orb-mcp --version "${GEN_ORB_MCP_VERSION}" --no-confirm
@@ -31,11 +30,19 @@ RUN cargo binstall gen-orb-mcp --version "${GEN_ORB_MCP_VERSION}" --no-confirm
 **Advantages:**
 - Fastest CI execution - no tool install overhead
 - Reproducible builds - exact version pinned in image
-- Works with dependency update bots (e.g., Renovate) via the `renovate:` comment
+- Version pinned via environment variable, easy to update
+
+**Tip:** Dependency update tools can automate version bumps. For example, [Renovate](https://docs.renovatebot.com/) can detect and update crate versions when a specially formatted comment is added above the `ENV` line:
+
+```dockerfile
+# renovate: datasource=crate depName=gen-orb-mcp packageName=gen-orb-mcp versioning=semver-coerced
+ENV GEN_ORB_MCP_VERSION=0.1.0
+```
 
 **Trade-off:**
 - Container rebuild required for version updates
-- Without pre-built binaries on GitHub releases, `cargo binstall` will fall back to compiling from source during the Docker build (slower image builds, but this only happens once per version)
+
+Using `cargo binstall` is recommended over `cargo install` because it will automatically use pre-built binaries when available, reducing image build times. If no pre-built binary is published for a given version, it gracefully falls back to compiling from source. Either way, the tool is baked into the image and available instantly at CI runtime.
 
 ### Runtime installation
 
@@ -54,7 +61,11 @@ steps:
 
 **Trade-off:**
 - Adds install time to every CI run
-- Rust compilation from source can take several minutes if no pre-built binary is available
+- Compilation from source can take several minutes if no pre-built binary is available
+
+### Future: Public CircleCI orb
+
+A planned improvement is to publish a public CircleCI orb that provides gen-orb-mcp as a reusable job, removing the need for users to install the tool in their own CI environment. This would allow any orb project to add MCP server generation by simply referencing the orb.
 
 ## CircleCI Pipeline Configuration
 
@@ -76,7 +87,7 @@ generate_mcp_server:
     output_dir:
       type: string
       default: "/tmp/mcp-build"
-    name:
+    orb_name:
       type: string
       description: "Name of the orb"
     version:
@@ -95,7 +106,7 @@ generate_mcp_server:
             --orb-path "<< parameters.orb_path >>" \
             --output "<< parameters.output_dir >>" \
             --format "<< parameters.format >>" \
-            --name "<< parameters.name >>" \
+            --name "<< parameters.orb_name >>" \
             --version "<< parameters.version >>"
 ```
 
@@ -160,7 +171,7 @@ jobs:
             ORB_VERSION="${CIRCLE_TAG#v}"
             echo "export ORB_VERSION=${ORB_VERSION}" >> "$BASH_ENV"
       - generate_mcp_server:
-          name: my-orb
+          orb_name: my-orb
           version: "${ORB_VERSION}"
       - run:
           name: Prepare artifact
@@ -177,36 +188,43 @@ jobs:
 
 ### Workflow Integration
 
+This follows the standard CircleCI orb template design pattern where the `test-deploy.yml` pipeline runs tests on all branches and tags, but release jobs (pack, publish, and MCP generation) are filtered to run only on semver release tags. This is the same pattern used by `circleci-toolkit` and the `circleci/orb-tools` orb.
+
 The MCP server generation job should:
 
-- **Run only on release tags** - Use a filter like `tags: only: /^v[0-9]+\.[0-9]+\.[0-9]+$/`
+- **Run only on release tags** - Filter to semver tags (e.g., `v1.2.3`) so it only runs when a GitHub release is created
 - **Require all test jobs** - Don't generate from untested code
-- **Run in parallel with publishing** - It does not need to block or depend on the publish step
+- **Run in parallel with publishing** - It does not need to block or depend on the orb publish step
 - **Not block publishing** - If MCP generation fails, the orb release should still succeed
 
 ```yaml
+# release-filters anchor (standard orb template pattern)
+release-filters: &release-filters
+  branches:
+    ignore: /.*/
+  tags:
+    only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+
 workflows:
-  release:
+  test-deploy:
     jobs:
-      # ... test jobs ...
+      # ... test jobs with 'filters: *filters' to run on all branches and tags ...
 
       - generate-mcp-server:
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+          filters: *release-filters
           requires:
             - all-test-jobs
           context:
             - release  # provides GITHUB_TOKEN
 
-      - publish:
+      - orb-tools/publish:
           # Does NOT require generate-mcp-server
+          filters: *release-filters
           requires:
+            - orb-tools/pack
             - all-test-jobs
           context:
-            - publishing
+            - orb-publishing
 ```
 
 ## Binary Naming Convention
