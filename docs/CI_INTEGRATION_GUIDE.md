@@ -1,52 +1,50 @@
 # CI Integration Guide
 
-This guide describes how to integrate gen-orb-mcp into a CI/CD pipeline to automatically generate MCP server binaries when new orb versions are released.
+Integrate gen-orb-mcp into a CI/CD pipeline to generate MCP server binaries on each orb release.
 
 ## Overview
 
-When a CircleCI orb is released, gen-orb-mcp can generate a companion MCP server binary and attach it to the release. This enables AI coding assistants to automatically access up-to-date orb documentation and tooling.
+gen-orb-mcp generates a companion MCP server binary when a CircleCI orb is released and attaches it to the GitHub release. AI coding assistants can then download the binary to access orb documentation and tooling.
 
-The integration involves three components:
+Three components are involved:
 
-1. **CI container** - A Docker image with gen-orb-mcp pre-installed
-2. **CI pipeline** - A job that generates the binary and uploads it to the release
-3. **Release assets** - The binary attached to the GitHub release for download
+1. **CI container** - Docker image with gen-orb-mcp pre-installed
+2. **CI pipeline** - Job that generates the binary and uploads it to the release
+3. **Release assets** - Binary attached to the GitHub release for download
 
-## CI Tool Installation Strategies
+## CI Tool Installation
 
-There are two main approaches to making gen-orb-mcp available in CI:
+Two approaches to making gen-orb-mcp available in CI:
 
 ### Pre-installed in container (recommended)
 
-Install gen-orb-mcp in your CI Docker image at build time. This avoids spending CI minutes compiling or downloading tools on every run.
+Install gen-orb-mcp in the CI Docker image at build time. This avoids tool installation overhead on every run.
 
 ```dockerfile
-# In your CI Dockerfile
 ENV GEN_ORB_MCP_VERSION=0.1.0
 
 RUN cargo binstall gen-orb-mcp --version "${GEN_ORB_MCP_VERSION}" --no-confirm
 ```
 
 **Advantages:**
-- Fastest CI execution - no tool install overhead
-- Reproducible builds - exact version pinned in image
-- Version pinned via environment variable, easy to update
+- No install overhead at CI runtime
+- Reproducible builds with exact version pinned in image
 
-**Tip:** Dependency update tools can automate version bumps. For example, [Renovate](https://docs.renovatebot.com/) can detect and update crate versions when a specially formatted comment is added above the `ENV` line:
+**Trade-off:**
+- Container rebuild required for version updates
+
+`cargo binstall` downloads pre-built binaries when available and falls back to compiling from source otherwise. Either way, the tool is baked into the image and available at CI runtime.
+
+**Tip:** Dependency update tools can automate version bumps. For example, [Renovate](https://docs.renovatebot.com/) detects and updates crate versions with a comment above the `ENV` line:
 
 ```dockerfile
 # renovate: datasource=crate depName=gen-orb-mcp packageName=gen-orb-mcp versioning=semver-coerced
 ENV GEN_ORB_MCP_VERSION=0.1.0
 ```
 
-**Trade-off:**
-- Container rebuild required for version updates
-
-Using `cargo binstall` is recommended over `cargo install` because it will automatically use pre-built binaries when available, reducing image build times. If no pre-built binary is published for a given version, it gracefully falls back to compiling from source. Either way, the tool is baked into the image and available instantly at CI runtime.
-
 ### Runtime installation
 
-Install gen-orb-mcp as a CI step. Simpler setup but adds time to every pipeline run.
+Install gen-orb-mcp as a CI step. Simpler to set up but adds time to every run.
 
 ```yaml
 steps:
@@ -61,11 +59,11 @@ steps:
 
 **Trade-off:**
 - Adds install time to every CI run
-- Compilation from source can take several minutes if no pre-built binary is available
+- Source compilation can take several minutes if no pre-built binary is available
 
 ### Future: Public CircleCI orb
 
-A planned improvement is to publish a public CircleCI orb that provides gen-orb-mcp as a reusable job, removing the need for users to install the tool in their own CI environment. This would allow any orb project to add MCP server generation by simply referencing the orb.
+A public CircleCI orb providing gen-orb-mcp as a reusable job is planned. This would let any orb project add MCP server generation by using the orb directly, without managing tool installation.
 
 ## CircleCI Pipeline Configuration
 
@@ -73,10 +71,9 @@ A planned improvement is to publish a public CircleCI orb that provides gen-orb-
 
 #### generate_mcp_server
 
-Generates an MCP server from an orb definition. Wraps the `gen-orb-mcp generate` CLI command.
+Wraps `gen-orb-mcp generate` to produce an MCP server from an orb definition.
 
 ```yaml
-# In your orb or config commands section
 generate_mcp_server:
   description: >
     Generate an MCP server binary from a CircleCI orb definition.
@@ -110,11 +107,11 @@ generate_mcp_server:
             --version "<< parameters.version >>"
 ```
 
-The `no_output_timeout: 15m` is important because the binary compilation step can take several minutes without producing output.
+Set `no_output_timeout: 15m` because binary compilation can take several minutes without producing output.
 
 #### upload_release_asset
 
-Uploads a binary file to the GitHub release matching the current tag. Requires `GITHUB_TOKEN` in the environment.
+Uploads a file to the GitHub release matching the current tag. Requires `GITHUB_TOKEN` in the environment.
 
 ```yaml
 upload_release_asset:
@@ -155,7 +152,7 @@ upload_release_asset:
             --data-binary "@${ASSET_PATH}"
 ```
 
-This command uses `curl` and `jq` (both commonly available in CI images) to interact with the GitHub Releases API. It could be replaced by a dedicated CLI tool in the future.
+Uses `curl` and `jq` to interact with the GitHub Releases API. A dedicated CLI tool may replace this in the future.
 
 ### Complete Job Example
 
@@ -188,17 +185,16 @@ jobs:
 
 ### Workflow Integration
 
-This follows the standard CircleCI orb template design pattern where the `test-deploy.yml` pipeline runs tests on all branches and tags, but release jobs (pack, publish, and MCP generation) are filtered to run only on semver release tags. This is the same pattern used by `circleci-toolkit` and the `circleci/orb-tools` orb.
+This follows the standard CircleCI orb template pattern used by `circleci-toolkit` and `circleci/orb-tools`: the `test-deploy.yml` pipeline runs tests on all branches and tags, but release jobs run only on semver tags.
 
-The MCP server generation job should:
+The MCP generation job should:
 
-- **Run only on release tags** - Filter to semver tags (e.g., `v1.2.3`) so it only runs when a GitHub release is created
-- **Require all test jobs** - Don't generate from untested code
-- **Run in parallel with publishing** - It does not need to block or depend on the orb publish step
-- **Not block publishing** - If MCP generation fails, the orb release should still succeed
+- **Run only on release tags** - Filter to semver tags (e.g., `v1.2.3`)
+- **Require all test jobs** - Do not generate from untested code
+- **Run in parallel with publishing** - Independent of the orb publish step
+- **Not block publishing** - Orb release succeeds even if MCP generation fails
 
 ```yaml
-# release-filters anchor (standard orb template pattern)
 release-filters: &release-filters
   branches:
     ignore: /.*/
@@ -208,7 +204,7 @@ release-filters: &release-filters
 workflows:
   test-deploy:
     jobs:
-      # ... test jobs with 'filters: *filters' to run on all branches and tags ...
+      # ... test jobs run on all branches and tags ...
 
       - generate-mcp-server:
           filters: *release-filters
@@ -229,7 +225,7 @@ workflows:
 
 ## Binary Naming Convention
 
-Generated binaries use platform-suffixed names for clarity:
+Generated binaries use platform-suffixed names:
 
 ```
 <orb-name>-mcp-<platform>-<arch>
@@ -241,28 +237,28 @@ Currently only Linux x86_64 is supported (the standard CircleCI executor archite
 
 ## Prerequisites
 
-- **GitHub token** - A token with `contents: write` permission on the repository, provided via a CircleCI context
-- **GitHub release** - Must exist before the upload step runs. If your pipeline creates the release in a separate stage, ensure it completes first
+- **GitHub token** - `contents: write` permission, provided via a CircleCI context
+- **GitHub release** - Must exist before the upload step runs
 - **jq** - Required for parsing GitHub API responses in the upload command
-- **gen-orb-mcp** - Must be available in the executor (pre-installed or runtime-installed)
+- **gen-orb-mcp** - Must be available in the executor
 
 ## Troubleshooting
 
 ### Binary compilation timeout
 
-The generated MCP server compiles a Rust project, which can take 3-5 minutes. Set `no_output_timeout: 15m` on the generation step to prevent CircleCI from killing the job.
+The generated MCP server compiles a Rust project (3-5 minutes). Set `no_output_timeout: 15m` on the generation step to prevent CircleCI from killing the job.
 
 ### GitHub release not found
 
-The upload command looks up the release by `CIRCLE_TAG`. Ensure:
+The upload command looks up the release by `CIRCLE_TAG`. Check that:
 - The job runs on a tag-triggered pipeline
-- The GitHub release has already been created for that tag
-- `CIRCLE_TAG` is set (it won't be on branch builds)
+- The GitHub release exists for that tag
+- `CIRCLE_TAG` is set (not available on branch builds)
 
 ### cargo binstall falls back to source compilation
 
-If `cargo binstall gen-orb-mcp` compiles from source instead of downloading a binary, it means pre-built binaries are not yet available for gen-orb-mcp. This is expected for now and only affects Docker image build time, not CI pipeline execution time (since the tool is pre-installed in the image).
+This means pre-built binaries are not yet published for that version of gen-orb-mcp. This only affects Docker image build time, not CI pipeline execution (the tool is pre-installed in the image).
 
 ### Binary name mismatch
 
-The generated binary name is derived from the orb name with hyphens converted to underscores (Rust convention). For example, `circleci-toolkit` produces `circleci_toolkit_mcp`. The rename to the platform-suffixed name happens in the "Prepare artifact" step.
+The generated binary name converts hyphens to underscores (Rust convention). For example, `circleci-toolkit` produces `circleci_toolkit_mcp`. The rename to the platform-suffixed name happens in the "Prepare artifact" step.
