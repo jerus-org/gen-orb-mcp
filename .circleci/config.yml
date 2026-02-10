@@ -81,7 +81,7 @@ jobs:
       Add the pull request to the PRLOG.
       Extends toolkit/update_prlog with --from-merge flag for post-merge updates on main.
     executor:
-      name: toolkit/rust_env
+      name: toolkit/rust_env_rolling
       min_rust_version: <<parameters.min_rust_version>>
     parameters:
       min_rust_version:
