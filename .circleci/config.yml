@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   min_rust_version:
     type: string
-    default: "1.86"
+    default: "1.87"
   success_flag:
     type: boolean
     default: false

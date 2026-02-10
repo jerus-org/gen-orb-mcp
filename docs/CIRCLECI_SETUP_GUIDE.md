@@ -40,7 +40,7 @@ This separation allows independent management of validation and release processe
 **Pipeline Parameters:**
 ```yaml
 parameters:
-  min_rust_version: "1.86"           # Minimum Rust version
+  min_rust_version: "1.87"           # Minimum Rust version
   fingerprint: "SHA256:..."          # SSH key fingerprint
   validation_flag: false             # Trigger validation
   success_flag: false                # Trigger success
@@ -428,19 +428,19 @@ For testing, you can:
 
 Jobs used from `jerus-org/circleci-toolkit@4.2.0`:
 
-| Job | Purpose |
-|-----|---------|
+| Job               | Purpose                                   |
+| ----------------- | ----------------------------------------- |
 | `choose_pipeline` | Routes based on committer (bot vs. human) |
-| `label` | Adds labels to PRs |
-| `required_builds` | Build on minimum Rust version |
-| `optional_builds` | Build on stable/nightly |
-| `test_doc_build` | Generate and test documentation |
-| `common_tests` | Run test suite |
-| `idiomatic_rust` | Clippy, rustfmt, doc tests |
-| `security` | cargo-deny, SonarCloud scanning |
-| `update_prlog` | Update PRLOG.md on PR branch |
-| `end_success` | Cleanup after validation |
-| `make_release` | Triggers release workflow |
+| `label`           | Adds labels to PRs                        |
+| `required_builds` | Build on minimum Rust version             |
+| `optional_builds` | Build on stable/nightly                   |
+| `test_doc_build`  | Generate and test documentation           |
+| `common_tests`    | Run test suite                            |
+| `idiomatic_rust`  | Clippy, rustfmt, doc tests                |
+| `security`        | cargo-deny, SonarCloud scanning           |
+| `update_prlog`    | Update PRLOG.md on PR branch              |
+| `end_success`     | Cleanup after validation                  |
+| `make_release`    | Triggers release workflow                 |
 
 ---
 

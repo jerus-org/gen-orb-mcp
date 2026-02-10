@@ -14,7 +14,7 @@ I've created CircleCI configuration files for gen-orb-mcp based on the **pcu rep
 **Key Features:**
 - Routes commits based on committer (bot vs. human) using `toolkit/choose_pipeline`
 - Full validation suite using standard toolkit jobs:
-  - `required_builds` - Build on min Rust version (1.86)
+  - `required_builds` - Build on min Rust version (1.87)
   - `optional_builds` - Build on stable/nightly
   - `common_tests` - Run test suite
   - `idiomatic_rust` - Clippy, rustfmt, doc tests
@@ -229,24 +229,24 @@ curl -X POST \
 
 Copy these files from `/mnt/user-data/outputs/` to your repository:
 
-| Output File | Repository Location | Purpose |
-|-------------|-------------------|---------|
-| `circleci-config.yml` | `.circleci/config.yml` | Main validation workflow |
-| `circleci-release.yml` | `.circleci/release.yml` | Release workflow |
-| `CIRCLECI_SETUP_GUIDE.md` | `docs/circleci-setup.md` | Setup and usage guide |
+| Output File               | Repository Location      | Purpose                  |
+| ------------------------- | ------------------------ | ------------------------ |
+| `circleci-config.yml`     | `.circleci/config.yml`   | Main validation workflow |
+| `circleci-release.yml`    | `.circleci/release.yml`  | Release workflow         |
+| `CIRCLECI_SETUP_GUIDE.md` | `docs/circleci-setup.md` | Setup and usage guide    |
 
 ---
 
 ## Key Differences: pcu vs gen-orb-mcp
 
-| Aspect | pcu (Multi-Crate) | gen-orb-mcp (Single-Crate) |
-|--------|------------------|---------------------------|
-| Crates | 3 (gen-bsky, gen-linkedin, pcu) | 1 (gen-orb-mcp) |
-| Release Jobs | 4 sequential jobs | 1 job |
-| Test Jobs | Custom pcu-specific tests | Standard toolkit only |
-| Tag Prefix | Multiple (gen-bsky-v, pcu-v, v) | One (gen-orb-mcp-v) |
-| Contexts | pcu-app, bluesky | gen-orb-mcp-app |
-| Complexity | High (workspace coordination) | Low (single crate) |
+| Aspect       | pcu (Multi-Crate)               | gen-orb-mcp (Single-Crate) |
+| ------------ | ------------------------------- | -------------------------- |
+| Crates       | 3 (gen-bsky, gen-linkedin, pcu) | 1 (gen-orb-mcp)            |
+| Release Jobs | 4 sequential jobs               | 1 job                      |
+| Test Jobs    | Custom pcu-specific tests       | Standard toolkit only      |
+| Tag Prefix   | Multiple (gen-bsky-v, pcu-v, v) | One (gen-orb-mcp-v)        |
+| Contexts     | pcu-app, bluesky                | gen-orb-mcp-app            |
+| Complexity   | High (workspace coordination)   | Low (single crate)         |
 
 ---
 

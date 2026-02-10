@@ -577,12 +577,12 @@ criterion = "0.5"               # Benchmarks
 
 ### Build Tools
 
-- **Rust:** 1.86+ (or MSRV as needed)
+- **Rust:** 1.87+ (or MSRV as needed)
 - **Cargo:** For building and testing
 - **Docker:** For container builds (optional)
 - **CircleCI:** CI/CD platform (mandatory per organizational standards)
 - **circleci-toolkit orb:** Reusable CI/CD jobs
-- **jerusdp/ci-rust:1.86:** Docker image for CI builds
+- **jerusdp/ci-rust:1.87:** Docker image for CI builds
 
 ---
 
