@@ -21,7 +21,7 @@ serde_json = "1.0"
 serde_yaml = "0.9"
 
 # CLI
-clap = { version = "4.0", features = ["derive"] }
+clap = { version = "4.5.57", features = ["derive"] }
 
 # Error Handling
 anyhow = "1.0.101"
