@@ -40,7 +40,7 @@ This separation allows independent management of validation and release processe
 **Pipeline Parameters:**
 ```yaml
 parameters:
-  min_rust_version: "1.85"           # Minimum Rust version
+  min_rust_version: "1.86"           # Minimum Rust version
   fingerprint: "SHA256:..."          # SSH key fingerprint
   validation_flag: false             # Trigger validation
   success_flag: false                # Trigger success

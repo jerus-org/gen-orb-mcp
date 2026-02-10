@@ -14,7 +14,7 @@ I've created CircleCI configuration files for gen-orb-mcp based on the **pcu rep
 **Key Features:**
 - Routes commits based on committer (bot vs. human) using `toolkit/choose_pipeline`
 - Full validation suite using standard toolkit jobs:
-  - `required_builds` - Build on min Rust version (1.85)
+  - `required_builds` - Build on min Rust version (1.86)
   - `optional_builds` - Build on stable/nightly
   - `common_tests` - Run test suite
   - `idiomatic_rust` - Clippy, rustfmt, doc tests

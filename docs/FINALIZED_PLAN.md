@@ -362,8 +362,8 @@ criterion = "0.5"      # Benchmarks per CLAUDE.md
 
 ### Build Tools
 
-- Rust 1.85 (or MSRV as needed)
-- `jerusdp/ci-rust:1.85` Docker image
+- Rust 1.86 (or MSRV as needed)
+- `jerusdp/ci-rust:1.86` Docker image
 - CircleCI for CI/CD
 - `circleci-toolkit` orb
 - `gen-changelog` for CHANGELOG generation
