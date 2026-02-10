@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - docs-add project logo and article cover graphics(pr [#31])
 - docs-add CI integration guide(pr [#33])
 
+### Fixed
+
+- deps: update dependency toolkit to v4.4.2(pr [#36])
+- deps: update rust crate anyhow to 1.0.101(pr [#37])
+- deps: update rust crate clap to 4.5.57(pr [#38])
+- deps: update rust crate handlebars to 5.1.2(pr [#39])
+- deps: update rust crate thiserror to 1.0.69(pr [#40])
+
 ## [0.1.0] - 2026-02-05
 
 ### Added
@@ -87,6 +95,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#30]: https://github.com/jerus-org/gen-orb-mcp/pull/30
 [#31]: https://github.com/jerus-org/gen-orb-mcp/pull/31
 [#33]: https://github.com/jerus-org/gen-orb-mcp/pull/33
+[#36]: https://github.com/jerus-org/gen-orb-mcp/pull/36
+[#37]: https://github.com/jerus-org/gen-orb-mcp/pull/37
+[#38]: https://github.com/jerus-org/gen-orb-mcp/pull/38
+[#39]: https://github.com/jerus-org/gen-orb-mcp/pull/39
+[#40]: https://github.com/jerus-org/gen-orb-mcp/pull/40
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0-alpha.1...v0.1.0
 [0.1.0-alpha.1]: https://github.com/jerus-org/gen-orb-mcp/releases/tag/v0.1.0-alpha.1
