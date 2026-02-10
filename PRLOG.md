@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - docs-add project logo and article cover graphics(pr [#31])
 - docs-add CI integration guide(pr [#33])
 
+### Fixed
+
+- deps: update dependency toolkit to v4.4.2(pr [#36])
+
 ## [0.1.0] - 2026-02-05
 
 ### Added
@@ -87,6 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#30]: https://github.com/jerus-org/gen-orb-mcp/pull/30
 [#31]: https://github.com/jerus-org/gen-orb-mcp/pull/31
 [#33]: https://github.com/jerus-org/gen-orb-mcp/pull/33
+[#36]: https://github.com/jerus-org/gen-orb-mcp/pull/36
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0-alpha.1...v0.1.0
 [0.1.0-alpha.1]: https://github.com/jerus-org/gen-orb-mcp/releases/tag/v0.1.0-alpha.1
