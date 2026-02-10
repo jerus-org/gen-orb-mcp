@@ -25,7 +25,7 @@ clap = { version = "4.5.57", features = ["derive"] }
 
 # Error Handling
 anyhow = "1.0.101"
-thiserror = "1.0.69"
+thiserror = "2.0.18"
 
 # Async Runtime
 tokio = { version = "1.0", features = ["full"] }
