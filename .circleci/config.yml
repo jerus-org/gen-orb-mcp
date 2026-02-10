@@ -17,7 +17,7 @@ parameters:
     default: SHA256:OkxsH8Z6Iim6WDJBaII9eTT9aaO1f3eDc6IpsgYYPVg
 
 orbs:
-  toolkit: jerus-org/circleci-toolkit@4.2.1
+  toolkit: jerus-org/circleci-toolkit@4.4.2
 
 # Custom command extending toolkit/update_log with --from-merge support
 # To be migrated to toolkit once tested
