@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - deps: update dependency toolkit to v4.4.2(pr [#36])
 - deps: update rust crate anyhow to 1.0.101(pr [#37])
+- deps: update rust crate clap to 4.5.57(pr [#38])
 
 ## [0.1.0] - 2026-02-05
 
@@ -94,6 +95,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#33]: https://github.com/jerus-org/gen-orb-mcp/pull/33
 [#36]: https://github.com/jerus-org/gen-orb-mcp/pull/36
 [#37]: https://github.com/jerus-org/gen-orb-mcp/pull/37
+[#38]: https://github.com/jerus-org/gen-orb-mcp/pull/38
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0-alpha.1...v0.1.0
 [0.1.0-alpha.1]: https://github.com/jerus-org/gen-orb-mcp/releases/tag/v0.1.0-alpha.1
