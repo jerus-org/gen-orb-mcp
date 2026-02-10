@@ -24,7 +24,7 @@ serde_yaml = "0.9"
 clap = { version = "4.0", features = ["derive"] }
 
 # Error Handling
-anyhow = "1.0"
+anyhow = "1.0.101"
 thiserror = "1.0"
 
 # Async Runtime
