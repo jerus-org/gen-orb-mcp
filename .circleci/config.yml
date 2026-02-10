@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   min_rust_version:
     type: string
-    default: "1.85"
+    default: "1.87"
   success_flag:
     type: boolean
     default: false
@@ -81,8 +81,7 @@ jobs:
       Add the pull request to the PRLOG.
       Extends toolkit/update_prlog with --from-merge flag for post-merge updates on main.
     executor:
-      name: toolkit/rust_env
-      min_rust_version: <<parameters.min_rust_version>>
+      name: toolkit/rust_env_rolling
     parameters:
       min_rust_version:
         description: The minimum version of the rust compiler to use

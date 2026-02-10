@@ -362,8 +362,8 @@ criterion = "0.5"      # Benchmarks per CLAUDE.md
 
 ### Build Tools
 
-- Rust 1.85 (or MSRV as needed)
-- `jerusdp/ci-rust:1.85` Docker image
+- Rust 1.87 (or MSRV as needed)
+- `jerusdp/ci-rust:1.87` Docker image
 - CircleCI for CI/CD
 - `circleci-toolkit` orb
 - `gen-changelog` for CHANGELOG generation
@@ -509,14 +509,14 @@ gen-orb-mcp generate \
 
 ## Risk Assessment (Updated)
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Part-time pace slower | Medium | Clear milestones, Claude Code assistance |
-| Private orb complexity | High | Test with circleci-toolkit early |
-| Registry auth challenges | Medium | Document patterns, support multiple auth methods |
-| pmcp SDK API changes | High | Pin version, monitor releases |
-| CircleCI breaking changes | Low | Use stable toolkit patterns |
-| Solo development bottleneck | Medium | Good documentation, automated testing |
+| Risk                        | Impact | Mitigation                                       |
+| --------------------------- | ------ | ------------------------------------------------ |
+| Part-time pace slower       | Medium | Clear milestones, Claude Code assistance         |
+| Private orb complexity      | High   | Test with circleci-toolkit early                 |
+| Registry auth challenges    | Medium | Document patterns, support multiple auth methods |
+| pmcp SDK API changes        | High   | Pin version, monitor releases                    |
+| CircleCI breaking changes   | Low    | Use stable toolkit patterns                      |
+| Solo development bottleneck | Medium | Good documentation, automated testing            |
 
 ---
 

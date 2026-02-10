@@ -7,7 +7,7 @@ edition = "2021"
 authors = ["Jeremiah Russell <jrussell@jerus.ie>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/jerus-org/gen-orb-mcp"
-rust-version = "1.85"
+rust-version = "1.87"
 keywords = ["mcp", "circleci", "orb", "codegen"]
 categories = ["development-tools", "command-line-utilities"]
 
@@ -40,4 +40,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Testing
 tempfile = "3.0"
 trycmd = "0.15"
-criterion = "0.5"
+criterion = "0.8.2"
