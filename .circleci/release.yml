@@ -328,6 +328,152 @@ commands:
 
             pcu $pcu_args
 
+  # Build a release binary using cargo.
+  # Requires VERSION environment variable (skips if "none").
+  build_release_binary:
+    description: >
+      Build a release-optimised binary using cargo build --release.
+      Expects VERSION to be set in BASH_ENV; skips when VERSION is "none".
+    steps:
+      - run:
+          name: Build release binary
+          command: |
+            set -eo pipefail
+
+            if [ "$VERSION" = "none" ]; then
+              echo "No version to release - skipping"
+              exit 0
+            fi
+
+            cargo build --release
+
+  # Package a binary from target/release into a .tar.gz archive.
+  # Sets ASSET_NAME in BASH_ENV for use by upload_release_asset.
+  package_binary:
+    description: >
+      Package a binary from target/release into a .tar.gz archive named
+      <binary_name>-<target>.tar.gz. Sets ASSET_NAME in BASH_ENV.
+    parameters:
+      binary_name:
+        type: string
+        description: "Name of the binary in target/release"
+      target:
+        type: string
+        default: x86_64-unknown-linux-gnu
+        description: "Rust target triple for the archive name"
+    steps:
+      - run:
+          name: Package binary as tar.gz
+          command: |
+            set -eo pipefail
+
+            if [ "$VERSION" = "none" ]; then
+              echo "No version to release - skipping"
+              exit 0
+            fi
+
+            ASSET_NAME="<< parameters.binary_name >>-<< parameters.target >>.tar.gz"
+
+            tar czf "$ASSET_NAME" -C target/release "<< parameters.binary_name >>"
+            echo "Created $ASSET_NAME ($(du -h "$ASSET_NAME" | cut -f1))"
+
+            echo "export ASSET_NAME=$ASSET_NAME" >> "$BASH_ENV"
+
+  # Upload a binary asset to a GitHub release.
+  # Adapted from toolkit/upload_release_asset with release_tag parameter
+  # so it works in pipelines where CIRCLE_TAG is not set.
+  # TODO: Replace with toolkit/upload_release_asset once it accepts a
+  # release_tag parameter (circleci-toolkit#333).
+  upload_release_asset:
+    description: >
+      Upload a binary asset to a GitHub release. Accepts a release_tag
+      parameter instead of relying on CIRCLE_TAG, making it usable in
+      scheduled/manual pipelines. Requires GITHUB_TOKEN environment variable.
+    parameters:
+      asset_path:
+        type: string
+        description: "Path to the asset file to upload"
+      asset_name:
+        type: string
+        default: ""
+        description: "Name for the asset in the release (defaults to filename)"
+      release_tag:
+        type: string
+        description: "Git tag identifying the GitHub release"
+      github_token_var:
+        type: env_var_name
+        default: GITHUB_TOKEN
+        description: "Environment variable containing the GitHub token"
+    steps:
+      - run:
+          name: Upload asset to GitHub release
+          command: |
+            set -eo pipefail
+
+            if [ "$VERSION" = "none" ]; then
+              echo "No version to release - skipping"
+              exit 0
+            fi
+
+            ASSET_PATH="<< parameters.asset_path >>"
+            ASSET_NAME="<< parameters.asset_name >>"
+            TOKEN="${<< parameters.github_token_var >>}"
+            TAG="<< parameters.release_tag >>"
+
+            if [ -z "${ASSET_NAME}" ]; then
+              ASSET_NAME="$(basename "${ASSET_PATH}")"
+            fi
+
+            if [ ! -f "${ASSET_PATH}" ]; then
+              echo "ERROR: Asset file not found: ${ASSET_PATH}" >&2
+              exit 1
+            fi
+
+            # Derive repo slug from git remote
+            REPO_URL=$(git remote get-url origin)
+            REPO_SLUG=$(echo "$REPO_URL" | sed -E 's|.*github\.com[:/]||' | sed 's|\.git$||')
+            echo "Repository: ${REPO_SLUG}"
+            echo "Looking up release for tag ${TAG}..."
+
+            RELEASE_RESPONSE=$(curl -s -w "\n%{http_code}" \
+              -H "Authorization: Bearer ${TOKEN}" \
+              "https://api.github.com/repos/${REPO_SLUG}/releases/tags/${TAG}")
+
+            HTTP_CODE=$(echo "${RELEASE_RESPONSE}" | tail -1)
+            RELEASE_BODY=$(echo "${RELEASE_RESPONSE}" | sed '$d')
+
+            if [ "${HTTP_CODE}" != "200" ]; then
+              echo "ERROR: GitHub API returned HTTP ${HTTP_CODE}" >&2
+              echo "${RELEASE_BODY}" | jq -r '.message // .' >&2
+              exit 1
+            fi
+
+            RELEASE_ID=$(echo "${RELEASE_BODY}" | jq -r '.id')
+
+            if [ -z "${RELEASE_ID}" ] || [ "${RELEASE_ID}" = "null" ]; then
+              echo "ERROR: Could not find GitHub release for tag ${TAG}" >&2
+              exit 1
+            fi
+
+            echo "Uploading ${ASSET_NAME} to release ${RELEASE_ID}..."
+            UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" \
+              -X POST \
+              -H "Authorization: Bearer ${TOKEN}" \
+              -H "Content-Type: application/octet-stream" \
+              "https://uploads.github.com/repos/${REPO_SLUG}/releases/${RELEASE_ID}/assets?name=${ASSET_NAME}" \
+              --data-binary "@${ASSET_PATH}")
+
+            HTTP_CODE=$(echo "${UPLOAD_RESPONSE}" | tail -1)
+            UPLOAD_BODY=$(echo "${UPLOAD_RESPONSE}" | sed '$d')
+
+            if [ "${HTTP_CODE}" != "201" ]; then
+              echo "ERROR: Upload failed with HTTP ${HTTP_CODE}" >&2
+              echo "${UPLOAD_BODY}" | jq -r '.message // .' >&2
+              exit 1
+            fi
+
+            echo "Upload complete: ${ASSET_NAME}"
+
 jobs:
   tools:
     executor:
@@ -597,74 +743,12 @@ jobs:
               echo "ERROR: Version file not found at $VERSION_FILE"
               exit 1
             fi
-      - run:
-          name: Build release binary
-          command: |
-            set -eo pipefail
-
-            if [ "$VERSION" = "none" ]; then
-              echo "No version to release - skipping"
-              exit 0
-            fi
-
-            cargo build --release
-      - run:
-          name: Package and upload binary
-          command: |
-            set -eo pipefail
-
-            if [ "$VERSION" = "none" ]; then
-              echo "No version to release - skipping"
-              exit 0
-            fi
-
-            TARGET="x86_64-unknown-linux-gnu"
-            ASSET_NAME="gen-orb-mcp-${TARGET}.tar.gz"
-            TAG="gen-orb-mcp-v${VERSION}"
-
-            # Package binary
-            tar czf "$ASSET_NAME" -C target/release gen-orb-mcp
-            echo "Created $ASSET_NAME ($(du -h "$ASSET_NAME" | cut -f1))"
-
-            # Get upload URL from GitHub release
-            REPO_URL=$(git remote get-url origin)
-            REPO_PATH=$(echo "$REPO_URL" | sed -E 's|.*github\.com[:/]||' | sed 's|\.git$||')
-
-            RESPONSE=$(curl -s -w "\n%{http_code}" \
-              -H "Authorization: token ${GITHUB_TOKEN}" \
-              -H "Accept: application/vnd.github.v3+json" \
-              "https://api.github.com/repos/${REPO_PATH}/releases/tags/${TAG}")
-
-            HTTP_STATUS=$(echo "$RESPONSE" | tail -1)
-            BODY=$(echo "$RESPONSE" | sed '$d')
-
-            if [ "$HTTP_STATUS" != "200" ]; then
-              echo "ERROR: Failed to find release for tag ${TAG} (HTTP ${HTTP_STATUS})"
-              echo "$BODY"
-              exit 1
-            fi
-
-            UPLOAD_URL=$(echo "$BODY" | jq -r '.upload_url' | sed 's|{?name,label}||')
-            echo "Upload URL: $UPLOAD_URL"
-
-            # Upload asset
-            UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" \
-              -H "Authorization: token ${GITHUB_TOKEN}" \
-              -H "Content-Type: application/gzip" \
-              --data-binary @"$ASSET_NAME" \
-              "${UPLOAD_URL}?name=${ASSET_NAME}")
-
-            UPLOAD_STATUS=$(echo "$UPLOAD_RESPONSE" | tail -1)
-            UPLOAD_BODY=$(echo "$UPLOAD_RESPONSE" | sed '$d')
-
-            if [ "$UPLOAD_STATUS" != "201" ]; then
-              echo "ERROR: Failed to upload asset (HTTP ${UPLOAD_STATUS})"
-              echo "$UPLOAD_BODY"
-              exit 1
-            fi
-
-            DOWNLOAD_URL=$(echo "$UPLOAD_BODY" | jq -r '.browser_download_url')
-            echo "Uploaded successfully: $DOWNLOAD_URL"
+      - build_release_binary
+      - package_binary:
+          binary_name: gen-orb-mcp
+      - upload_release_asset:
+          asset_path: gen-orb-mcp-x86_64-unknown-linux-gnu.tar.gz
+          release_tag: gen-orb-mcp-v${VERSION}
 
 workflows:
   release:
