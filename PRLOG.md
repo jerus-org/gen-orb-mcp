@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deps: update rust crate thiserror to v2(pr [#49])
 - deps: update rust crate tokio to 1.49.0(pr [#41])
 - deps: update rust crate trycmd to 0.15.11(pr [#42])
+- deps: update serde packages(pr [#43])
 
 ## [0.1.0] - 2026-02-05
 
@@ -106,6 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#49]: https://github.com/jerus-org/gen-orb-mcp/pull/49
 [#41]: https://github.com/jerus-org/gen-orb-mcp/pull/41
 [#42]: https://github.com/jerus-org/gen-orb-mcp/pull/42
+[#43]: https://github.com/jerus-org/gen-orb-mcp/pull/43
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0-alpha.1...v0.1.0
 [0.1.0-alpha.1]: https://github.com/jerus-org/gen-orb-mcp/releases/tag/v0.1.0-alpha.1
