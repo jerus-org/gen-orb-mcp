@@ -576,6 +576,96 @@ jobs:
               git push origin main --tags
             fi
 
+  # Build release binary and upload to GitHub release for cargo-binstall
+  release-binary:
+    executor:
+      name: toolkit/rust_env_rolling
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /tmp
+      - run:
+          name: Load version from workspace
+          command: |
+            set -eo pipefail
+            VERSION_FILE="/tmp/release-versions/crate-version"
+            if [ -f "$VERSION_FILE" ]; then
+              VERSION=$(cat "$VERSION_FILE")
+              echo "Loaded version from workspace: $VERSION"
+              echo "export VERSION=$VERSION" >> "$BASH_ENV"
+            else
+              echo "ERROR: Version file not found at $VERSION_FILE"
+              exit 1
+            fi
+      - run:
+          name: Build release binary
+          command: |
+            set -eo pipefail
+
+            if [ "$VERSION" = "none" ]; then
+              echo "No version to release - skipping"
+              exit 0
+            fi
+
+            cargo build --release
+      - run:
+          name: Package and upload binary
+          command: |
+            set -eo pipefail
+
+            if [ "$VERSION" = "none" ]; then
+              echo "No version to release - skipping"
+              exit 0
+            fi
+
+            TARGET="x86_64-unknown-linux-gnu"
+            ASSET_NAME="gen-orb-mcp-${TARGET}.tar.gz"
+            TAG="gen-orb-mcp-v${VERSION}"
+
+            # Package binary
+            tar czf "$ASSET_NAME" -C target/release gen-orb-mcp
+            echo "Created $ASSET_NAME ($(du -h "$ASSET_NAME" | cut -f1))"
+
+            # Get upload URL from GitHub release
+            REPO_URL=$(git remote get-url origin)
+            REPO_PATH=$(echo "$REPO_URL" | sed -E 's|.*github\.com[:/]||' | sed 's|\.git$||')
+
+            RESPONSE=$(curl -s -w "\n%{http_code}" \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${REPO_PATH}/releases/tags/${TAG}")
+
+            HTTP_STATUS=$(echo "$RESPONSE" | tail -1)
+            BODY=$(echo "$RESPONSE" | sed '$d')
+
+            if [ "$HTTP_STATUS" != "200" ]; then
+              echo "ERROR: Failed to find release for tag ${TAG} (HTTP ${HTTP_STATUS})"
+              echo "$BODY"
+              exit 1
+            fi
+
+            UPLOAD_URL=$(echo "$BODY" | jq -r '.upload_url' | sed 's|{?name,label}||')
+            echo "Upload URL: $UPLOAD_URL"
+
+            # Upload asset
+            UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Content-Type: application/gzip" \
+              --data-binary @"$ASSET_NAME" \
+              "${UPLOAD_URL}?name=${ASSET_NAME}")
+
+            UPLOAD_STATUS=$(echo "$UPLOAD_RESPONSE" | tail -1)
+            UPLOAD_BODY=$(echo "$UPLOAD_RESPONSE" | sed '$d')
+
+            if [ "$UPLOAD_STATUS" != "201" ]; then
+              echo "ERROR: Failed to upload asset (HTTP ${UPLOAD_STATUS})"
+              echo "$UPLOAD_BODY"
+              exit 1
+            fi
+
+            DOWNLOAD_URL=$(echo "$UPLOAD_BODY" | jq -r '.browser_download_url')
+            echo "Uploaded successfully: $DOWNLOAD_URL"
+
 workflows:
   release:
     jobs:
@@ -601,6 +691,13 @@ workflows:
           name: release-gen-orb-mcp
           requires: [approve-release]
           package: gen-orb-mcp
+          context:
+            - release
+            - bot-check
+
+      # Build and upload release binary for cargo-binstall
+      - release-binary:
+          requires: [release-gen-orb-mcp]
           context:
             - release
             - bot-check
