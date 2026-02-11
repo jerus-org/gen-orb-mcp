@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- add cargo-binstall support(pr [#50])
+
 ### Changed
 
 - chore-reset version overrides to auto-detect(pr [#28])
@@ -114,6 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#46]: https://github.com/jerus-org/gen-orb-mcp/pull/46
 [#47]: https://github.com/jerus-org/gen-orb-mcp/pull/47
 [#48]: https://github.com/jerus-org/gen-orb-mcp/pull/48
+[#50]: https://github.com/jerus-org/gen-orb-mcp/pull/50
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0-alpha.1...v0.1.0
 [0.1.0-alpha.1]: https://github.com/jerus-org/gen-orb-mcp/releases/tag/v0.1.0-alpha.1
