@@ -39,5 +39,5 @@ tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 
 # Testing
 tempfile = "3.25.0"
-trycmd = "0.15.11"
+trycmd = "1.1.1"
 criterion = "0.8.2"
