@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - docs-update CLAUDE.md with learnings and current status(pr [#30])
 - docs-add project logo and article cover graphics(pr [#31])
 - docs-add CI integration guide(pr [#33])
+- ci-migrate to 3-file pipeline model at toolkit 4.9.6(pr [#56])
 
 ### Fixed
 
@@ -121,6 +122,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#48]: https://github.com/jerus-org/gen-orb-mcp/pull/48
 [#50]: https://github.com/jerus-org/gen-orb-mcp/pull/50
 [#54]: https://github.com/jerus-org/gen-orb-mcp/pull/54
+[#56]: https://github.com/jerus-org/gen-orb-mcp/pull/56
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0-alpha.1...v0.1.0
 [0.1.0-alpha.1]: https://github.com/jerus-org/gen-orb-mcp/releases/tag/v0.1.0-alpha.1
