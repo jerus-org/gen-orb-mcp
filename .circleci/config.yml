@@ -82,15 +82,3 @@ workflows:
                 - /pull\/[0-9]+/
                 - main
 
-      - toolkit/trigger_pipeline:
-          name: trigger-update-prlog
-          context:
-            - bot-check
-            - pcu-app
-          requires:
-            - toolkit/required_builds_rolling
-            - toolkit/common_tests_rolling
-            - security with sonarcloud
-          filters:
-            branches:
-              only: main
