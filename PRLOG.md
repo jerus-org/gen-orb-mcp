@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deps: update rust crate pmcp to 1.10.3(pr [#54])
 - ci: remove trigger_pipeline from config.yml(pr [#59])
 - deps: update rust crate anyhow to 1.0.102(pr [#52])
+- deps: update rust crate clap to 4.6.0(pr [#53])
 
 ## [0.1.0] - 2026-02-05
 
@@ -127,6 +128,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#56]: https://github.com/jerus-org/gen-orb-mcp/pull/56
 [#59]: https://github.com/jerus-org/gen-orb-mcp/pull/59
 [#52]: https://github.com/jerus-org/gen-orb-mcp/pull/52
+[#53]: https://github.com/jerus-org/gen-orb-mcp/pull/53
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0-alpha.1...v0.1.0
 [0.1.0-alpha.1]: https://github.com/jerus-org/gen-orb-mcp/releases/tag/v0.1.0-alpha.1
