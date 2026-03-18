@@ -12,7 +12,11 @@
 //! gen-orb-mcp generate --orb-path ./src/@orb.yml --output ./dist/
 //! ```
 
+pub mod conformance_rule;
+pub mod consumer_parser;
+pub mod differ;
 pub mod generator;
+pub mod migrator;
 pub mod parser;
 
 use anyhow::Result;
