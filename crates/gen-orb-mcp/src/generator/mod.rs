@@ -122,9 +122,29 @@ impl GeneratedServer {
 #[derive(Debug)]
 pub struct CodeGenerator<'a> {
     handlebars: Handlebars<'a>,
+    prior_versions: Vec<(String, OrbDefinition)>,
+    conformance_rules_json: Option<String>,
 }
 
 impl<'a> CodeGenerator<'a> {
+    /// Set prior-version snapshots to embed alongside the current version.
+    pub fn with_prior_versions(mut self, versions: Vec<(String, OrbDefinition)>) -> Self {
+        self.prior_versions = versions;
+        self
+    }
+
+    /// Set serialised conformance rules JSON to embed as MCP Tools in the generated server.
+    pub fn with_conformance_rules_json(mut self, json: String) -> Self {
+        self.conformance_rules_json = Some(json);
+        self
+    }
+
+    /// Optionally set conformance rules JSON; `None` leaves tools disabled.
+    pub fn with_conformance_rules_json_opt(mut self, json: Option<String>) -> Self {
+        self.conformance_rules_json = json;
+        self
+    }
+
     /// Create a new code generator with registered templates.
     pub fn new() -> Result<Self, GeneratorError> {
         let mut handlebars = Handlebars::new();
@@ -157,7 +177,11 @@ impl<'a> CodeGenerator<'a> {
         // Register custom helpers
         register_helpers(&mut handlebars);
 
-        Ok(Self { handlebars })
+        Ok(Self {
+            handlebars,
+            prior_versions: vec![],
+            conformance_rules_json: None,
+        })
     }
 
     /// Generate an MCP server from an orb definition.
@@ -181,7 +205,13 @@ impl<'a> CodeGenerator<'a> {
         validate_orb_name(orb_name)?;
 
         // Build template context
-        let context = GeneratorContext::from_orb(orb, orb_name, version);
+        let context = GeneratorContext::from_orb_with_extras(
+            orb,
+            orb_name,
+            version,
+            self.prior_versions.clone(),
+            self.conformance_rules_json.clone(),
+        );
 
         // Serialize context for templates
         let ctx_json = serde_json::to_value(&context)
@@ -486,5 +516,117 @@ mod tests {
         // Should still generate valid files even with no commands/jobs/executors
         assert!(server.files.contains_key(&PathBuf::from("src/main.rs")));
         assert!(server.files.contains_key(&PathBuf::from("src/lib.rs")));
+    }
+
+    #[test]
+    fn test_generate_with_prior_versions_includes_version_resources() {
+        let mut prior_orb = OrbDefinition::default();
+        prior_orb.commands.insert(
+            "old-cmd".to_string(),
+            Command {
+                description: Some("An old command".to_string()),
+                parameters: HashMap::new(),
+                steps: vec![],
+            },
+        );
+
+        let current_orb = create_test_orb();
+        let generator = CodeGenerator::new()
+            .unwrap()
+            .with_prior_versions(vec![("1.0.0".to_string(), prior_orb)]);
+
+        let server = generator
+            .generate(&current_orb, "test-orb", "2.0.0")
+            .unwrap();
+        let lib_rs = server.files.get(&PathBuf::from("src/lib.rs")).unwrap();
+
+        // Should expose version list resource
+        assert!(
+            lib_rs.contains("orb://versions"),
+            "expected orb://versions resource"
+        );
+        // Should expose prior-version URIs
+        assert!(
+            lib_rs.contains("orb://v1.0.0/commands/old-cmd"),
+            "expected prior version URI"
+        );
+    }
+
+    #[test]
+    fn test_generate_with_conformance_rules_includes_tools() {
+        let rules_json =
+            r#"[{"type":"JobRenamed","from":"old","to":"new","since_version":"2.0.0","description":"renamed"}]"#
+                .to_string();
+        let orb = create_test_orb();
+        let generator = CodeGenerator::new()
+            .unwrap()
+            .with_conformance_rules_json(rules_json.clone());
+
+        let server = generator.generate(&orb, "test-orb", "2.0.0").unwrap();
+        let lib_rs = server.files.get(&PathBuf::from("src/lib.rs")).unwrap();
+
+        assert!(
+            lib_rs.contains("plan_migration"),
+            "expected plan_migration tool"
+        );
+        assert!(
+            lib_rs.contains("apply_migration"),
+            "expected apply_migration tool"
+        );
+        assert!(
+            lib_rs.contains("CONFORMANCE_RULES_JSON"),
+            "expected embedded rules const"
+        );
+    }
+
+    #[test]
+    fn test_generate_without_tools_has_no_tool_methods() {
+        let orb = create_test_orb();
+        let generator = CodeGenerator::new().unwrap();
+
+        let server = generator.generate(&orb, "test-orb", "1.0.0").unwrap();
+        let lib_rs = server.files.get(&PathBuf::from("src/lib.rs")).unwrap();
+
+        assert!(
+            !lib_rs.contains("plan_migration"),
+            "should not contain tool methods without rules"
+        );
+        assert!(
+            !lib_rs.contains("CONFORMANCE_RULES_JSON"),
+            "should not embed rules const without rules"
+        );
+    }
+
+    #[test]
+    fn test_generate_with_tools_cargo_toml_includes_gen_orb_mcp_dep() {
+        let rules_json = r#"[]"#.to_string();
+        let orb = create_test_orb();
+        let generator = CodeGenerator::new()
+            .unwrap()
+            .with_conformance_rules_json(rules_json);
+
+        let server = generator.generate(&orb, "test-orb", "2.0.0").unwrap();
+        let cargo_toml = server.files.get(&PathBuf::from("Cargo.toml")).unwrap();
+
+        // Check for a dependency entry (not just the comment "Generated by gen-orb-mcp")
+        assert!(
+            cargo_toml.contains("gen-orb-mcp = {"),
+            "expected gen-orb-mcp dependency entry when has_tools"
+        );
+    }
+
+    #[test]
+    fn test_generate_without_tools_cargo_toml_excludes_gen_orb_mcp_dep() {
+        let orb = create_test_orb();
+        let generator = CodeGenerator::new().unwrap();
+
+        let server = generator.generate(&orb, "test-orb", "1.0.0").unwrap();
+        let cargo_toml = server.files.get(&PathBuf::from("Cargo.toml")).unwrap();
+
+        // Check absence of a dependency entry (the comment "Generated by gen-orb-mcp" is allowed)
+        assert!(
+            !cargo_toml.contains("gen-orb-mcp = {"),
+            "should not include gen-orb-mcp dep entry without tools"
+        );
     }
 }
