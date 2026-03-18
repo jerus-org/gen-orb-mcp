@@ -290,33 +290,46 @@ fn find_job_line(lines: &[String], jobs_section: usize, job_ref: &str) -> Option
 
         // Job block: `      - some/job:` where a child line has `name: job_ref`
         if trimmed.starts_with("- ") && trimmed.ends_with(':') {
-            let block_start = i;
-            let block_indent = indent;
-            // Scan child lines for `name: job_ref`
-            let mut j = i + 1;
-            while j < lines.len() {
-                let child = &lines[j];
-                if child.trim().is_empty() {
-                    j += 1;
-                    continue;
-                }
-                let child_indent = leading_spaces(child);
-                if child_indent <= block_indent {
-                    break; // left the block
-                }
-                let child_trimmed = child.trim();
-                if child_trimmed == format!("name: {job_ref}") {
-                    return Some(block_start);
-                }
-                j += 1;
+            let (found, next_i) = scan_job_block_for_name(lines, i, indent, job_ref);
+            if found {
+                return Some(i);
             }
-            i = j;
+            i = next_i;
             continue;
         }
 
         i += 1;
     }
     None
+}
+
+/// Scans the child lines of a job block looking for `name: <job_ref>`.
+///
+/// Returns `(found, next_i)` where `next_i` is the index of the first line
+/// that belongs to the next block (for advancing the outer loop).
+fn scan_job_block_for_name(
+    lines: &[String],
+    block_start: usize,
+    block_indent: usize,
+    job_ref: &str,
+) -> (bool, usize) {
+    let name_pattern = format!("name: {job_ref}");
+    let mut j = block_start + 1;
+    while j < lines.len() {
+        let child = &lines[j];
+        if child.trim().is_empty() {
+            j += 1;
+            continue;
+        }
+        if leading_spaces(child) <= block_indent {
+            break; // left the block
+        }
+        if child.trim() == name_pattern {
+            return (true, j);
+        }
+        j += 1;
+    }
+    (false, j)
 }
 
 /// Finds the line index of a parameter within a job's parameter block.

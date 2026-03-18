@@ -44,6 +44,19 @@ pub enum ConformanceRule {
         since_version: String,
     },
 
+    /// A new mandatory parameter (no default value) was added to an existing job.
+    ///
+    /// Any consumer invocation of `job` must now supply `parameter`.
+    /// The appropriate value is context-dependent and cannot be filled automatically.
+    ParameterAdded {
+        /// The job to which the parameter was added.
+        job: String,
+        /// The mandatory parameter name.
+        parameter: String,
+        /// The version in which this parameter was added.
+        since_version: String,
+    },
+
     /// A job's functionality was absorbed into another job.
     ///
     /// Any invocation of `absorbed` whose requires-chain includes `into`
@@ -70,6 +83,48 @@ pub enum ConformanceRule {
         /// The version in which this value was removed.
         since_version: String,
     },
+
+    /// A reusable command was completely removed with no replacement.
+    CommandRemoved {
+        /// The command name that was removed.
+        name: String,
+        /// The version in which this command was removed.
+        since_version: String,
+    },
+
+    /// A reusable command was renamed; the old name no longer exists.
+    CommandRenamed {
+        /// The old command name.
+        from: String,
+        /// The new command name.
+        to: String,
+        /// Parameters that exist on `from` but not on `to`; strip them during migration.
+        removed_parameters: Vec<String>,
+        /// The version in which this rename occurred.
+        since_version: String,
+    },
+
+    /// A parameter was removed from a reusable command.
+    CommandParameterRemoved {
+        /// The command from which the parameter was removed.
+        command: String,
+        /// The parameter name that was removed.
+        parameter: String,
+        /// The version in which this parameter was removed.
+        since_version: String,
+    },
+
+    /// A new mandatory parameter (no default value) was added to an existing command.
+    ///
+    /// Any consumer invocation of `command` must now supply `parameter`.
+    CommandParameterAdded {
+        /// The command to which the parameter was added.
+        command: String,
+        /// The mandatory parameter name.
+        parameter: String,
+        /// The version in which this parameter was added.
+        since_version: String,
+    },
 }
 
 impl ConformanceRule {
@@ -79,8 +134,13 @@ impl ConformanceRule {
             ConformanceRule::JobRemoved { since_version, .. } => since_version,
             ConformanceRule::JobRenamed { since_version, .. } => since_version,
             ConformanceRule::ParameterRemoved { since_version, .. } => since_version,
+            ConformanceRule::ParameterAdded { since_version, .. } => since_version,
             ConformanceRule::JobAbsorbed { since_version, .. } => since_version,
             ConformanceRule::ParameterEnumValueRemoved { since_version, .. } => since_version,
+            ConformanceRule::CommandRemoved { since_version, .. } => since_version,
+            ConformanceRule::CommandRenamed { since_version, .. } => since_version,
+            ConformanceRule::CommandParameterRemoved { since_version, .. } => since_version,
+            ConformanceRule::CommandParameterAdded { since_version, .. } => since_version,
         }
     }
 
@@ -108,6 +168,16 @@ impl ConformanceRule {
             } => {
                 format!("Parameter `{parameter}` was removed from job `{job}` in {since_version}")
             }
+            ConformanceRule::ParameterAdded {
+                job,
+                parameter,
+                since_version,
+            } => {
+                format!(
+                    "Mandatory parameter `{parameter}` was added to job `{job}` in \
+                     {since_version}; all invocations must supply it"
+                )
+            }
             ConformanceRule::JobAbsorbed {
                 absorbed,
                 into,
@@ -128,6 +198,40 @@ impl ConformanceRule {
                 format!(
                     "Value `{removed_value}` was removed from parameter `{parameter}` \
                      of job `{job}` in {since_version}; use `{fallback_value}` instead"
+                )
+            }
+            ConformanceRule::CommandRemoved {
+                name,
+                since_version,
+            } => {
+                format!("Command `{name}` was removed in {since_version} with no replacement")
+            }
+            ConformanceRule::CommandRenamed {
+                from,
+                to,
+                since_version,
+                ..
+            } => {
+                format!("Command `{from}` was renamed to `{to}` in {since_version}")
+            }
+            ConformanceRule::CommandParameterRemoved {
+                command,
+                parameter,
+                since_version,
+            } => {
+                format!(
+                    "Parameter `{parameter}` was removed from command `{command}` in \
+                     {since_version}"
+                )
+            }
+            ConformanceRule::CommandParameterAdded {
+                command,
+                parameter,
+                since_version,
+            } => {
+                format!(
+                    "Mandatory parameter `{parameter}` was added to command `{command}` in \
+                     {since_version}; all invocations must supply it"
                 )
             }
         }
@@ -178,6 +282,11 @@ mod tests {
                 parameter: "min_rust_version".to_string(),
                 since_version: "5.0.0".to_string(),
             },
+            ConformanceRule::ParameterAdded {
+                job: "release_crate".to_string(),
+                parameter: "package".to_string(),
+                since_version: "5.0.0".to_string(),
+            },
             ConformanceRule::JobAbsorbed {
                 absorbed: "label".to_string(),
                 into: "update_prlog".to_string(),
@@ -188,6 +297,26 @@ mod tests {
                 parameter: "update_log_option".to_string(),
                 removed_value: "pipeline".to_string(),
                 fallback_value: "halt".to_string(),
+                since_version: "5.0.0".to_string(),
+            },
+            ConformanceRule::CommandRemoved {
+                name: "old_command".to_string(),
+                since_version: "5.0.0".to_string(),
+            },
+            ConformanceRule::CommandRenamed {
+                from: "setup_rust".to_string(),
+                to: "setup_rust_env".to_string(),
+                removed_parameters: vec!["legacy_flag".to_string()],
+                since_version: "5.0.0".to_string(),
+            },
+            ConformanceRule::CommandParameterRemoved {
+                command: "build_binary".to_string(),
+                parameter: "strip".to_string(),
+                since_version: "5.0.0".to_string(),
+            },
+            ConformanceRule::CommandParameterAdded {
+                command: "publish_crate".to_string(),
+                parameter: "registry".to_string(),
                 since_version: "5.0.0".to_string(),
             },
         ];
@@ -207,6 +336,20 @@ mod tests {
             ConformanceRule::JobAbsorbed {
                 absorbed: "label".to_string(),
                 into: "update_prlog".to_string(),
+                since_version: "5.0.0".to_string(),
+            },
+            ConformanceRule::ParameterAdded {
+                job: "release_crate".to_string(),
+                parameter: "package".to_string(),
+                since_version: "5.0.0".to_string(),
+            },
+            ConformanceRule::CommandRemoved {
+                name: "old_command".to_string(),
+                since_version: "5.0.0".to_string(),
+            },
+            ConformanceRule::CommandParameterAdded {
+                command: "publish_crate".to_string(),
+                parameter: "registry".to_string(),
                 since_version: "5.0.0".to_string(),
             },
         ];

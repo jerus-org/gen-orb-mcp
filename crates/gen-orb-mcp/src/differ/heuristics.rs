@@ -5,7 +5,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::parser::types::{Job, ParameterType};
+use crate::parser::types::{Command, Job, ParameterType};
 
 /// Detects `JobAbsorbed` cases.
 ///
@@ -105,6 +105,56 @@ pub fn detect_renamed_jobs(
 
         for (new_name, new_job) in &added_jobs {
             let new_params: HashSet<&str> = new_job.parameters.keys().map(|s| s.as_str()).collect();
+            let sim = jaccard_similarity(&old_params, &new_params);
+            if sim >= threshold {
+                match best_match {
+                    None => best_match = Some((new_name, sim)),
+                    Some((_, best_sim)) if sim > best_sim => best_match = Some((new_name, sim)),
+                    _ => {}
+                }
+            }
+        }
+
+        if let Some((new_name, _)) = best_match {
+            renamed.insert(removed_name.clone(), new_name.to_string());
+        }
+    }
+
+    renamed
+}
+
+/// Detects `CommandRenamed` cases using parameter-set fuzzy matching.
+///
+/// Mirrors `detect_renamed_jobs` but operates on `Command` definitions.
+/// A command is considered renamed when a removed command name has parameter-set
+/// Jaccard similarity ≥ `threshold` against a newly added command.
+///
+/// Returns a map of old name → new name.
+pub fn detect_renamed_commands(
+    removed_names: &HashSet<String>,
+    new_commands: &HashMap<String, &Command>,
+    old_commands: &HashMap<String, &Command>,
+    threshold: f64,
+) -> HashMap<String, String> {
+    let mut renamed = HashMap::new();
+
+    // Only consider commands that didn't exist before (truly new, not modified)
+    let added_commands: HashMap<&str, &Command> = new_commands
+        .iter()
+        .filter(|(name, _)| !old_commands.contains_key(name.as_str()))
+        .map(|(name, cmd)| (name.as_str(), *cmd))
+        .collect();
+
+    for removed_name in removed_names {
+        let Some(old_cmd) = old_commands.get(removed_name.as_str()) else {
+            continue;
+        };
+        let old_params: HashSet<&str> = old_cmd.parameters.keys().map(|s| s.as_str()).collect();
+
+        let mut best_match: Option<(&str, f64)> = None;
+
+        for (new_name, new_cmd) in &added_commands {
+            let new_params: HashSet<&str> = new_cmd.parameters.keys().map(|s| s.as_str()).collect();
             let sim = jaccard_similarity(&old_params, &new_params);
             if sim >= threshold {
                 match best_match {

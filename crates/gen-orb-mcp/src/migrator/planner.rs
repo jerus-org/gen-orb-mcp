@@ -99,6 +99,17 @@ fn apply_rule(
                 changes,
             );
         }
+        ConformanceRule::ParameterAdded { .. } => {
+            // Cannot auto-apply: the value for a new mandatory parameter is
+            // context-dependent. The MCP tool layer advises the user to add it.
+        }
+        ConformanceRule::CommandRemoved { .. }
+        | ConformanceRule::CommandRenamed { .. }
+        | ConformanceRule::CommandParameterRemoved { .. }
+        | ConformanceRule::CommandParameterAdded { .. } => {
+            // Command-level changes in consumer custom job steps are not yet
+            // parsed by the consumer_parser. The MCP tool layer advises manual review.
+        }
     }
 }
 
