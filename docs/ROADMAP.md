@@ -100,15 +100,78 @@ gen-orb-mcp (CLI Tool)
 ### Enhanced Features
 
 **2.1 Multi-Version Support (Weeks 1-3)**
-- Delta encoding for efficient multi-version storage
-- Workspace version detection
-- Version-aware MCP responses
+
+Multi-version support is a prerequisite for migration tooling (2.2) and is critical for
+consumers mid-migration who have different orb versions pinned across their CI files.
+
+*Example:* a consumer migrating from toolkit 4.9.6 to 5.0.0 may have `config.yml` still
+on 4.9.6 while `release.yml` is already on 5.0.0. Without multi-version awareness, the
+MCP server gives wrong documentation for the files still on the old version and cannot
+explain why familiar parameters no longer exist under the new version.
+
+Components:
+
+- **Multi-version orb embedding**: The generated binary embeds documentation for the
+  current version plus N prior versions (configurable, default: all versions since last
+  major boundary). Delta encoding minimises binary size — only changed jobs/parameters
+  are stored per version rather than full snapshots.
+
+- **`ConsumerParser` version detection**: Parses `orbs:` sections across all
+  `.circleci/*.yml` files to identify which version of the orb each file uses. Builds
+  a per-file version map so documentation queries are routed correctly.
+
+- **Version-aware MCP Resources**: Resource handlers inspect the consumer's pinned
+  version (passed as context or detected from the active file) and return documentation
+  for the correct version. Responses include version context: "In toolkit 4.9.6, job
+  `update_prlog` accepts `min_rust_version`. This parameter was removed in 5.0.0."
+
+- **Cross-version query support**: Claude Code can ask "what did `idiomatic_rust` look
+  like in 4.9.6?" and get a correct historical answer — essential when explaining to a
+  user why their existing config uses a pattern that no longer exists.
+
+*Integration with 2.2:* The `ConsumerParser` version map feeds directly into the
+`Migrator` — files already pinned to the target version are excluded from the migration
+plan, so the tool only touches what actually needs changing.
 
 **2.2 Migration Tooling (Weeks 4-6)**
-- Migration YAML schema definition
-- Migration rule engine
-- Breaking change detection
-- Automated migration generation
+
+*Design: conformance-based, not path-dependent.*
+
+A static diff-based migration (`v4.11.0 → v5.0.0`) fails against a consumer on v4.8.0
+because it assumes a source state that does not exist. The correct model is goal-oriented:
+"does your config conform to the target version's contract?" The tool inspects the
+consumer's actual CI state and fixes all non-conformant patterns regardless of which
+intermediate versions were skipped.
+
+Core components:
+
+- **`OrbDiffer`** — diffs two `OrbDefinition`s to produce `Vec<ConformanceRule>`.
+  Auto-detects `JobAbsorbed` (when job B is removed and job A gains a `run_B: bool`
+  parameter), and `JobRenamed` (fuzzy-match on parameter-set similarity). Runs at
+  release time; the orb author never writes migration rules manually.
+
+- **`ConsumerParser`** — parses consumer `.circleci/*.yml` into a job-graph model
+  (`ConsumerConfig`). Resolves orb aliases to versions. Provides `requires_chain()`
+  for transitive dependency traversal — critical for `JobAbsorbed` detection
+  (find any `label` invocation whose requires-chain includes `update_prlog`,
+  regardless of file layout).
+
+- **`Migrator`** — applies `Vec<ConformanceRule>` to `ConsumerConfig` to produce a
+  `MigrationPlan`; applies the plan via targeted in-place YAML editing that preserves
+  comments and formatting.
+
+- **`gen-orb-mcp diff` CLI command** — fetches previous orb version from registry,
+  computes conformance rules, writes JSON audit trail. Called in orb release pipeline.
+
+- **`gen-orb-mcp migrate` CLI command** — applies migration locally from rules file
+  without needing the MCP server. Useful for bulk scripted migration.
+
+- **MCP Tools** (generated server) — `plan_migration` and `apply_migration` Tools
+  embedded in the generated binary. Conformance rules are baked in at generation time
+  alongside orb documentation. Claude Code invokes `plan_migration`, shows the user
+  the diff, then calls `apply_migration` on approval.
+
+See `/home/gorta/.claude/plans/gen-orb-mcp-phase2-migration.md` for full design.
 
 **2.3 Multiple Deployment Formats (Weeks 7-8)**
 - Container image generation
@@ -125,24 +188,41 @@ gen-orb-mcp (CLI Tool)
 
 ```
 gen-orb-mcp v0.2.0+
-├── Multi-Version Parser
-│   ├── Git integration (fetch historical versions)
-│   ├── Delta calculation
-│   └── Version metadata
-├── Migration Engine
-│   ├── Migration YAML parser
-│   ├── Rule application engine
-│   └── Config transformation
-├── Multi-Format Generator
+│
+├── OrbDiffer (new — Phase 2.1 + 2.2)
+│   ├── Fetch prior versions from CircleCI registry
+│   ├── Semantic diff: OrbDefinition × OrbDefinition → Vec<ConformanceRule>
+│   ├── Delta encoding for multi-version storage
+│   ├── JobAbsorbed heuristic (removed job + new run_X bool param)
+│   └── JobRenamed heuristic (parameter-set fuzzy match)
+│
+├── ConsumerParser (new — Phase 2.1 + 2.2)
+│   ├── Parse .circleci/*.yml → ConsumerConfig (job-graph model)
+│   ├── Per-file orb alias → version resolution
+│   └── requires_chain() graph traversal
+│
+├── Migrator (new — Phase 2.2)
+│   ├── Planner: ConformanceRules × ConsumerConfig → MigrationPlan
+│   │   (skips files already on target version — from ConsumerParser)
+│   ├── Applicator: in-place YAML editing (preserves formatting/comments)
+│   └── Reporter: human-readable plan display
+│
+├── Multi-Format Generator (updated — Phase 2.3)
+│   ├── Embeds multi-version delta data + ConformanceRules in generated server
 │   ├── Binary builder
 │   ├── Container builder (Dockerfile generation)
 │   ├── Source packager
 │   └── Skill file generator
-└── Enhanced MCP Server
-    ├── Resources (version-aware)
-    ├── Tools (validation, migration)
-    └── Version detection logic
+│
+└── Generated MCP Server (enhanced — Phase 2.1 + 2.2)
+    ├── Resources (version-aware: routes to correct version per consumer file)
+    │   └── Cross-version queries: "what did job X look like in v4.9.6?"
+    └── Tools: plan_migration, apply_migration
+        (conformance rules + version history embedded at generation time)
 ```
+
+**Key dependency**: 2.1 (multi-version) must precede 2.2 (migration). The `ConsumerParser`
+version map and cross-version documentation are load-bearing for migration correctness.
 
 ### Enhanced Success Criteria
 
