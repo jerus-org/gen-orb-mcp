@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - deps: update rust crate tracing-subscriber to 0.3.23(pr [#63])
+- deps: update rust crate pmcp to 1.20.0(pr [#64])
 
 ## [0.1.1] - 2026-03-13
 
@@ -154,6 +155,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#61]: https://github.com/jerus-org/gen-orb-mcp/pull/61
 [#62]: https://github.com/jerus-org/gen-orb-mcp/pull/62
 [#63]: https://github.com/jerus-org/gen-orb-mcp/pull/63
+[#64]: https://github.com/jerus-org/gen-orb-mcp/pull/64
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.1...HEAD
 [0.1.1]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0-alpha.1...v0.1.0
