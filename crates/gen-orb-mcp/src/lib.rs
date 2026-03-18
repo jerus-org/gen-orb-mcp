@@ -173,7 +173,10 @@ impl Cli {
                 name,
                 version,
                 *force,
-                GenerateExtras { migrations, prior_versions_dir: prior_versions },
+                GenerateExtras {
+                    migrations,
+                    prior_versions_dir: prior_versions,
+                },
             ),
             Commands::Validate { orb_path } => run_validate(orb_path),
             Commands::Diff {
