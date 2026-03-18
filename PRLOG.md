@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Phase 2.2 conformance-based migration tooling(pr [#60])
+- migration tools in generated MCP server(pr [#61])
 
 ## [0.1.1] - 2026-03-13
 
@@ -142,6 +143,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#57]: https://github.com/jerus-org/gen-orb-mcp/pull/57
 [#58]: https://github.com/jerus-org/gen-orb-mcp/pull/58
 [#60]: https://github.com/jerus-org/gen-orb-mcp/pull/60
+[#61]: https://github.com/jerus-org/gen-orb-mcp/pull/61
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.1...HEAD
 [0.1.1]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0-alpha.1...v0.1.0
