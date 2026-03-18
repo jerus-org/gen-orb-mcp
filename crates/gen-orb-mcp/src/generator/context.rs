@@ -41,6 +41,42 @@ pub struct GeneratorContext {
 
     /// Whether there are any resources to expose
     pub has_resources: bool,
+
+    /// Prior orb version snapshots to embed alongside the current version.
+    pub prior_versions: Vec<VersionSnapshot>,
+
+    /// Whether any prior-version snapshots are present.
+    pub has_prior_versions: bool,
+
+    /// Whether conformance rules are embedded (enables MCP Tools).
+    pub has_tools: bool,
+
+    /// Serialised JSON of `Vec<ConformanceRule>` to embed in the generated server.
+    /// Empty string when `has_tools` is false.
+    pub conformance_rules_json: String,
+}
+
+/// A snapshot of one prior orb version's documentation, embedded alongside the
+/// current version in the generated server for cross-version queries.
+#[derive(Debug, Clone, Serialize)]
+pub struct VersionSnapshot {
+    /// Version string, e.g. `"4.7.1"`.
+    pub version: String,
+
+    /// Rust-safe identifier derived from the version, e.g. `"4_7_1"`.
+    pub version_ident: String,
+
+    /// Command contexts with version-prefixed URIs.
+    pub commands: Vec<CommandContext>,
+
+    /// Job contexts with version-prefixed URIs.
+    pub jobs: Vec<JobContext>,
+
+    /// Executor contexts with version-prefixed URIs.
+    pub executors: Vec<ExecutorContext>,
+
+    /// Whether there are any resources in this snapshot.
+    pub has_resources: bool,
 }
 
 /// Context for a single command.
@@ -206,6 +242,82 @@ impl GeneratorContext {
             version: version.to_string(),
             description: orb.description.clone(),
             description_doc,
+            commands,
+            jobs,
+            executors,
+            has_resources,
+            prior_versions: vec![],
+            has_prior_versions: false,
+            has_tools: false,
+            conformance_rules_json: String::new(),
+        }
+    }
+
+    /// Create a GeneratorContext from an OrbDefinition with prior-version snapshots
+    /// and optional embedded conformance rules (enables MCP Tools).
+    pub fn from_orb_with_extras(
+        orb: &OrbDefinition,
+        orb_name: &str,
+        version: &str,
+        prior_versions_data: Vec<(String, OrbDefinition)>,
+        conformance_rules_json: Option<String>,
+    ) -> Self {
+        let mut ctx = Self::from_orb(orb, orb_name, version);
+
+        let prior_versions: Vec<VersionSnapshot> = prior_versions_data
+            .iter()
+            .map(|(v, orb_def)| VersionSnapshot::build(v, orb_def))
+            .collect();
+
+        ctx.has_prior_versions = !prior_versions.is_empty();
+        ctx.has_tools = conformance_rules_json.is_some();
+        ctx.conformance_rules_json = conformance_rules_json.unwrap_or_default();
+        ctx.prior_versions = prior_versions;
+        ctx
+    }
+}
+
+impl VersionSnapshot {
+    /// Build a snapshot for a prior version with version-prefixed resource URIs.
+    pub fn build(version: &str, orb: &OrbDefinition) -> Self {
+        let version_ident = version.replace(['.', '-'], "_");
+        let prefix = format!("orb://v{version}");
+
+        let commands: Vec<CommandContext> = orb
+            .commands
+            .iter()
+            .map(|(name, cmd)| {
+                let mut ctx = CommandContext::from_command(name, cmd);
+                ctx.uri = format!("{}/commands/{}", prefix, name);
+                ctx
+            })
+            .collect();
+
+        let jobs: Vec<JobContext> = orb
+            .jobs
+            .iter()
+            .map(|(name, job)| {
+                let mut ctx = JobContext::from_job(name, job);
+                ctx.uri = format!("{}/jobs/{}", prefix, name);
+                ctx
+            })
+            .collect();
+
+        let executors: Vec<ExecutorContext> = orb
+            .executors
+            .iter()
+            .map(|(name, exec)| {
+                let mut ctx = ExecutorContext::from_executor(name, exec);
+                ctx.uri = format!("{}/executors/{}", prefix, name);
+                ctx
+            })
+            .collect();
+
+        let has_resources = !commands.is_empty() || !jobs.is_empty() || !executors.is_empty();
+
+        Self {
+            version: version.to_string(),
+            version_ident,
             commands,
             jobs,
             executors,
@@ -606,5 +718,129 @@ mod tests {
 
         assert_eq!(ctx.version, "2.0.0");
         assert!(!ctx.has_resources);
+    }
+
+    #[test]
+    fn test_from_orb_defaults_new_fields() {
+        let orb = OrbDefinition::default();
+        let ctx = GeneratorContext::from_orb(&orb, "test-orb", "1.0.0");
+
+        assert!(ctx.prior_versions.is_empty());
+        assert!(!ctx.has_prior_versions);
+        assert!(!ctx.has_tools);
+        assert!(ctx.conformance_rules_json.is_empty());
+    }
+
+    #[test]
+    fn test_from_orb_with_extras_no_extras() {
+        let orb = OrbDefinition::default();
+        let ctx = GeneratorContext::from_orb_with_extras(&orb, "test-orb", "1.0.0", vec![], None);
+
+        assert!(ctx.prior_versions.is_empty());
+        assert!(!ctx.has_prior_versions);
+        assert!(!ctx.has_tools);
+        assert!(ctx.conformance_rules_json.is_empty());
+    }
+
+    #[test]
+    fn test_from_orb_with_extras_with_prior_versions() {
+        let mut prior_orb = OrbDefinition::default();
+        prior_orb.commands.insert(
+            "old-cmd".to_string(),
+            Command {
+                description: Some("Old command".to_string()),
+                parameters: HashMap::new(),
+                steps: vec![],
+            },
+        );
+
+        let current_orb = OrbDefinition::default();
+        let ctx = GeneratorContext::from_orb_with_extras(
+            &current_orb,
+            "test-orb",
+            "2.0.0",
+            vec![("1.0.0".to_string(), prior_orb)],
+            None,
+        );
+
+        assert_eq!(ctx.prior_versions.len(), 1);
+        assert!(ctx.has_prior_versions);
+        assert!(!ctx.has_tools);
+        let snap = &ctx.prior_versions[0];
+        assert_eq!(snap.version, "1.0.0");
+        assert_eq!(snap.commands.len(), 1);
+    }
+
+    #[test]
+    fn test_from_orb_with_extras_with_conformance_rules() {
+        let orb = OrbDefinition::default();
+        let rules_json = r#"[{"type":"JobRenamed","from":"old","to":"new","since_version":"2.0.0","description":"renamed"}]"#.to_string();
+        let ctx = GeneratorContext::from_orb_with_extras(
+            &orb,
+            "test-orb",
+            "2.0.0",
+            vec![],
+            Some(rules_json.clone()),
+        );
+
+        assert!(ctx.has_tools);
+        assert_eq!(ctx.conformance_rules_json, rules_json);
+    }
+
+    #[test]
+    fn test_version_snapshot_build_version_ident() {
+        let orb = OrbDefinition::default();
+        let snap = VersionSnapshot::build("4.7.1", &orb);
+        assert_eq!(snap.version, "4.7.1");
+        assert_eq!(snap.version_ident, "4_7_1");
+    }
+
+    #[test]
+    fn test_version_snapshot_build_uri_prefixed() {
+        let mut orb = OrbDefinition::default();
+        orb.commands.insert(
+            "greet".to_string(),
+            Command {
+                description: None,
+                parameters: HashMap::new(),
+                steps: vec![],
+            },
+        );
+        orb.jobs.insert(
+            "run-job".to_string(),
+            crate::parser::Job {
+                description: None,
+                parameters: HashMap::new(),
+                executor: None,
+                config: crate::parser::ExecutorConfig::default(),
+                steps: vec![],
+                parallelism: None,
+                circleci_ip_ranges: None,
+            },
+        );
+
+        let snap = VersionSnapshot::build("4.7.1", &orb);
+
+        assert_eq!(snap.commands[0].uri, "orb://v4.7.1/commands/greet");
+        assert_eq!(snap.jobs[0].uri, "orb://v4.7.1/jobs/run-job");
+    }
+
+    #[test]
+    fn test_version_snapshot_build_has_resources() {
+        let empty = OrbDefinition::default();
+        let snap = VersionSnapshot::build("1.0.0", &empty);
+        assert!(!snap.has_resources);
+
+        let mut with_cmd = OrbDefinition::default();
+        with_cmd.commands.insert(
+            "cmd".to_string(),
+            Command {
+                description: None,
+                parameters: HashMap::new(),
+                steps: vec![],
+            },
+        );
+        let snap2 = VersionSnapshot::build("1.0.0", &with_cmd);
+        assert!(snap2.has_resources);
     }
 }

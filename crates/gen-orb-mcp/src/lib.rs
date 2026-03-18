@@ -74,6 +74,14 @@ enum Commands {
         /// plan_migration and apply_migration MCP Tools in addition to Resources.
         #[arg(long)]
         migrations: Option<std::path::PathBuf>,
+
+        /// Directory of prior orb version YAML snapshots to embed in the server
+        ///
+        /// Each file should be named `<version>.yml` (e.g., `4.7.1.yml`). The
+        /// generated server will expose version-specific resources for each prior
+        /// version alongside the current version.
+        #[arg(long)]
+        prior_versions: Option<std::path::PathBuf>,
     },
     /// Validate an orb definition without generating
     Validate {
@@ -139,6 +147,12 @@ pub enum OutputFormat {
 /// Default version for fresh generation when no version is specified.
 const DEFAULT_VERSION: &str = "0.1.0";
 
+/// Optional embedding inputs for `run_generate`.
+struct GenerateExtras<'a> {
+    migrations: &'a Option<std::path::PathBuf>,
+    prior_versions_dir: &'a Option<std::path::PathBuf>,
+}
+
 impl Cli {
     /// Execute the CLI command
     pub fn run(&self) -> Result<()> {
@@ -151,7 +165,16 @@ impl Cli {
                 version,
                 force,
                 migrations,
-            } => run_generate(orb_path, output, format, name, version, *force, migrations),
+                prior_versions,
+            } => run_generate(
+                orb_path,
+                output,
+                format,
+                name,
+                version,
+                *force,
+                GenerateExtras { migrations, prior_versions_dir: prior_versions },
+            ),
             Commands::Validate { orb_path } => run_validate(orb_path),
             Commands::Diff {
                 current,
@@ -176,7 +199,7 @@ fn run_generate(
     name: &Option<String>,
     version: &Option<String>,
     force: bool,
-    migrations: &Option<std::path::PathBuf>,
+    extras: GenerateExtras<'_>,
 ) -> Result<()> {
     tracing::info!(?orb_path, ?output, ?format, "Generating MCP server");
 
@@ -192,7 +215,7 @@ fn run_generate(
     let resolved_version = resolve_version(output, version.as_deref(), force)?;
     tracing::info!(version = %resolved_version, "Using version");
 
-    let conformance_rules = if let Some(migrations_dir) = migrations {
+    let conformance_rules = if let Some(migrations_dir) = extras.migrations {
         load_conformance_rules(migrations_dir)?
     } else {
         vec![]
@@ -201,7 +224,28 @@ fn run_generate(
         tracing::info!(rules = conformance_rules.len(), "Loaded conformance rules");
     }
 
-    let generator = CodeGenerator::new().map_err(|e| anyhow::anyhow!("{}", e))?;
+    let prior_versions_data = if let Some(dir) = extras.prior_versions_dir {
+        load_prior_versions(dir)?
+    } else {
+        vec![]
+    };
+    if !prior_versions_data.is_empty() {
+        tracing::info!(
+            versions = prior_versions_data.len(),
+            "Loaded prior versions"
+        );
+    }
+
+    let conformance_rules_json = if !conformance_rules.is_empty() {
+        Some(serde_json::to_string(&conformance_rules)?)
+    } else {
+        None
+    };
+
+    let generator = CodeGenerator::new()
+        .map_err(|e| anyhow::anyhow!("{}", e))?
+        .with_prior_versions(prior_versions_data)
+        .with_conformance_rules_json_opt(conformance_rules_json);
     let server = generator
         .generate(&orb, &orb_name, &resolved_version)
         .map_err(|e| anyhow::anyhow!("{}", e))?;
@@ -342,6 +386,34 @@ fn run_migrate(
     println!("\n{}", applied.format_summary());
 
     Ok(())
+}
+
+/// Loads prior orb version snapshots from a directory of `<version>.yml` files.
+fn load_prior_versions(dir: &std::path::Path) -> Result<Vec<(String, parser::OrbDefinition)>> {
+    if !dir.is_dir() {
+        anyhow::bail!("Prior versions directory does not exist: {}", dir.display());
+    }
+    let mut versions = Vec::new();
+    let entries = std::fs::read_dir(dir)?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("yml") {
+            continue;
+        }
+        let version = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+        if version.is_empty() {
+            continue;
+        }
+        let orb_def = OrbParser::parse(&path)
+            .map_err(|e| anyhow::anyhow!("Failed to parse {}: {}", path.display(), e))?;
+        tracing::debug!(path = %path.display(), version = %version, "Loaded prior version");
+        versions.push((version, orb_def));
+    }
+    Ok(versions)
 }
 
 /// Loads and merges conformance rules from all `*.json` files in a directory.
@@ -589,5 +661,20 @@ mod tests {
         let result = resolve_version(temp_dir.path(), Some("1.5.0"), true);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "1.5.0");
+    }
+
+    #[test]
+    fn test_cli_parse_generate_with_prior_versions() {
+        let cli = Cli::try_parse_from([
+            "gen-orb-mcp",
+            "generate",
+            "--orb-path",
+            "test.yml",
+            "--output",
+            "./out",
+            "--prior-versions",
+            "./prior",
+        ]);
+        assert!(cli.is_ok(), "expected --prior-versions flag to be accepted");
     }
 }
