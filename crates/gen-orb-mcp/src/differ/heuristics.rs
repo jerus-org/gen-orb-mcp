@@ -140,24 +140,6 @@ mod tests {
     use super::*;
     use crate::parser::types::{Parameter, ParameterType};
 
-    fn bool_param() -> Parameter {
-        Parameter {
-            param_type: ParameterType::Boolean,
-            description: None,
-            default: None,
-            enum_values: None,
-        }
-    }
-
-    fn string_param() -> Parameter {
-        Parameter {
-            param_type: ParameterType::String,
-            description: None,
-            default: None,
-            enum_values: None,
-        }
-    }
-
     fn job_with_params(param_names: &[(&str, ParameterType)]) -> Job {
         let mut parameters = HashMap::new();
         for (name, ptype) in param_names {

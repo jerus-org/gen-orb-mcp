@@ -81,7 +81,6 @@ impl PlannedChange {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::migrator::types::{ChangeType, MigrationPlan, PlannedChange};
     use std::path::PathBuf;
 
