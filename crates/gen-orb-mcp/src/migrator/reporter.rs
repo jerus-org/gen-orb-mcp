@@ -75,6 +75,19 @@ impl PlannedChange {
                     "Replace value of `{parameter}` on `{job_ref}` with `{replacement}` in `{workflow}`"
                 )
             }
+            ChangeType::RemoveCommandInvocation { job, command_ref } => {
+                format!("Remove command `{command_ref}` from job `{job}`")
+            }
+            ChangeType::RenameCommandInvocation { job, from, to } => {
+                format!("Rename command `{from}` → `{to}` in job `{job}`")
+            }
+            ChangeType::RemoveCommandParameter {
+                job,
+                command_ref,
+                parameter,
+            } => {
+                format!("Remove parameter `{parameter}` from `{command_ref}` in job `{job}`")
+            }
         }
     }
 }

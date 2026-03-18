@@ -58,6 +58,31 @@ pub enum ChangeType {
         parameter: String,
         replacement: String,
     },
+    /// Remove an orb command step invocation from a consumer's custom job.
+    RemoveCommandInvocation {
+        /// The consumer's custom job name (top-level `jobs:` key).
+        job: String,
+        /// The full command reference, e.g. `"toolkit/setup_env"`.
+        command_ref: String,
+    },
+    /// Rename an orb command step invocation in a consumer's custom job.
+    RenameCommandInvocation {
+        /// The consumer's custom job name.
+        job: String,
+        /// The old command reference, e.g. `"toolkit/setup_env"`.
+        from: String,
+        /// The new command reference, e.g. `"toolkit/configure_env"`.
+        to: String,
+    },
+    /// Remove a parameter from an orb command step invocation.
+    RemoveCommandParameter {
+        /// The consumer's custom job name.
+        job: String,
+        /// The full command reference, e.g. `"toolkit/setup_env"`.
+        command_ref: String,
+        /// The parameter name to remove.
+        parameter: String,
+    },
 }
 
 /// Summary of changes that were actually applied to disk.

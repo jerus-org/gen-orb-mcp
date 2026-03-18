@@ -12,6 +12,9 @@ use crate::consumer_parser::types::ConsumerConfig;
 
 use super::types::{ChangeType, MigrationPlan, PlannedChange};
 
+/// Type alias to reduce repetition in planner function signatures.
+type Changes = Vec<PlannedChange>;
+
 /// Produces a `MigrationPlan` by applying each conformance rule against the consumer config.
 ///
 /// # Arguments
@@ -103,12 +106,25 @@ fn apply_rule(
             // Cannot auto-apply: the value for a new mandatory parameter is
             // context-dependent. The MCP tool layer advises the user to add it.
         }
-        ConformanceRule::CommandRemoved { .. }
-        | ConformanceRule::CommandRenamed { .. }
-        | ConformanceRule::CommandParameterRemoved { .. }
-        | ConformanceRule::CommandParameterAdded { .. } => {
-            // Command-level changes in consumer custom job steps are not yet
-            // parsed by the consumer_parser. The MCP tool layer advises manual review.
+        ConformanceRule::CommandRemoved { name, .. } => {
+            plan_command_removed(config, orb_alias, name, changes);
+        }
+        ConformanceRule::CommandRenamed {
+            from,
+            to,
+            removed_parameters,
+            ..
+        } => {
+            plan_command_renamed(config, orb_alias, from, to, removed_parameters, changes);
+        }
+        ConformanceRule::CommandParameterRemoved {
+            command, parameter, ..
+        } => {
+            plan_command_parameter_removed(config, orb_alias, command, parameter, changes);
+        }
+        ConformanceRule::CommandParameterAdded { .. } => {
+            // Cannot auto-apply: value for new mandatory command parameter is
+            // context-dependent. The MCP tool layer advises the user to add it.
         }
     }
 }
@@ -306,6 +322,119 @@ fn plan_enum_value_removed(
     }
 }
 
+fn plan_command_removed(
+    config: &ConsumerConfig,
+    orb_alias: &str,
+    command_name: &str,
+    changes: &mut Changes,
+) {
+    for ci_file in config.files.values() {
+        for (job_name, custom_job) in &ci_file.custom_jobs {
+            for step in &custom_job.steps {
+                if step.matches(orb_alias, command_name) {
+                    changes.push(PlannedChange {
+                        file: step.location.file.clone(),
+                        description: format!(
+                            "Remove `{orb_alias}/{command_name}` from job `{job_name}` \
+                             — command was removed with no replacement"
+                        ),
+                        change_type: ChangeType::RemoveCommandInvocation {
+                            job: job_name.clone(),
+                            command_ref: step.reference.clone(),
+                        },
+                        before: format!("- {orb_alias}/{command_name}"),
+                        after: String::new(),
+                    });
+                }
+            }
+        }
+    }
+}
+
+fn plan_command_renamed(
+    config: &ConsumerConfig,
+    orb_alias: &str,
+    from: &str,
+    to: &str,
+    removed_parameters: &[String],
+    changes: &mut Changes,
+) {
+    for ci_file in config.files.values() {
+        for (job_name, custom_job) in &ci_file.custom_jobs {
+            for step in &custom_job.steps {
+                if step.matches(orb_alias, from) {
+                    // Rename the command reference
+                    changes.push(PlannedChange {
+                        file: step.location.file.clone(),
+                        description: format!(
+                            "Rename `{orb_alias}/{from}` → `{orb_alias}/{to}` in job `{job_name}`"
+                        ),
+                        change_type: ChangeType::RenameCommandInvocation {
+                            job: job_name.clone(),
+                            from: format!("{orb_alias}/{from}"),
+                            to: format!("{orb_alias}/{to}"),
+                        },
+                        before: format!("{orb_alias}/{from}"),
+                        after: format!("{orb_alias}/{to}"),
+                    });
+
+                    // Strip removed parameters
+                    for param in removed_parameters {
+                        if step.parameters.contains_key(param.as_str()) {
+                            changes.push(PlannedChange {
+                                file: step.location.file.clone(),
+                                description: format!(
+                                    "Remove parameter `{param}` from renamed command \
+                                     `{orb_alias}/{to}` in job `{job_name}`"
+                                ),
+                                change_type: ChangeType::RemoveCommandParameter {
+                                    job: job_name.clone(),
+                                    command_ref: format!("{orb_alias}/{to}"),
+                                    parameter: param.clone(),
+                                },
+                                before: format!("{param}: <value>"),
+                                after: String::new(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn plan_command_parameter_removed(
+    config: &ConsumerConfig,
+    orb_alias: &str,
+    command_name: &str,
+    parameter: &str,
+    changes: &mut Changes,
+) {
+    for ci_file in config.files.values() {
+        for (job_name, custom_job) in &ci_file.custom_jobs {
+            for step in &custom_job.steps {
+                if step.matches(orb_alias, command_name) && step.parameters.contains_key(parameter)
+                {
+                    changes.push(PlannedChange {
+                        file: step.location.file.clone(),
+                        description: format!(
+                            "Remove parameter `{parameter}` from `{orb_alias}/{command_name}` \
+                             in job `{job_name}`"
+                        ),
+                        change_type: ChangeType::RemoveCommandParameter {
+                            job: job_name.clone(),
+                            command_ref: step.reference.clone(),
+                            parameter: parameter.to_string(),
+                        },
+                        before: format!("{parameter}: <value>"),
+                        after: String::new(),
+                    });
+                }
+            }
+        }
+    }
+}
+
 /// Removes duplicate `RemoveJobInvocation` changes that target the same
 /// workflow + job_ref (can arise when both `JobAbsorbed` and `JobRemoved`
 /// fire for the same invocation).
@@ -316,9 +445,14 @@ fn dedup_changes(changes: &mut Vec<PlannedChange>) {
             ChangeType::RemoveJobInvocation { workflow, job_ref } => (
                 c.file.display().to_string(),
                 workflow.clone(),
-                format!("remove:{job_ref}"),
+                format!("remove-job:{job_ref}"),
             ),
-            _ => return true, // keep non-remove changes without dedup
+            ChangeType::RemoveCommandInvocation { job, command_ref } => (
+                c.file.display().to_string(),
+                job.clone(),
+                format!("remove-cmd:{command_ref}"),
+            ),
+            _ => return true, // keep other change types without dedup
         };
         seen.insert(key)
     });
@@ -476,5 +610,170 @@ mod tests {
             &plan_result.changes[0].change_type,
             ChangeType::RemoveJobInvocation { .. }
         ));
+    }
+
+    // ── Command-level planner tests ───────────────────────────────────────────
+
+    fn make_config_with_custom_job() -> ConsumerConfig {
+        use crate::consumer_parser::types::{CustomJob, StepInvocation, StepLocation};
+
+        let mut config = ConsumerConfig::default();
+        let mut ci_file = CiFile::default();
+
+        ci_file.orb_aliases.insert(
+            "toolkit".to_string(),
+            OrbRef {
+                org: "jerus-org".to_string(),
+                name: "circleci-toolkit".to_string(),
+                version: "4.8.0".to_string(),
+            },
+        );
+
+        let mut custom_job = CustomJob::default();
+        custom_job.steps.push(StepInvocation {
+            reference: "toolkit/setup_env".to_string(),
+            orb_alias: Some("toolkit".to_string()),
+            orb_command: Some("setup_env".to_string()),
+            parameters: {
+                let mut p = HashMap::new();
+                p.insert(
+                    "token".to_string(),
+                    serde_yaml::Value::String("$GITHUB_TOKEN".to_string()),
+                );
+                p
+            },
+            location: StepLocation {
+                file: PathBuf::from("config.yml"),
+                job: "my-release-job".to_string(),
+                step_index: 1,
+            },
+        });
+        custom_job.steps.push(StepInvocation {
+            reference: "toolkit/publish_crate".to_string(),
+            orb_alias: Some("toolkit".to_string()),
+            orb_command: Some("publish_crate".to_string()),
+            parameters: {
+                let mut p = HashMap::new();
+                p.insert(
+                    "package".to_string(),
+                    serde_yaml::Value::String("my-crate".to_string()),
+                );
+                p
+            },
+            location: StepLocation {
+                file: PathBuf::from("config.yml"),
+                job: "my-release-job".to_string(),
+                step_index: 3,
+            },
+        });
+
+        ci_file
+            .custom_jobs
+            .insert("my-release-job".to_string(), custom_job);
+        config.files.insert(PathBuf::from("config.yml"), ci_file);
+        config
+    }
+
+    #[test]
+    fn test_plan_command_removed() {
+        let config = make_config_with_custom_job();
+        let rules = vec![ConformanceRule::CommandRemoved {
+            name: "setup_env".to_string(),
+            since_version: "5.0.0".to_string(),
+        }];
+        let plan_result = plan(&rules, &config, "toolkit");
+        assert_eq!(plan_result.changes.len(), 1);
+        assert!(matches!(
+            &plan_result.changes[0].change_type,
+            ChangeType::RemoveCommandInvocation { job, command_ref }
+            if job == "my-release-job" && command_ref == "toolkit/setup_env"
+        ));
+    }
+
+    #[test]
+    fn test_plan_command_renamed() {
+        let config = make_config_with_custom_job();
+        let rules = vec![ConformanceRule::CommandRenamed {
+            from: "setup_env".to_string(),
+            to: "configure_env".to_string(),
+            removed_parameters: vec![],
+            since_version: "5.0.0".to_string(),
+        }];
+        let plan_result = plan(&rules, &config, "toolkit");
+        assert_eq!(plan_result.changes.len(), 1);
+        assert!(matches!(
+            &plan_result.changes[0].change_type,
+            ChangeType::RenameCommandInvocation { job, from, to }
+            if job == "my-release-job"
+                && from == "toolkit/setup_env"
+                && to == "toolkit/configure_env"
+        ));
+    }
+
+    #[test]
+    fn test_plan_command_renamed_strips_removed_params() {
+        let config = make_config_with_custom_job();
+        let rules = vec![ConformanceRule::CommandRenamed {
+            from: "setup_env".to_string(),
+            to: "configure_env".to_string(),
+            removed_parameters: vec!["token".to_string()],
+            since_version: "5.0.0".to_string(),
+        }];
+        let plan_result = plan(&rules, &config, "toolkit");
+        // Rename + remove param = 2 changes
+        assert_eq!(plan_result.changes.len(), 2);
+        assert!(plan_result
+            .changes
+            .iter()
+            .any(|c| matches!(&c.change_type, ChangeType::RenameCommandInvocation { .. })));
+        assert!(plan_result.changes.iter().any(|c| matches!(
+            &c.change_type,
+            ChangeType::RemoveCommandParameter { parameter, .. } if parameter == "token"
+        )));
+    }
+
+    #[test]
+    fn test_plan_command_parameter_removed() {
+        let config = make_config_with_custom_job();
+        let rules = vec![ConformanceRule::CommandParameterRemoved {
+            command: "publish_crate".to_string(),
+            parameter: "package".to_string(),
+            since_version: "5.0.0".to_string(),
+        }];
+        let plan_result = plan(&rules, &config, "toolkit");
+        assert_eq!(plan_result.changes.len(), 1);
+        assert!(matches!(
+            &plan_result.changes[0].change_type,
+            ChangeType::RemoveCommandParameter { job, command_ref, parameter }
+            if job == "my-release-job"
+                && command_ref == "toolkit/publish_crate"
+                && parameter == "package"
+        ));
+    }
+
+    #[test]
+    fn test_plan_command_parameter_added_emits_no_change() {
+        let config = make_config_with_custom_job();
+        let rules = vec![ConformanceRule::CommandParameterAdded {
+            command: "setup_env".to_string(),
+            parameter: "region".to_string(),
+            since_version: "5.0.0".to_string(),
+        }];
+        let plan_result = plan(&rules, &config, "toolkit");
+        assert!(
+            plan_result.changes.is_empty(),
+            "CommandParameterAdded should produce no automated changes"
+        );
+    }
+
+    #[test]
+    fn test_plan_command_no_match() {
+        let config = make_config_with_custom_job();
+        let rules = vec![ConformanceRule::CommandRemoved {
+            name: "nonexistent_cmd".to_string(),
+            since_version: "5.0.0".to_string(),
+        }];
+        let plan_result = plan(&rules, &config, "toolkit");
+        assert!(plan_result.changes.is_empty());
     }
 }

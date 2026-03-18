@@ -9,9 +9,11 @@
 //! - `workflows:` sections → [`Workflow`] with [`JobInvocation`] list
 //! - Per-invocation: job reference, orb alias, parameters, `requires:`, `name:` override
 //!
+//! - `jobs:` top-level definitions → [`CustomJob`] with [`StepInvocation`] list
+//!   (only steps that invoke orb commands are captured)
+//!
 //! ## What is not parsed
 //!
-//! - `jobs:` definitions (local job bodies are irrelevant for conformance)
 //! - `commands:`, `executors:` sections
 //! - Pipeline parameters and `when:` conditions
 
@@ -21,7 +23,10 @@ pub mod types;
 
 pub use error::ConsumerParserError;
 pub use graph::{find_absorbed_candidates, requires_chain, transitively_requires};
-pub use types::{CiFile, ConsumerConfig, JobInvocation, OrbRef, SourceLocation, Workflow};
+pub use types::{
+    CiFile, ConsumerConfig, CustomJob, JobInvocation, OrbRef, SourceLocation, StepInvocation,
+    StepLocation, Workflow,
+};
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -133,6 +138,11 @@ impl ConsumerParser {
         // Parse workflows
         if let Some(workflows_value) = map.get("workflows") {
             ci_file.workflows = parse_workflows(workflows_value, source_path, &ci_file.orb_aliases);
+        }
+
+        // Parse consumer-defined jobs (steps may invoke orb commands)
+        if let Some(jobs_value) = map.get("jobs") {
+            ci_file.custom_jobs = parse_custom_jobs(jobs_value, source_path, &ci_file.orb_aliases);
         }
 
         Ok(Some(ci_file))
@@ -347,6 +357,156 @@ fn extract_job_params(
     (requires, name_override, parameters)
 }
 
+/// Parses the top-level `jobs:` section into a map of job name → [`CustomJob`].
+///
+/// Only jobs that contain at least one orb command step produce an entry;
+/// jobs with no orb steps are omitted as they have no conformance relevance.
+fn parse_custom_jobs(
+    jobs_value: &serde_yaml::Value,
+    source_path: &Path,
+    orb_aliases: &HashMap<String, OrbRef>,
+) -> HashMap<String, CustomJob> {
+    let mut result = HashMap::new();
+
+    let Some(map) = jobs_value.as_mapping() else {
+        return result;
+    };
+
+    for (key, val) in map {
+        let Some(job_name) = key.as_str() else {
+            continue;
+        };
+        let custom_job = parse_custom_job_steps(val, job_name, source_path, orb_aliases);
+        if !custom_job.steps.is_empty() {
+            result.insert(job_name.to_string(), custom_job);
+        }
+    }
+
+    result
+}
+
+/// Parses the `steps:` sequence of a single consumer job definition.
+fn parse_custom_job_steps(
+    job_value: &serde_yaml::Value,
+    job_name: &str,
+    source_path: &Path,
+    orb_aliases: &HashMap<String, OrbRef>,
+) -> CustomJob {
+    let mut custom_job = CustomJob::default();
+
+    let Some(job_map) = job_value.as_mapping() else {
+        return custom_job;
+    };
+    let Some(steps_value) = job_map.get("steps") else {
+        return custom_job;
+    };
+    let Some(steps_seq) = steps_value.as_sequence() else {
+        return custom_job;
+    };
+
+    for (step_index, step_entry) in steps_seq.iter().enumerate() {
+        if let Some(inv) =
+            parse_step_invocation(step_entry, job_name, step_index, source_path, orb_aliases)
+        {
+            custom_job.steps.push(inv);
+        }
+    }
+
+    custom_job
+}
+
+/// Parses a single step entry from a job's `steps:` list.
+///
+/// Returns `None` for non-orb steps (`checkout`, `run:`, etc.) — only steps
+/// whose orb alias appears in `orb_aliases` are returned.
+///
+/// Handles two forms:
+/// - Bare string: `- toolkit/setup_env`
+/// - Map form: `- toolkit/setup_env:\n    param: value`
+fn parse_step_invocation(
+    entry: &serde_yaml::Value,
+    job_name: &str,
+    step_index: usize,
+    source_path: &Path,
+    orb_aliases: &HashMap<String, OrbRef>,
+) -> Option<StepInvocation> {
+    let location = StepLocation {
+        file: source_path.to_path_buf(),
+        job: job_name.to_string(),
+        step_index,
+    };
+
+    match entry {
+        serde_yaml::Value::String(reference) => {
+            // Bare string form: `- toolkit/setup_env`
+            let (orb_alias, orb_command) = split_orb_command(reference, orb_aliases)?;
+            Some(StepInvocation {
+                reference: reference.clone(),
+                orb_alias: Some(orb_alias),
+                orb_command: Some(orb_command),
+                parameters: HashMap::new(),
+                location,
+            })
+        }
+        serde_yaml::Value::Mapping(map) => {
+            // Map form: `- toolkit/setup_env:\n    param: value`
+            // The single key is the command reference; value is null or param map.
+            let (reference, params_value) = map
+                .iter()
+                .next()
+                .map(|(k, v)| (k.as_str().unwrap_or("").to_string(), v))?;
+
+            let (orb_alias, orb_command) = split_orb_command(&reference, orb_aliases)?;
+
+            let parameters = extract_command_params(params_value);
+
+            Some(StepInvocation {
+                reference,
+                orb_alias: Some(orb_alias),
+                orb_command: Some(orb_command),
+                parameters,
+                location,
+            })
+        }
+        _ => None,
+    }
+}
+
+/// Splits a command reference like `"toolkit/setup_env"` into `("toolkit", "setup_env")`.
+///
+/// Returns `None` if the alias part is not a known orb alias or the reference has no `/`.
+fn split_orb_command(
+    reference: &str,
+    orb_aliases: &HashMap<String, OrbRef>,
+) -> Option<(String, String)> {
+    let (alias, command) = reference.split_once('/')?;
+    if orb_aliases.contains_key(alias) {
+        Some((alias.to_string(), command.to_string()))
+    } else {
+        None
+    }
+}
+
+/// Extracts parameters from a command invocation's value (the map under the command key).
+///
+/// Unlike job invocations, command steps have no `requires:` or `name:` fields;
+/// all keys are parameters.
+fn extract_command_params(params_value: &serde_yaml::Value) -> HashMap<String, serde_yaml::Value> {
+    let mut parameters = HashMap::new();
+
+    let Some(map) = params_value.as_mapping() else {
+        return parameters;
+    };
+
+    for (key, val) in map {
+        if let Some(key_str) = key.as_str() {
+            parameters.insert(key_str.to_string(), val.clone());
+        }
+    }
+
+    parameters
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -495,6 +655,149 @@ workflows:
         let toolkit_invocations: Vec<_> = config.invocations_for_orb("toolkit").collect();
         // 3 from config.yml + 2 from update_prlog.yml = 5
         assert_eq!(toolkit_invocations.len(), 5);
+    }
+
+    const SAMPLE_WITH_CUSTOM_JOBS: &str = r#"
+version: 2.1
+
+orbs:
+  toolkit: jerus-org/circleci-toolkit@4.7.1
+
+jobs:
+  my-release-job:
+    executor: toolkit/rust_env_rolling
+    steps:
+      - checkout
+      - toolkit/setup_env:
+          token: $GITHUB_TOKEN
+      - run: cargo build
+      - toolkit/publish_crate:
+          package: my-crate
+
+workflows:
+  release:
+    jobs:
+      - my-release-job
+"#;
+
+    const SAMPLE_WITH_BARE_STEP: &str = r#"
+version: 2.1
+
+orbs:
+  toolkit: jerus-org/circleci-toolkit@4.7.1
+
+jobs:
+  simple-job:
+    executor: toolkit/rust_env_rolling
+    steps:
+      - checkout
+      - toolkit/setup_env
+      - run: cargo test
+
+workflows:
+  ci:
+    jobs:
+      - simple-job
+"#;
+
+    #[test]
+    fn test_parse_custom_jobs_basic() {
+        let path = Path::new("config.yml");
+        let ci_file = ConsumerParser::parse_str(SAMPLE_WITH_CUSTOM_JOBS, path)
+            .unwrap()
+            .unwrap();
+
+        assert!(
+            ci_file.custom_jobs.contains_key("my-release-job"),
+            "Should parse custom job"
+        );
+        let job = &ci_file.custom_jobs["my-release-job"];
+        // checkout and run: should be filtered out; only toolkit steps remain
+        assert_eq!(job.steps.len(), 2, "Only orb command steps should be kept");
+    }
+
+    #[test]
+    fn test_parse_step_map_form() {
+        let path = Path::new("config.yml");
+        let ci_file = ConsumerParser::parse_str(SAMPLE_WITH_CUSTOM_JOBS, path)
+            .unwrap()
+            .unwrap();
+
+        let job = &ci_file.custom_jobs["my-release-job"];
+        let setup = &job.steps[0];
+        assert_eq!(setup.reference, "toolkit/setup_env");
+        assert_eq!(setup.orb_alias.as_deref(), Some("toolkit"));
+        assert_eq!(setup.orb_command.as_deref(), Some("setup_env"));
+        assert!(setup.parameters.contains_key("token"));
+
+        let publish = &job.steps[1];
+        assert_eq!(publish.reference, "toolkit/publish_crate");
+        assert!(publish.parameters.contains_key("package"));
+    }
+
+    #[test]
+    fn test_parse_step_bare_form() {
+        let path = Path::new("config.yml");
+        let ci_file = ConsumerParser::parse_str(SAMPLE_WITH_BARE_STEP, path)
+            .unwrap()
+            .unwrap();
+
+        let job = &ci_file.custom_jobs["simple-job"];
+        assert_eq!(job.steps.len(), 1);
+        let step = &job.steps[0];
+        assert_eq!(step.reference, "toolkit/setup_env");
+        assert_eq!(step.orb_alias.as_deref(), Some("toolkit"));
+        assert_eq!(step.orb_command.as_deref(), Some("setup_env"));
+        assert!(step.parameters.is_empty());
+    }
+
+    #[test]
+    fn test_parse_step_non_orb_skipped() {
+        let path = Path::new("config.yml");
+        let ci_file = ConsumerParser::parse_str(SAMPLE_WITH_CUSTOM_JOBS, path)
+            .unwrap()
+            .unwrap();
+
+        let job = &ci_file.custom_jobs["my-release-job"];
+        // Neither "checkout" nor "run: cargo build" should appear in steps
+        assert!(
+            job.steps.iter().all(|s| s.reference.contains('/')),
+            "All parsed steps should be orb command references"
+        );
+    }
+
+    #[test]
+    fn test_parse_step_location_fields() {
+        let path = Path::new("config.yml");
+        let ci_file = ConsumerParser::parse_str(SAMPLE_WITH_CUSTOM_JOBS, path)
+            .unwrap()
+            .unwrap();
+
+        let job = &ci_file.custom_jobs["my-release-job"];
+        // toolkit/setup_env is the 2nd step overall (index 1 in the original YAML,
+        // but step_index tracks position in the full steps array including non-orb steps)
+        let setup_step = job
+            .steps
+            .iter()
+            .find(|s| s.reference == "toolkit/setup_env")
+            .unwrap();
+        assert_eq!(setup_step.location.job, "my-release-job");
+        assert_eq!(setup_step.location.step_index, 1); // index in full steps list
+    }
+
+    #[test]
+    fn test_parse_full_config_jobs_and_workflows() {
+        let path = Path::new("config.yml");
+        let ci_file = ConsumerParser::parse_str(SAMPLE_WITH_CUSTOM_JOBS, path)
+            .unwrap()
+            .unwrap();
+
+        // Workflows are also parsed
+        assert!(ci_file.workflows.contains_key("release"));
+        assert_eq!(ci_file.workflows["release"].jobs.len(), 1);
+
+        // Custom jobs are parsed
+        assert_eq!(ci_file.custom_jobs.len(), 1);
     }
 
     #[test]

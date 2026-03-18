@@ -109,6 +109,25 @@ pub fn apply_changes_to_lines(lines: &[&str], changes: &[&PlannedChange]) -> (Ve
                     applied_count += 1;
                 }
             }
+            ChangeType::RemoveCommandInvocation { job, command_ref } => {
+                if remove_command_invocation(&mut result, job, command_ref) {
+                    applied_count += 1;
+                }
+            }
+            ChangeType::RenameCommandInvocation { job, from, to } => {
+                if rename_command_invocation(&mut result, job, from, to) {
+                    applied_count += 1;
+                }
+            }
+            ChangeType::RemoveCommandParameter {
+                job,
+                command_ref,
+                parameter,
+            } => {
+                if remove_command_parameter(&mut result, job, command_ref, parameter) {
+                    applied_count += 1;
+                }
+            }
         }
     }
 
@@ -227,6 +246,59 @@ fn replace_parameter_value(
         return true;
     }
     false
+}
+
+/// Removes an orb command step invocation from a consumer's custom job.
+fn remove_command_invocation(lines: &mut Vec<String>, job: &str, command_ref: &str) -> bool {
+    let Some(steps_start) = find_custom_job_section(lines, job) else {
+        return false;
+    };
+    let Some(step_start) = find_step_line(lines, steps_start, command_ref) else {
+        return false;
+    };
+    let step_indent = leading_spaces(&lines[step_start]);
+    let step_end = find_block_end(lines, step_start + 1, step_indent);
+    lines.drain(step_start..step_end);
+    true
+}
+
+/// Renames an orb command step invocation in a consumer's custom job.
+fn rename_command_invocation(lines: &mut [String], job: &str, from: &str, to: &str) -> bool {
+    let Some(steps_start) = find_custom_job_section(lines, job) else {
+        return false;
+    };
+    let Some(step_start) = find_step_line(lines, steps_start, from) else {
+        return false;
+    };
+    if lines[step_start].contains(from) {
+        lines[step_start] = lines[step_start].replacen(from, to, 1);
+        return true;
+    }
+    false
+}
+
+/// Removes a parameter from an orb command step invocation in a consumer's custom job.
+fn remove_command_parameter(
+    lines: &mut Vec<String>,
+    job: &str,
+    command_ref: &str,
+    parameter: &str,
+) -> bool {
+    let Some(steps_start) = find_custom_job_section(lines, job) else {
+        return false;
+    };
+    let Some(step_start) = find_step_line(lines, steps_start, command_ref) else {
+        return false;
+    };
+    let step_indent = leading_spaces(&lines[step_start]);
+    let step_end = find_block_end(lines, step_start + 1, step_indent);
+    let Some(param_idx) = find_param_line(lines, step_start, step_end, parameter) else {
+        return false;
+    };
+    let param_indent = leading_spaces(&lines[param_idx]);
+    let param_end = find_block_end(lines, param_idx + 1, param_indent);
+    lines.drain(param_idx..param_end);
+    true
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -367,6 +439,88 @@ fn leading_spaces(line: &str) -> usize {
     line.len() - line.trim_start_matches(' ').len()
 }
 
+/// Returns the line index of the `steps:` key inside the named consumer custom job.
+///
+/// Scans for the top-level `jobs:` key, then finds `  job_name:` beneath it,
+/// then finds `    steps:` within that job block.
+fn find_custom_job_section(lines: &[String], job_name: &str) -> Option<usize> {
+    // Find top-level `jobs:` (zero indentation)
+    let jobs_line = lines
+        .iter()
+        .position(|l| l.trim_end() == "jobs:" && !l.starts_with(' '))?;
+
+    let job_marker = format!("{job_name}:");
+
+    // Find `  job_name:` (exactly two leading spaces) within the jobs block
+    let mut i = jobs_line + 1;
+    while i < lines.len() {
+        let line = &lines[i];
+        if line.trim().is_empty() {
+            i += 1;
+            continue;
+        }
+        // Stop if we've returned to zero indentation (next top-level key)
+        if !line.starts_with(' ') {
+            break;
+        }
+        let trimmed = line.trim();
+        if trimmed == job_marker || trimmed.starts_with(&format!("{job_name}: ")) {
+            // Found the job — now look for `steps:` within it
+            let job_indent = leading_spaces(line);
+            let mut j = i + 1;
+            while j < lines.len() {
+                let jline = &lines[j];
+                if jline.trim().is_empty() {
+                    j += 1;
+                    continue;
+                }
+                let jindent = leading_spaces(jline);
+                // Stop if we've left the job block
+                if jindent <= job_indent && !jline.trim().is_empty() {
+                    break;
+                }
+                if jline.trim() == "steps:" {
+                    return Some(j);
+                }
+                j += 1;
+            }
+            return None; // job found but no steps:
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Finds the line index of a step entry within a job's `steps:` list.
+///
+/// Matches:
+/// - `      - toolkit/cmd` (bare string form)
+/// - `      - toolkit/cmd:` (map form with parameters)
+fn find_step_line(lines: &[String], steps_start: usize, command_ref: &str) -> Option<usize> {
+    let steps_indent = leading_spaces(&lines[steps_start]);
+    let entry_indent = steps_indent + 2; // `- ` entries indented under `steps:`
+
+    let mut i = steps_start + 1;
+    while i < lines.len() {
+        let line = &lines[i];
+        if line.trim().is_empty() {
+            i += 1;
+            continue;
+        }
+        let indent = leading_spaces(line);
+        // Stop if we've left the steps section
+        if indent < entry_indent && !line.trim().is_empty() {
+            break;
+        }
+        let trimmed = line.trim();
+        if trimmed == format!("- {command_ref}") || trimmed == format!("- {command_ref}:") {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -444,6 +598,145 @@ workflows:
             "min_rust_version should be removed"
         );
         assert!(output.contains("context:"), "context should remain");
+    }
+
+    const SAMPLE_WITH_JOBS: &str = r#"version: 2.1
+
+orbs:
+  toolkit: jerus-org/circleci-toolkit@4.7.1
+
+jobs:
+  my-release-job:
+    executor: toolkit/rust_env_rolling
+    steps:
+      - checkout
+      - toolkit/setup_env:
+          token: $GITHUB_TOKEN
+      - run: cargo build
+      - toolkit/publish_crate:
+          package: my-crate
+
+workflows:
+  release:
+    jobs:
+      - my-release-job"#;
+
+    fn remove_cmd_change(job: &str, command_ref: &str) -> PlannedChange {
+        PlannedChange {
+            file: PathBuf::from("test.yml"),
+            description: "test".to_string(),
+            change_type: ChangeType::RemoveCommandInvocation {
+                job: job.to_string(),
+                command_ref: command_ref.to_string(),
+            },
+            before: String::new(),
+            after: String::new(),
+        }
+    }
+
+    fn rename_cmd_change(job: &str, from: &str, to: &str) -> PlannedChange {
+        PlannedChange {
+            file: PathBuf::from("test.yml"),
+            description: "test".to_string(),
+            change_type: ChangeType::RenameCommandInvocation {
+                job: job.to_string(),
+                from: from.to_string(),
+                to: to.to_string(),
+            },
+            before: String::new(),
+            after: String::new(),
+        }
+    }
+
+    fn remove_cmd_param_change(job: &str, command_ref: &str, parameter: &str) -> PlannedChange {
+        PlannedChange {
+            file: PathBuf::from("test.yml"),
+            description: "test".to_string(),
+            change_type: ChangeType::RemoveCommandParameter {
+                job: job.to_string(),
+                command_ref: command_ref.to_string(),
+                parameter: parameter.to_string(),
+            },
+            before: String::new(),
+            after: String::new(),
+        }
+    }
+
+    #[test]
+    fn test_remove_command_invocation() {
+        let lines: Vec<&str> = SAMPLE_WITH_JOBS.lines().collect();
+        let change = remove_cmd_change("my-release-job", "toolkit/setup_env");
+        let (new_lines, count) = apply_changes_to_lines(&lines, &[&change]);
+        assert_eq!(count, 1);
+        let output = new_lines.join("\n");
+        assert!(
+            !output.contains("toolkit/setup_env"),
+            "setup_env should be removed"
+        );
+        assert!(
+            !output.contains("token:"),
+            "token param should be removed with the step"
+        );
+        assert!(
+            output.contains("toolkit/publish_crate"),
+            "publish_crate should remain"
+        );
+        assert!(output.contains("checkout"), "checkout should remain");
+    }
+
+    #[test]
+    fn test_rename_command_invocation() {
+        let lines: Vec<&str> = SAMPLE_WITH_JOBS.lines().collect();
+        let change = rename_cmd_change(
+            "my-release-job",
+            "toolkit/setup_env",
+            "toolkit/configure_env",
+        );
+        let (new_lines, count) = apply_changes_to_lines(&lines, &[&change]);
+        assert_eq!(count, 1);
+        let output = new_lines.join("\n");
+        assert!(
+            output.contains("toolkit/configure_env"),
+            "should be renamed"
+        );
+        assert!(
+            !output.contains("toolkit/setup_env"),
+            "old name should be gone"
+        );
+        assert!(output.contains("token:"), "params should be preserved");
+    }
+
+    #[test]
+    fn test_remove_command_parameter() {
+        let lines: Vec<&str> = SAMPLE_WITH_JOBS.lines().collect();
+        let change = remove_cmd_param_change("my-release-job", "toolkit/publish_crate", "package");
+        let (new_lines, count) = apply_changes_to_lines(&lines, &[&change]);
+        assert_eq!(count, 1);
+        let output = new_lines.join("\n");
+        assert!(
+            !output.contains("package:"),
+            "package param should be removed"
+        );
+        assert!(
+            output.contains("toolkit/publish_crate"),
+            "step header should remain"
+        );
+    }
+
+    #[test]
+    fn test_remove_command_invocation_noop_if_not_found() {
+        let lines: Vec<&str> = SAMPLE_WITH_JOBS.lines().collect();
+        let change = remove_cmd_change("my-release-job", "toolkit/nonexistent");
+        let (_, count) = apply_changes_to_lines(&lines, &[&change]);
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_remove_command_invocation_noop_wrong_job() {
+        let lines: Vec<&str> = SAMPLE_WITH_JOBS.lines().collect();
+        let change = remove_cmd_change("other-job", "toolkit/setup_env");
+        let (_, count) = apply_changes_to_lines(&lines, &[&change]);
+        assert_eq!(count, 0);
     }
 
     #[test]

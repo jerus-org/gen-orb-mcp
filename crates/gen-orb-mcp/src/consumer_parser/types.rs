@@ -30,6 +30,23 @@ impl ConsumerConfig {
         self.all_invocations()
             .filter(move |inv| inv.orb_alias.as_deref() == Some(orb_alias))
     }
+
+    /// Returns all orb command step invocations across all files and custom jobs.
+    pub fn all_step_invocations(&self) -> impl Iterator<Item = &StepInvocation> {
+        self.files
+            .values()
+            .flat_map(|f| f.custom_jobs.values())
+            .flat_map(|j| j.steps.iter())
+    }
+
+    /// Returns step invocations filtered by orb alias (e.g. `"toolkit"`).
+    pub fn step_invocations_for_orb<'a>(
+        &'a self,
+        orb_alias: &'a str,
+    ) -> impl Iterator<Item = &'a StepInvocation> {
+        self.all_step_invocations()
+            .filter(move |step| step.orb_alias.as_deref() == Some(orb_alias))
+    }
 }
 
 /// Parsed representation of a single CI YAML file.
@@ -39,6 +56,9 @@ pub struct CiFile {
     pub orb_aliases: HashMap<String, OrbRef>,
     /// Workflows defined in this file.
     pub workflows: HashMap<String, Workflow>,
+    /// Consumer-defined jobs declared in this file (top-level `jobs:` key).
+    /// Only jobs that contain at least one orb command step are included.
+    pub custom_jobs: HashMap<String, CustomJob>,
 }
 
 /// Reference to a specific orb at a pinned version.
@@ -133,6 +153,53 @@ pub struct SourceLocation {
     pub workflow: String,
     /// Zero-based index of this job in the workflow's `jobs:` list.
     pub job_index: usize,
+}
+
+/// A consumer-defined job body (under the top-level `jobs:` key).
+///
+/// Only orb command steps are captured; bare steps (`checkout`, `run:`, etc.)
+/// are filtered out as they are not subject to orb conformance rules.
+#[derive(Debug, Clone, Default)]
+pub struct CustomJob {
+    /// Orb command steps in this job, in declaration order.
+    pub steps: Vec<StepInvocation>,
+}
+
+/// A single orb command step invocation inside a consumer's custom job.
+#[derive(Debug, Clone)]
+pub struct StepInvocation {
+    /// The full command reference as written, e.g. `"toolkit/setup_env"`.
+    pub reference: String,
+    /// Resolved orb alias (e.g. `"toolkit"`).
+    pub orb_alias: Option<String>,
+    /// Command name within the orb (e.g. `"setup_env"`).
+    pub orb_command: Option<String>,
+    /// Parameters passed to this command invocation.
+    pub parameters: HashMap<String, serde_yaml::Value>,
+    /// Source location for targeted YAML editing.
+    pub location: StepLocation,
+}
+
+impl StepInvocation {
+    /// Returns `true` if this step invokes the named command from the named orb.
+    pub fn matches(&self, orb_alias: &str, command_name: &str) -> bool {
+        self.orb_alias.as_deref() == Some(orb_alias)
+            && self.orb_command.as_deref() == Some(command_name)
+    }
+}
+
+/// Source location pointing to a specific step invocation inside a custom job's steps.
+///
+/// Distinct from `SourceLocation` (which targets workflow job invocations): steps
+/// are located by job name + step index, not workflow + job index.
+#[derive(Debug, Clone)]
+pub struct StepLocation {
+    /// Path to the CI file containing this step.
+    pub file: PathBuf,
+    /// Name of the consumer custom job containing this step.
+    pub job: String,
+    /// Zero-based index of this step in the job's `steps:` list.
+    pub step_index: usize,
 }
 
 #[cfg(test)]
@@ -240,5 +307,61 @@ mod tests {
             toolkit_invocations[0].orb_job.as_deref(),
             Some("update_prlog")
         );
+    }
+
+    #[test]
+    fn test_consumer_config_step_invocations_for_orb() {
+        let mut config = ConsumerConfig::default();
+        let mut file = CiFile::default();
+        let mut custom_job = CustomJob::default();
+
+        custom_job.steps.push(StepInvocation {
+            reference: "toolkit/setup_env".to_string(),
+            orb_alias: Some("toolkit".to_string()),
+            orb_command: Some("setup_env".to_string()),
+            parameters: HashMap::new(),
+            location: StepLocation {
+                file: PathBuf::from("config.yml"),
+                job: "my-release-job".to_string(),
+                step_index: 0,
+            },
+        });
+        custom_job.steps.push(StepInvocation {
+            reference: "other/cmd".to_string(),
+            orb_alias: Some("other".to_string()),
+            orb_command: Some("cmd".to_string()),
+            parameters: HashMap::new(),
+            location: StepLocation {
+                file: PathBuf::from("config.yml"),
+                job: "my-release-job".to_string(),
+                step_index: 1,
+            },
+        });
+
+        file.custom_jobs
+            .insert("my-release-job".to_string(), custom_job);
+        config.files.insert(PathBuf::from("config.yml"), file);
+
+        let toolkit_steps: Vec<_> = config.step_invocations_for_orb("toolkit").collect();
+        assert_eq!(toolkit_steps.len(), 1);
+        assert_eq!(toolkit_steps[0].orb_command.as_deref(), Some("setup_env"));
+    }
+
+    #[test]
+    fn test_step_invocation_matches() {
+        let step = StepInvocation {
+            reference: "toolkit/publish_crate".to_string(),
+            orb_alias: Some("toolkit".to_string()),
+            orb_command: Some("publish_crate".to_string()),
+            parameters: HashMap::new(),
+            location: StepLocation {
+                file: PathBuf::from("config.yml"),
+                job: "release-job".to_string(),
+                step_index: 2,
+            },
+        };
+        assert!(step.matches("toolkit", "publish_crate"));
+        assert!(!step.matches("toolkit", "other_cmd"));
+        assert!(!step.matches("other", "publish_crate"));
     }
 }
