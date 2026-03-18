@@ -62,8 +62,14 @@ gen-orb-mcp/
 
 ### CLI Commands
 
-- **generate**: Parse orb YAML and generate MCP server (binary or source output)
+- **generate**: Parse orb YAML and generate MCP server (binary or source output).
+  Optional flags: `--migrations <dir>` embeds conformance rules and enables MCP Tools;
+  `--prior-versions <dir>` embeds prior orb version snapshots as version-aware Resources.
 - **validate**: Validate orb definition without generating
+- **diff**: Compare two orb versions and emit a JSON array of `ConformanceRule` values
+  describing what changed. Used to produce the rules files consumed by `--migrations` and `migrate`.
+- **migrate**: Apply conformance rules to a consumer's `.circleci/` directory.
+  Supports `--dry-run` to preview changes without writing files.
 
 ### Key Dependencies
 
@@ -99,11 +105,21 @@ pub mod generator {
 ## Implementation Status
 
 **Phase 1 MVP Complete** - Released as v0.1.0
+**Phase 2 Migration Tooling Complete** - merged 2026-03-18
 
 Implemented:
-- CLI structure with `generate` and `validate` subcommands
-- `OrbParser` - Full orb YAML parsing (commands, jobs, executors, parameters)
-- `CodeGenerator` - MCP server source generation using Handlebars templates
+- CLI: `generate`, `validate`, `diff`, `migrate` subcommands
+- `OrbParser` — full orb YAML parsing (commands, jobs, executors, parameters)
+- `CodeGenerator` — MCP server source generation using Handlebars templates;
+  supports `with_prior_versions()` and `with_conformance_rules_json()` builder methods
+- `OrbDiffer` — semantic diff producing `Vec<ConformanceRule>` (JobRenamed, JobAbsorbed,
+  ParameterRemoved, EnumValueRemoved, CommandRenamed)
+- `ConsumerParser` — parses consumer `.circleci/*.yml` into a job-graph model;
+  resolves orb aliases to versions; provides `requires_chain()` traversal
+- `Migrator` — plan + apply conformance rules to consumer CI configs with in-place
+  YAML editing that preserves comments and formatting
+- Generated server — multi-version Resources (`orb://v{version}/...`) and MCP Tools
+  (`plan_migration`, `apply_migration`) when `--migrations` is supplied
 - Binary compilation via `cargo build` in generated output directory
 
 ## Output Formats
