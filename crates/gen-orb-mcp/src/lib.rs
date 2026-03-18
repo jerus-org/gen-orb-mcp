@@ -66,12 +66,64 @@ enum Commands {
         /// Required for non-interactive CI environments when output exists.
         #[arg(long)]
         force: bool,
+
+        /// Directory containing conformance rule JSON files to embed in the server
+        ///
+        /// All *.json files in this directory are merged and embedded as migration
+        /// tooling in the generated server. When provided, the server gains
+        /// plan_migration and apply_migration MCP Tools in addition to Resources.
+        #[arg(long)]
+        migrations: Option<std::path::PathBuf>,
     },
     /// Validate an orb definition without generating
     Validate {
         /// Path to the orb YAML file
         #[arg(short = 'p', long)]
         orb_path: std::path::PathBuf,
+    },
+    /// Compute conformance rules by diffing two orb versions
+    ///
+    /// Compares the current orb against a previous version (read from a file)
+    /// and emits a JSON array of ConformanceRule values. These rules can be
+    /// passed to `generate --migrations` to embed migration tooling in the
+    /// generated MCP server.
+    Diff {
+        /// Path to the current orb YAML (the new version)
+        #[arg(long)]
+        current: std::path::PathBuf,
+
+        /// Path to the previous orb YAML (the old version to diff against)
+        #[arg(long)]
+        previous: std::path::PathBuf,
+
+        /// The version string to embed in emitted rules (e.g. "5.0.0")
+        #[arg(long)]
+        since_version: String,
+
+        /// Optional output file for the JSON rules (default: stdout)
+        #[arg(long)]
+        output: Option<std::path::PathBuf>,
+    },
+    /// Apply conformance-based migration to a consumer's .circleci/ directory
+    ///
+    /// Reads conformance rules from a JSON file (produced by `diff`) and applies
+    /// them to the consumer's CI config. Reports planned changes before applying.
+    Migrate {
+        /// Path to the consumer's .circleci/ directory
+        #[arg(long, default_value = ".circleci")]
+        ci_dir: std::path::PathBuf,
+
+        /// The orb alias as used in the consumer's orbs: section (e.g. "toolkit")
+        #[arg(long)]
+        orb: String,
+
+        /// Path to the conformance rules JSON file (produced by `diff`)
+        #[arg(long)]
+        rules: std::path::PathBuf,
+
+        /// Show planned changes without modifying files
+        #[arg(long)]
+        dry_run: bool,
     },
 }
 
@@ -98,6 +150,7 @@ impl Cli {
                 name,
                 version,
                 force,
+                migrations,
             } => {
                 tracing::info!(?orb_path, ?output, ?format, "Generating MCP server");
 
@@ -116,6 +169,16 @@ impl Cli {
                 // Resolve version based on output state
                 let resolved_version = resolve_version(output, version.as_deref(), *force)?;
                 tracing::info!(version = %resolved_version, "Using version");
+
+                // Load conformance rules if --migrations is provided
+                let conformance_rules = if let Some(migrations_dir) = migrations {
+                    load_conformance_rules(migrations_dir)?
+                } else {
+                    vec![]
+                };
+                if !conformance_rules.is_empty() {
+                    tracing::info!(rules = conformance_rules.len(), "Loaded conformance rules");
+                }
 
                 // Create generator and generate code
                 let generator = CodeGenerator::new().map_err(|e| anyhow::anyhow!("{}", e))?;
@@ -204,8 +267,99 @@ impl Cli {
                 }
                 Ok(())
             }
+
+            Commands::Diff {
+                current,
+                previous,
+                since_version,
+                output,
+            } => {
+                tracing::info!(?current, ?previous, "Diffing orb versions");
+
+                let new_orb = OrbParser::parse(current).map_err(|e| anyhow::anyhow!("{}", e))?;
+                let old_orb = OrbParser::parse(previous).map_err(|e| anyhow::anyhow!("{}", e))?;
+
+                let rules = differ::diff(&old_orb, &new_orb, since_version);
+                println!("Computed {} conformance rule(s):", rules.len());
+                for rule in &rules {
+                    println!("  • {}", rule.description());
+                }
+
+                let json = serde_json::to_string_pretty(&rules)?;
+
+                if let Some(out_path) = output {
+                    std::fs::write(out_path, &json)?;
+                    println!("\nRules written to: {}", out_path.display());
+                } else {
+                    println!("\n{}", json);
+                }
+
+                Ok(())
+            }
+
+            Commands::Migrate {
+                ci_dir,
+                orb,
+                rules: rules_path,
+                dry_run,
+            } => {
+                tracing::info!(?ci_dir, orb, "Migrating consumer config");
+
+                // Load conformance rules
+                let rules_json = std::fs::read_to_string(rules_path)
+                    .map_err(|e| anyhow::anyhow!("Failed to read rules file: {}", e))?;
+                let rules: Vec<conformance_rule::ConformanceRule> =
+                    serde_json::from_str(&rules_json)
+                        .map_err(|e| anyhow::anyhow!("Failed to parse rules JSON: {}", e))?;
+
+                // Parse consumer config
+                let config = consumer_parser::ConsumerParser::parse_directory(ci_dir)
+                    .map_err(|e| anyhow::anyhow!("Failed to parse CI config: {}", e))?;
+
+                // Plan migration
+                let plan = migrator::Migrator::plan(&rules, &config, orb);
+
+                println!("{}", plan.format_summary());
+
+                if plan.changes.is_empty() {
+                    return Ok(());
+                }
+
+                if *dry_run {
+                    println!("\n(Dry run — no files modified)");
+                    return Ok(());
+                }
+
+                // Apply
+                let applied = migrator::Migrator::apply(&plan, false)?;
+                println!("\n{}", applied.format_summary());
+
+                Ok(())
+            }
         }
     }
+}
+
+/// Loads and merges conformance rules from all `*.json` files in a directory.
+fn load_conformance_rules(dir: &std::path::Path) -> Result<Vec<conformance_rule::ConformanceRule>> {
+    if !dir.is_dir() {
+        anyhow::bail!("Migrations directory does not exist: {}", dir.display());
+    }
+    let mut all_rules = Vec::new();
+    let entries = std::fs::read_dir(dir)?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let json = std::fs::read_to_string(&path)
+            .map_err(|e| anyhow::anyhow!("Failed to read {}: {}", path.display(), e))?;
+        let rules: Vec<conformance_rule::ConformanceRule> = serde_json::from_str(&json)
+            .map_err(|e| anyhow::anyhow!("Failed to parse {}: {}", path.display(), e))?;
+        tracing::debug!(path = %path.display(), count = rules.len(), "Loaded rules file");
+        all_rules.extend(rules);
+    }
+    Ok(all_rules)
 }
 
 /// Derive orb name from the orb path.
