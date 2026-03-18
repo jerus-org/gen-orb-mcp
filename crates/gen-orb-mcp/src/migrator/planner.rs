@@ -168,40 +168,61 @@ fn plan_job_renamed(
     for ci_file in config.files.values() {
         for (workflow_name, workflow) in &ci_file.workflows {
             for inv in &workflow.jobs {
-                if inv.matches(orb_alias, from) {
-                    // Rename the job reference
-                    changes.push(PlannedChange {
-                        file: inv.location.file.clone(),
-                        description: format!("Rename `{orb_alias}/{from}` → `{orb_alias}/{to}`"),
-                        change_type: ChangeType::RenameJobInvocation {
-                            workflow: workflow_name.clone(),
-                            from: format!("{orb_alias}/{from}"),
-                            to: format!("{orb_alias}/{to}"),
-                        },
-                        before: format!("{orb_alias}/{from}"),
-                        after: format!("{orb_alias}/{to}"),
-                    });
-
-                    // Strip removed parameters
-                    for param in removed_parameters {
-                        if inv.parameters.contains_key(param.as_str()) {
-                            changes.push(PlannedChange {
-                                file: inv.location.file.clone(),
-                                description: format!(
-                                    "Remove parameter `{param}` from renamed job `{orb_alias}/{to}`"
-                                ),
-                                change_type: ChangeType::RemoveParameter {
-                                    workflow: workflow_name.clone(),
-                                    job_ref: inv.effective_name().to_string(),
-                                    parameter: param.clone(),
-                                },
-                                before: format!("{param}: <value>"),
-                                after: String::new(),
-                            });
-                        }
-                    }
-                }
+                plan_single_job_renamed(
+                    inv,
+                    workflow_name,
+                    orb_alias,
+                    from,
+                    to,
+                    removed_parameters,
+                    changes,
+                );
             }
+        }
+    }
+}
+
+/// Emits rename and parameter-removal changes for a single matching job invocation.
+fn plan_single_job_renamed(
+    inv: &crate::consumer_parser::types::JobInvocation,
+    workflow_name: &str,
+    orb_alias: &str,
+    from: &str,
+    to: &str,
+    removed_parameters: &[String],
+    changes: &mut Changes,
+) {
+    if !inv.matches(orb_alias, from) {
+        return;
+    }
+    // Rename the job reference
+    changes.push(PlannedChange {
+        file: inv.location.file.clone(),
+        description: format!("Rename `{orb_alias}/{from}` → `{orb_alias}/{to}`"),
+        change_type: ChangeType::RenameJobInvocation {
+            workflow: workflow_name.to_string(),
+            from: format!("{orb_alias}/{from}"),
+            to: format!("{orb_alias}/{to}"),
+        },
+        before: format!("{orb_alias}/{from}"),
+        after: format!("{orb_alias}/{to}"),
+    });
+    // Strip removed parameters
+    for param in removed_parameters {
+        if inv.parameters.contains_key(param.as_str()) {
+            changes.push(PlannedChange {
+                file: inv.location.file.clone(),
+                description: format!(
+                    "Remove parameter `{param}` from renamed job `{orb_alias}/{to}`"
+                ),
+                change_type: ChangeType::RemoveParameter {
+                    workflow: workflow_name.to_string(),
+                    job_ref: inv.effective_name().to_string(),
+                    parameter: param.clone(),
+                },
+                before: format!("{param}: <value>"),
+                after: String::new(),
+            });
         }
     }
 }
@@ -290,35 +311,59 @@ fn plan_enum_value_removed(
     for ci_file in config.files.values() {
         for (workflow_name, workflow) in &ci_file.workflows {
             for inv in &workflow.jobs {
-                if !inv.matches(orb_alias, job_name) {
-                    continue;
-                }
-                let Some(val) = inv.parameters.get(parameter) else {
-                    continue;
-                };
-                let current_value = match val {
-                    serde_yaml::Value::String(s) => s.as_str(),
-                    _ => continue,
-                };
-                if current_value == removed_value {
-                    changes.push(PlannedChange {
-                        file: inv.location.file.clone(),
-                        description: format!(
-                            "Replace `{parameter}: {removed_value}` with `{parameter}: {fallback_value}` \
-                             on `{orb_alias}/{job_name}` — value `{removed_value}` was removed"
-                        ),
-                        change_type: ChangeType::ReplaceParameterValue {
-                            workflow: workflow_name.clone(),
-                            job_ref: inv.effective_name().to_string(),
-                            parameter: parameter.to_string(),
-                            replacement: fallback_value.to_string(),
-                        },
-                        before: format!("{parameter}: {removed_value}"),
-                        after: format!("{parameter}: {fallback_value}"),
-                    });
-                }
+                plan_single_enum_value(
+                    inv,
+                    workflow_name,
+                    orb_alias,
+                    job_name,
+                    parameter,
+                    removed_value,
+                    fallback_value,
+                    changes,
+                );
             }
         }
+    }
+}
+
+/// Emits a parameter-value replacement change for a single matching job invocation.
+#[allow(clippy::too_many_arguments)]
+fn plan_single_enum_value(
+    inv: &crate::consumer_parser::types::JobInvocation,
+    workflow_name: &str,
+    orb_alias: &str,
+    job_name: &str,
+    parameter: &str,
+    removed_value: &str,
+    fallback_value: &str,
+    changes: &mut Changes,
+) {
+    if !inv.matches(orb_alias, job_name) {
+        return;
+    }
+    let Some(val) = inv.parameters.get(parameter) else {
+        return;
+    };
+    let current_value = match val {
+        serde_yaml::Value::String(s) => s.as_str(),
+        _ => return,
+    };
+    if current_value == removed_value {
+        changes.push(PlannedChange {
+            file: inv.location.file.clone(),
+            description: format!(
+                "Replace `{parameter}: {removed_value}` with `{parameter}: {fallback_value}` \
+                 on `{orb_alias}/{job_name}` — value `{removed_value}` was removed"
+            ),
+            change_type: ChangeType::ReplaceParameterValue {
+                workflow: workflow_name.to_string(),
+                job_ref: inv.effective_name().to_string(),
+                parameter: parameter.to_string(),
+                replacement: fallback_value.to_string(),
+            },
+            before: format!("{parameter}: {removed_value}"),
+            after: format!("{parameter}: {fallback_value}"),
+        });
     }
 }
 
@@ -362,43 +407,64 @@ fn plan_command_renamed(
     for ci_file in config.files.values() {
         for (job_name, custom_job) in &ci_file.custom_jobs {
             for step in &custom_job.steps {
-                if step.matches(orb_alias, from) {
-                    // Rename the command reference
-                    changes.push(PlannedChange {
-                        file: step.location.file.clone(),
-                        description: format!(
-                            "Rename `{orb_alias}/{from}` → `{orb_alias}/{to}` in job `{job_name}`"
-                        ),
-                        change_type: ChangeType::RenameCommandInvocation {
-                            job: job_name.clone(),
-                            from: format!("{orb_alias}/{from}"),
-                            to: format!("{orb_alias}/{to}"),
-                        },
-                        before: format!("{orb_alias}/{from}"),
-                        after: format!("{orb_alias}/{to}"),
-                    });
-
-                    // Strip removed parameters
-                    for param in removed_parameters {
-                        if step.parameters.contains_key(param.as_str()) {
-                            changes.push(PlannedChange {
-                                file: step.location.file.clone(),
-                                description: format!(
-                                    "Remove parameter `{param}` from renamed command \
-                                     `{orb_alias}/{to}` in job `{job_name}`"
-                                ),
-                                change_type: ChangeType::RemoveCommandParameter {
-                                    job: job_name.clone(),
-                                    command_ref: format!("{orb_alias}/{to}"),
-                                    parameter: param.clone(),
-                                },
-                                before: format!("{param}: <value>"),
-                                after: String::new(),
-                            });
-                        }
-                    }
-                }
+                plan_single_command_renamed(
+                    step,
+                    job_name,
+                    orb_alias,
+                    from,
+                    to,
+                    removed_parameters,
+                    changes,
+                );
             }
+        }
+    }
+}
+
+/// Emits rename and parameter-removal changes for a single matching command step.
+fn plan_single_command_renamed(
+    step: &crate::consumer_parser::types::StepInvocation,
+    job_name: &str,
+    orb_alias: &str,
+    from: &str,
+    to: &str,
+    removed_parameters: &[String],
+    changes: &mut Changes,
+) {
+    if !step.matches(orb_alias, from) {
+        return;
+    }
+    // Rename the command reference
+    changes.push(PlannedChange {
+        file: step.location.file.clone(),
+        description: format!(
+            "Rename `{orb_alias}/{from}` → `{orb_alias}/{to}` in job `{job_name}`"
+        ),
+        change_type: ChangeType::RenameCommandInvocation {
+            job: job_name.to_string(),
+            from: format!("{orb_alias}/{from}"),
+            to: format!("{orb_alias}/{to}"),
+        },
+        before: format!("{orb_alias}/{from}"),
+        after: format!("{orb_alias}/{to}"),
+    });
+    // Strip removed parameters
+    for param in removed_parameters {
+        if step.parameters.contains_key(param.as_str()) {
+            changes.push(PlannedChange {
+                file: step.location.file.clone(),
+                description: format!(
+                    "Remove parameter `{param}` from renamed command \
+                     `{orb_alias}/{to}` in job `{job_name}`"
+                ),
+                change_type: ChangeType::RemoveCommandParameter {
+                    job: job_name.to_string(),
+                    command_ref: format!("{orb_alias}/{to}"),
+                    parameter: param.clone(),
+                },
+                before: format!("{param}: <value>"),
+                after: String::new(),
+            });
         }
     }
 }

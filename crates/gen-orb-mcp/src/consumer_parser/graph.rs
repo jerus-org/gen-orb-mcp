@@ -40,8 +40,36 @@ pub fn requires_chain(target_index: usize, workflow: &Workflow) -> Vec<usize> {
     let mut queue: VecDeque<usize> = VecDeque::new();
     let mut result: Vec<usize> = Vec::new();
 
-    // Seed the queue with direct requires of the target
-    for req_name in &workflow.jobs[target_index].requires {
+    enqueue_requires(
+        &workflow.jobs[target_index].requires,
+        &name_index,
+        &mut visited,
+        &mut queue,
+        &mut result,
+    );
+
+    while let Some(current_idx) = queue.pop_front() {
+        enqueue_requires(
+            &workflow.jobs[current_idx].requires,
+            &name_index,
+            &mut visited,
+            &mut queue,
+            &mut result,
+        );
+    }
+
+    result
+}
+
+/// Resolves `requires` names to indices and enqueues any not yet visited.
+fn enqueue_requires(
+    requires: &[String],
+    name_index: &HashMap<String, usize>,
+    visited: &mut HashSet<usize>,
+    queue: &mut VecDeque<usize>,
+    result: &mut Vec<usize>,
+) {
+    for req_name in requires {
         if let Some(&idx) = name_index.get(req_name.as_str()) {
             if visited.insert(idx) {
                 queue.push_back(idx);
@@ -49,20 +77,6 @@ pub fn requires_chain(target_index: usize, workflow: &Workflow) -> Vec<usize> {
             }
         }
     }
-
-    // BFS to find all transitive requires
-    while let Some(current_idx) = queue.pop_front() {
-        for req_name in &workflow.jobs[current_idx].requires {
-            if let Some(&idx) = name_index.get(req_name.as_str()) {
-                if visited.insert(idx) {
-                    queue.push_back(idx);
-                    result.push(idx);
-                }
-            }
-        }
-    }
-
-    result
 }
 
 /// Returns `true` if `target_index` transitively requires `ancestor_name`

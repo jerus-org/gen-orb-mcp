@@ -79,59 +79,46 @@ pub fn apply_changes_to_lines(lines: &[&str], changes: &[&PlannedChange]) -> (Ve
     let mut applied_count = 0;
 
     for change in changes {
-        match &change.change_type {
-            ChangeType::RemoveJobInvocation { workflow, job_ref } => {
-                if remove_job_invocation(&mut result, workflow, job_ref) {
-                    applied_count += 1;
-                }
-            }
-            ChangeType::RenameJobInvocation { workflow, from, to } => {
-                if rename_job_invocation(&mut result, workflow, from, to) {
-                    applied_count += 1;
-                }
-            }
-            ChangeType::RemoveParameter {
-                workflow,
-                job_ref,
-                parameter,
-            } => {
-                if remove_parameter(&mut result, workflow, job_ref, parameter) {
-                    applied_count += 1;
-                }
-            }
-            ChangeType::ReplaceParameterValue {
-                workflow,
-                job_ref,
-                parameter,
-                replacement,
-            } => {
-                if replace_parameter_value(&mut result, workflow, job_ref, parameter, replacement) {
-                    applied_count += 1;
-                }
-            }
-            ChangeType::RemoveCommandInvocation { job, command_ref } => {
-                if remove_command_invocation(&mut result, job, command_ref) {
-                    applied_count += 1;
-                }
-            }
-            ChangeType::RenameCommandInvocation { job, from, to } => {
-                if rename_command_invocation(&mut result, job, from, to) {
-                    applied_count += 1;
-                }
-            }
-            ChangeType::RemoveCommandParameter {
-                job,
-                command_ref,
-                parameter,
-            } => {
-                if remove_command_parameter(&mut result, job, command_ref, parameter) {
-                    applied_count += 1;
-                }
-            }
+        if apply_single_change(&mut result, change) {
+            applied_count += 1;
         }
     }
 
     (result, applied_count)
+}
+
+/// Dispatches a single planned change to the appropriate applicator function.
+fn apply_single_change(lines: &mut Vec<String>, change: &PlannedChange) -> bool {
+    match &change.change_type {
+        ChangeType::RemoveJobInvocation { workflow, job_ref } => {
+            remove_job_invocation(lines, workflow, job_ref)
+        }
+        ChangeType::RenameJobInvocation { workflow, from, to } => {
+            rename_job_invocation(lines, workflow, from, to)
+        }
+        ChangeType::RemoveParameter {
+            workflow,
+            job_ref,
+            parameter,
+        } => remove_parameter(lines, workflow, job_ref, parameter),
+        ChangeType::ReplaceParameterValue {
+            workflow,
+            job_ref,
+            parameter,
+            replacement,
+        } => replace_parameter_value(lines, workflow, job_ref, parameter, replacement),
+        ChangeType::RemoveCommandInvocation { job, command_ref } => {
+            remove_command_invocation(lines, job, command_ref)
+        }
+        ChangeType::RenameCommandInvocation { job, from, to } => {
+            rename_command_invocation(lines, job, from, to)
+        }
+        ChangeType::RemoveCommandParameter {
+            job,
+            command_ref,
+            parameter,
+        } => remove_command_parameter(lines, job, command_ref, parameter),
+    }
 }
 
 /// Removes a job invocation block from the YAML lines.
@@ -309,17 +296,25 @@ fn find_workflow_section(lines: &[String], workflow: &str) -> Option<usize> {
     for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
         if trimmed == format!("{workflow}:") || trimmed.starts_with(&format!("{workflow}:")) {
-            // Look for jobs: within the next few lines
-            for (j, jline) in lines.iter().enumerate().skip(i + 1) {
-                let t = jline.trim();
-                if t == "jobs:" {
-                    return Some(j);
-                }
-                // Stop if we hit another top-level or workflow-level key
-                if !jline.starts_with(' ') && j > i {
-                    break;
-                }
+            if let Some(jobs_idx) = find_jobs_line_after(lines, i + 1) {
+                return Some(jobs_idx);
             }
+        }
+    }
+    None
+}
+
+/// Finds the `jobs:` key within the block starting at `start`.
+///
+/// Stops searching when it encounters a non-indented line (a new top-level key).
+fn find_jobs_line_after(lines: &[String], start: usize) -> Option<usize> {
+    for (j, jline) in lines.iter().enumerate().skip(start) {
+        let t = jline.trim();
+        if t == "jobs:" {
+            return Some(j);
+        }
+        if !jline.starts_with(' ') {
+            break;
         }
     }
     None
@@ -351,12 +346,8 @@ fn find_job_line(lines: &[String], jobs_section: usize, job_ref: &str) -> Option
 
         let trimmed = line.trim();
 
-        // Bare string: `      - toolkit/label`
-        if trimmed == format!("- {job_ref}") {
-            return Some(i);
-        }
-        // With params: `      - toolkit/label:`
-        if trimmed == format!("- {job_ref}:") {
+        // Bare string or with-params form: `- toolkit/label` or `- toolkit/label:`
+        if is_direct_job_match(trimmed, job_ref) {
             return Some(i);
         }
 
@@ -373,6 +364,11 @@ fn find_job_line(lines: &[String], jobs_section: usize, job_ref: &str) -> Option
         i += 1;
     }
     None
+}
+
+/// Returns `true` if `trimmed` is a bare or map-keyed job entry for `job_ref`.
+fn is_direct_job_match(trimmed: &str, job_ref: &str) -> bool {
+    trimmed == format!("- {job_ref}") || trimmed == format!("- {job_ref}:")
 }
 
 /// Scans the child lines of a job block looking for `name: <job_ref>`.
@@ -467,26 +463,33 @@ fn find_custom_job_section(lines: &[String], job_name: &str) -> Option<usize> {
         if trimmed == job_marker || trimmed.starts_with(&format!("{job_name}: ")) {
             // Found the job — now look for `steps:` within it
             let job_indent = leading_spaces(line);
-            let mut j = i + 1;
-            while j < lines.len() {
-                let jline = &lines[j];
-                if jline.trim().is_empty() {
-                    j += 1;
-                    continue;
-                }
-                let jindent = leading_spaces(jline);
-                // Stop if we've left the job block
-                if jindent <= job_indent && !jline.trim().is_empty() {
-                    break;
-                }
-                if jline.trim() == "steps:" {
-                    return Some(j);
-                }
-                j += 1;
-            }
-            return None; // job found but no steps:
+            return find_steps_in_job_block(lines, i, job_indent);
         }
         i += 1;
+    }
+    None
+}
+
+/// Finds the `steps:` key within a consumer custom job block.
+///
+/// Scans forward from `job_start + 1`, stopping when the indentation returns
+/// to `job_indent` or below (i.e. the job block ends).
+fn find_steps_in_job_block(lines: &[String], job_start: usize, job_indent: usize) -> Option<usize> {
+    let mut j = job_start + 1;
+    while j < lines.len() {
+        let jline = &lines[j];
+        if jline.trim().is_empty() {
+            j += 1;
+            continue;
+        }
+        let jindent = leading_spaces(jline);
+        if jindent <= job_indent && !jline.trim().is_empty() {
+            break;
+        }
+        if jline.trim() == "steps:" {
+            return Some(j);
+        }
+        j += 1;
     }
     None
 }

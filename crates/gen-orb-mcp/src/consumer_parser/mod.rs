@@ -128,25 +128,30 @@ impl ConsumerParser {
             return Ok(None);
         }
 
-        let mut ci_file = CiFile::default();
-
-        // Parse orb aliases
-        if let Some(orbs_value) = map.get("orbs") {
-            ci_file.orb_aliases = parse_orb_aliases(orbs_value);
-        }
-
-        // Parse workflows
-        if let Some(workflows_value) = map.get("workflows") {
-            ci_file.workflows = parse_workflows(workflows_value, source_path, &ci_file.orb_aliases);
-        }
-
-        // Parse consumer-defined jobs (steps may invoke orb commands)
-        if let Some(jobs_value) = map.get("jobs") {
-            ci_file.custom_jobs = parse_custom_jobs(jobs_value, source_path, &ci_file.orb_aliases);
-        }
-
-        Ok(Some(ci_file))
+        Ok(Some(parse_ci_file_from_map(map, source_path)))
     }
+}
+
+/// Populates a `CiFile` from the top-level YAML mapping sections.
+fn parse_ci_file_from_map(map: &serde_yaml::Mapping, source_path: &Path) -> CiFile {
+    let mut ci_file = CiFile::default();
+
+    // Parse orb aliases
+    if let Some(orbs_value) = map.get("orbs") {
+        ci_file.orb_aliases = parse_orb_aliases(orbs_value);
+    }
+
+    // Parse workflows
+    if let Some(workflows_value) = map.get("workflows") {
+        ci_file.workflows = parse_workflows(workflows_value, source_path, &ci_file.orb_aliases);
+    }
+
+    // Parse consumer-defined jobs (steps may invoke orb commands)
+    if let Some(jobs_value) = map.get("jobs") {
+        ci_file.custom_jobs = parse_custom_jobs(jobs_value, source_path, &ci_file.orb_aliases);
+    }
+
+    ci_file
 }
 
 fn is_yaml_file(path: &Path) -> bool {

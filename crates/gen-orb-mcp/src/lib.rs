@@ -151,193 +151,197 @@ impl Cli {
                 version,
                 force,
                 migrations,
-            } => {
-                tracing::info!(?orb_path, ?output, ?format, "Generating MCP server");
-
-                // Parse the orb definition
-                let orb = OrbParser::parse(orb_path).map_err(|e| anyhow::anyhow!("{}", e))?;
-                tracing::info!(
-                    commands = orb.commands.len(),
-                    jobs = orb.jobs.len(),
-                    executors = orb.executors.len(),
-                    "Parsed orb definition"
-                );
-
-                // Derive orb name from path if not specified
-                let orb_name = name.clone().unwrap_or_else(|| derive_orb_name(orb_path));
-
-                // Resolve version based on output state
-                let resolved_version = resolve_version(output, version.as_deref(), *force)?;
-                tracing::info!(version = %resolved_version, "Using version");
-
-                // Load conformance rules if --migrations is provided
-                let conformance_rules = if let Some(migrations_dir) = migrations {
-                    load_conformance_rules(migrations_dir)?
-                } else {
-                    vec![]
-                };
-                if !conformance_rules.is_empty() {
-                    tracing::info!(rules = conformance_rules.len(), "Loaded conformance rules");
-                }
-
-                // Create generator and generate code
-                let generator = CodeGenerator::new().map_err(|e| anyhow::anyhow!("{}", e))?;
-                let server = generator
-                    .generate(&orb, &orb_name, &resolved_version)
-                    .map_err(|e| anyhow::anyhow!("{}", e))?;
-
-                // Write output
-                match format {
-                    OutputFormat::Source => {
-                        server
-                            .write_to(output)
-                            .map_err(|e| anyhow::anyhow!("{}", e))?;
-                        println!("Generated MCP server source code:");
-                        println!("  Output: {}", output.display());
-                        println!("  Crate: {}", server.crate_name);
-                        println!("  Version: {}", resolved_version);
-                        println!("  Commands: {}", orb.commands.len());
-                        println!("  Jobs: {}", orb.jobs.len());
-                        println!("  Executors: {}", orb.executors.len());
-                        println!();
-                        println!("To build: cd {} && cargo build --release", output.display());
-                    }
-                    OutputFormat::Binary => {
-                        // Write source first
-                        server
-                            .write_to(output)
-                            .map_err(|e| anyhow::anyhow!("{}", e))?;
-
-                        // Attempt to compile
-                        println!("Compiling MCP server...");
-                        let status = std::process::Command::new("cargo")
-                            .args(["build", "--release"])
-                            .current_dir(output)
-                            .status();
-
-                        match status {
-                            Ok(s) if s.success() => {
-                                let binary_path =
-                                    output.join("target/release").join(&server.crate_name);
-                                println!("Successfully compiled MCP server:");
-                                println!("  Binary: {}", binary_path.display());
-                                println!("  Version: {}", resolved_version);
-                            }
-                            Ok(_) => {
-                                anyhow::bail!(
-                                    "Compilation failed. Source code is available at: {}",
-                                    output.display()
-                                );
-                            }
-                            Err(e) => {
-                                anyhow::bail!(
-                                    "Failed to run cargo: {}. Source code is available at: {}",
-                                    e,
-                                    output.display()
-                                );
-                            }
-                        }
-                    }
-                }
-
-                Ok(())
-            }
-            Commands::Validate { orb_path } => {
-                tracing::info!(?orb_path, "Validating orb definition");
-
-                // Parse and validate the orb definition
-                let orb = OrbParser::parse(orb_path).map_err(|e| anyhow::anyhow!("{}", e))?;
-
-                println!("Orb validation successful!");
-                println!("  Version: {}", orb.version);
-                if let Some(desc) = &orb.description {
-                    println!("  Description: {}", desc);
-                }
-                println!("  Commands: {}", orb.commands.len());
-                for name in orb.commands.keys() {
-                    println!("    - {}", name);
-                }
-                println!("  Jobs: {}", orb.jobs.len());
-                for name in orb.jobs.keys() {
-                    println!("    - {}", name);
-                }
-                println!("  Executors: {}", orb.executors.len());
-                for name in orb.executors.keys() {
-                    println!("    - {}", name);
-                }
-                Ok(())
-            }
-
+            } => run_generate(orb_path, output, format, name, version, *force, migrations),
+            Commands::Validate { orb_path } => run_validate(orb_path),
             Commands::Diff {
                 current,
                 previous,
                 since_version,
                 output,
-            } => {
-                tracing::info!(?current, ?previous, "Diffing orb versions");
-
-                let new_orb = OrbParser::parse(current).map_err(|e| anyhow::anyhow!("{}", e))?;
-                let old_orb = OrbParser::parse(previous).map_err(|e| anyhow::anyhow!("{}", e))?;
-
-                let rules = differ::diff(&old_orb, &new_orb, since_version);
-                println!("Computed {} conformance rule(s):", rules.len());
-                for rule in &rules {
-                    println!("  • {}", rule.description());
-                }
-
-                let json = serde_json::to_string_pretty(&rules)?;
-
-                if let Some(out_path) = output {
-                    std::fs::write(out_path, &json)?;
-                    println!("\nRules written to: {}", out_path.display());
-                } else {
-                    println!("\n{}", json);
-                }
-
-                Ok(())
-            }
-
+            } => run_diff(current, previous, since_version, output),
             Commands::Migrate {
                 ci_dir,
                 orb,
                 rules: rules_path,
                 dry_run,
-            } => {
-                tracing::info!(?ci_dir, orb, "Migrating consumer config");
+            } => run_migrate(ci_dir, orb, rules_path, *dry_run),
+        }
+    }
+}
 
-                // Load conformance rules
-                let rules_json = std::fs::read_to_string(rules_path)
-                    .map_err(|e| anyhow::anyhow!("Failed to read rules file: {}", e))?;
-                let rules: Vec<conformance_rule::ConformanceRule> =
-                    serde_json::from_str(&rules_json)
-                        .map_err(|e| anyhow::anyhow!("Failed to parse rules JSON: {}", e))?;
+fn run_generate(
+    orb_path: &std::path::PathBuf,
+    output: &std::path::PathBuf,
+    format: &OutputFormat,
+    name: &Option<String>,
+    version: &Option<String>,
+    force: bool,
+    migrations: &Option<std::path::PathBuf>,
+) -> Result<()> {
+    tracing::info!(?orb_path, ?output, ?format, "Generating MCP server");
 
-                // Parse consumer config
-                let config = consumer_parser::ConsumerParser::parse_directory(ci_dir)
-                    .map_err(|e| anyhow::anyhow!("Failed to parse CI config: {}", e))?;
+    let orb = OrbParser::parse(orb_path).map_err(|e| anyhow::anyhow!("{}", e))?;
+    tracing::info!(
+        commands = orb.commands.len(),
+        jobs = orb.jobs.len(),
+        executors = orb.executors.len(),
+        "Parsed orb definition"
+    );
 
-                // Plan migration
-                let plan = migrator::Migrator::plan(&rules, &config, orb);
+    let orb_name = name.clone().unwrap_or_else(|| derive_orb_name(orb_path));
+    let resolved_version = resolve_version(output, version.as_deref(), force)?;
+    tracing::info!(version = %resolved_version, "Using version");
 
-                println!("{}", plan.format_summary());
+    let conformance_rules = if let Some(migrations_dir) = migrations {
+        load_conformance_rules(migrations_dir)?
+    } else {
+        vec![]
+    };
+    if !conformance_rules.is_empty() {
+        tracing::info!(rules = conformance_rules.len(), "Loaded conformance rules");
+    }
 
-                if plan.changes.is_empty() {
-                    return Ok(());
+    let generator = CodeGenerator::new().map_err(|e| anyhow::anyhow!("{}", e))?;
+    let server = generator
+        .generate(&orb, &orb_name, &resolved_version)
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+    match format {
+        OutputFormat::Source => {
+            server
+                .write_to(output)
+                .map_err(|e| anyhow::anyhow!("{}", e))?;
+            println!("Generated MCP server source code:");
+            println!("  Output: {}", output.display());
+            println!("  Crate: {}", server.crate_name);
+            println!("  Version: {}", resolved_version);
+            println!("  Commands: {}", orb.commands.len());
+            println!("  Jobs: {}", orb.jobs.len());
+            println!("  Executors: {}", orb.executors.len());
+            println!();
+            println!("To build: cd {} && cargo build --release", output.display());
+        }
+        OutputFormat::Binary => {
+            server
+                .write_to(output)
+                .map_err(|e| anyhow::anyhow!("{}", e))?;
+            println!("Compiling MCP server...");
+            let status = std::process::Command::new("cargo")
+                .args(["build", "--release"])
+                .current_dir(output)
+                .status();
+            match status {
+                Ok(s) if s.success() => {
+                    let binary_path = output.join("target/release").join(&server.crate_name);
+                    println!("Successfully compiled MCP server:");
+                    println!("  Binary: {}", binary_path.display());
+                    println!("  Version: {}", resolved_version);
                 }
-
-                if *dry_run {
-                    println!("\n(Dry run — no files modified)");
-                    return Ok(());
+                Ok(_) => {
+                    anyhow::bail!(
+                        "Compilation failed. Source code is available at: {}",
+                        output.display()
+                    );
                 }
-
-                // Apply
-                let applied = migrator::Migrator::apply(&plan, false)?;
-                println!("\n{}", applied.format_summary());
-
-                Ok(())
+                Err(e) => {
+                    anyhow::bail!(
+                        "Failed to run cargo: {}. Source code is available at: {}",
+                        e,
+                        output.display()
+                    );
+                }
             }
         }
     }
+
+    Ok(())
+}
+
+fn run_validate(orb_path: &std::path::PathBuf) -> Result<()> {
+    tracing::info!(?orb_path, "Validating orb definition");
+    let orb = OrbParser::parse(orb_path).map_err(|e| anyhow::anyhow!("{}", e))?;
+
+    println!("Orb validation successful!");
+    println!("  Version: {}", orb.version);
+    if let Some(desc) = &orb.description {
+        println!("  Description: {}", desc);
+    }
+    println!("  Commands: {}", orb.commands.len());
+    for name in orb.commands.keys() {
+        println!("    - {}", name);
+    }
+    println!("  Jobs: {}", orb.jobs.len());
+    for name in orb.jobs.keys() {
+        println!("    - {}", name);
+    }
+    println!("  Executors: {}", orb.executors.len());
+    for name in orb.executors.keys() {
+        println!("    - {}", name);
+    }
+    Ok(())
+}
+
+fn run_diff(
+    current: &std::path::PathBuf,
+    previous: &std::path::PathBuf,
+    since_version: &str,
+    output: &Option<std::path::PathBuf>,
+) -> Result<()> {
+    tracing::info!(?current, ?previous, "Diffing orb versions");
+
+    let new_orb = OrbParser::parse(current).map_err(|e| anyhow::anyhow!("{}", e))?;
+    let old_orb = OrbParser::parse(previous).map_err(|e| anyhow::anyhow!("{}", e))?;
+
+    let rules = differ::diff(&old_orb, &new_orb, since_version);
+    println!("Computed {} conformance rule(s):", rules.len());
+    for rule in &rules {
+        println!("  • {}", rule.description());
+    }
+
+    let json = serde_json::to_string_pretty(&rules)?;
+
+    if let Some(out_path) = output {
+        std::fs::write(out_path, &json)?;
+        println!("\nRules written to: {}", out_path.display());
+    } else {
+        println!("\n{}", json);
+    }
+
+    Ok(())
+}
+
+fn run_migrate(
+    ci_dir: &std::path::PathBuf,
+    orb: &str,
+    rules_path: &std::path::PathBuf,
+    dry_run: bool,
+) -> Result<()> {
+    tracing::info!(?ci_dir, orb, "Migrating consumer config");
+
+    let rules_json = std::fs::read_to_string(rules_path)
+        .map_err(|e| anyhow::anyhow!("Failed to read rules file: {}", e))?;
+    let rules: Vec<conformance_rule::ConformanceRule> = serde_json::from_str(&rules_json)
+        .map_err(|e| anyhow::anyhow!("Failed to parse rules JSON: {}", e))?;
+
+    let config = consumer_parser::ConsumerParser::parse_directory(ci_dir)
+        .map_err(|e| anyhow::anyhow!("Failed to parse CI config: {}", e))?;
+
+    let plan = migrator::Migrator::plan(&rules, &config, orb);
+    println!("{}", plan.format_summary());
+
+    if plan.changes.is_empty() {
+        return Ok(());
+    }
+
+    if dry_run {
+        println!("\n(Dry run — no files modified)");
+        return Ok(());
+    }
+
+    let applied = migrator::Migrator::apply(&plan, false)?;
+    println!("\n{}", applied.format_summary());
+
+    Ok(())
 }
 
 /// Loads and merges conformance rules from all `*.json` files in a directory.
