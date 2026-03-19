@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - docs-update README and QUICKSTART for current features(pr [#62])
+- ci-validate GPG-signed workspace tag via inline release job(pr [#65])
 
 ### Fixed
 
@@ -156,6 +157,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#62]: https://github.com/jerus-org/gen-orb-mcp/pull/62
 [#63]: https://github.com/jerus-org/gen-orb-mcp/pull/63
 [#64]: https://github.com/jerus-org/gen-orb-mcp/pull/64
+[#65]: https://github.com/jerus-org/gen-orb-mcp/pull/65
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.1...HEAD
 [0.1.1]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0-alpha.1...v0.1.0
