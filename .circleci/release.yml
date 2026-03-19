@@ -57,7 +57,6 @@ workflows:
 
       - toolkit/release_prlog:
           requires: [release-gen-orb-mcp]
-          update_pcu: true
           context:
             - release
             - bot-check
