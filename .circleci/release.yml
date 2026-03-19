@@ -27,47 +27,6 @@ jobs:
             jq --version
             rsign --version
 
-  # Inline variant of toolkit/release_prlog that first installs the latest pcu
-  # from git main, validating the GPG-signed workspace tag fix (pcu PR #885)
-  # before it reaches the ci-container → toolkit update chain.
-  # TODO: remove once toolkit/release_prlog gains an update_pcu parameter.
-  release_prlog_with_latest_pcu:
-    executor: toolkit/rust_env_rolling
-    steps:
-      - checkout
-      - run:
-          name: Install latest pcu from git main
-          command: |
-            cargo install --force --git https://github.com/jerus-org/pcu --branch main
-            pcu --version
-      - attach_workspace:
-          at: /tmp/release-versions
-      - run:
-          name: Load approved workspace version
-          command: |
-            set -eo pipefail
-            # shellcheck source=/dev/null
-            source /tmp/release-versions/versions.env
-
-            if [ -z "$WORKSPACE_VERSION" ] || [ "$WORKSPACE_VERSION" = "none" ]; then
-              echo "No workspace version to release - skipping"
-              circleci-agent step halt
-              exit 0
-            fi
-
-            echo "Approved workspace version: $WORKSPACE_VERSION"
-            echo "export NEXT_VERSION=$WORKSPACE_VERSION" >> "$BASH_ENV"
-            echo "export SEMVER=$WORKSPACE_VERSION" >> "$BASH_ENV"
-      - toolkit/gpg_key
-      - toolkit/git_config
-      - run:
-          name: Pull latest main
-          command: git pull --rebase origin main
-      - toolkit/make_github_release:
-          pcu_prefix: "v"
-          pcu_verbosity: "-vv"
-          pcu_update_prlog: true
-
 workflows:
   release:
     jobs:
@@ -96,8 +55,9 @@ workflows:
             - bot-check
             - pcu-app
 
-      - release_prlog_with_latest_pcu:
+      - toolkit/release_prlog:
           requires: [release-gen-orb-mcp]
+          update_pcu: true
           context:
             - release
             - bot-check
