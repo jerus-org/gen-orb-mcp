@@ -635,10 +635,12 @@ name = "gen-orb-mcp"
 version = "0.1.2"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "criterion",
  "handlebars",
  "pmcp",
+ "semver",
  "serde",
  "serde_json",
  "serde_yaml",

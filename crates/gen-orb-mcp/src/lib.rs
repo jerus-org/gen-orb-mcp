@@ -18,6 +18,7 @@ pub mod differ;
 pub mod generator;
 pub mod migrator;
 pub mod parser;
+pub mod primer;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -133,6 +134,49 @@ enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Populate prior-versions/ and migrations/ from git history
+    ///
+    /// Discovers version tags in a sliding window (default: last 6 months), checks
+    /// out each version, saves a snapshot to prior-versions/<version>.yml, and
+    /// computes conformance-rule diffs to migrations/<version>.json. Removes files
+    /// for versions outside the window to keep binary size bounded. Idempotent.
+    Prime {
+        /// Path to the orb YAML entry point
+        #[arg(short = 'p', long, default_value = "src/@orb.yml")]
+        orb_path: std::path::PathBuf,
+
+        /// Path to the git repository root (default: walk up from orb-path to .git)
+        #[arg(long)]
+        git_repo: Option<std::path::PathBuf>,
+
+        /// Git tag prefix (e.g. "v" matches tags like "v4.1.0")
+        #[arg(long, default_value = "v")]
+        tag_prefix: String,
+
+        /// Fixed earliest version anchor (e.g. "4.1.0"); conflicts with --since
+        #[arg(long, conflicts_with = "since")]
+        earliest_version: Option<String>,
+
+        /// Rolling window duration (e.g. "6 months", "1 year"); default: "6 months"
+        #[arg(long)]
+        since: Option<String>,
+
+        /// Directory to write prior-version snapshots
+        #[arg(long, default_value = "prior-versions")]
+        prior_versions_dir: std::path::PathBuf,
+
+        /// Directory to write migration rule JSON files
+        #[arg(long, default_value = "migrations")]
+        migrations_dir: std::path::PathBuf,
+
+        /// Write to /tmp/gen-orb-mcp-prime-<pid>/ and print PRIME_PV_DIR/PRIME_MIG_DIR to stdout
+        #[arg(long)]
+        ephemeral: bool,
+
+        /// Describe actions without writing any files
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 /// Output format for generated MCP server
@@ -191,6 +235,27 @@ impl Cli {
                 rules: rules_path,
                 dry_run,
             } => run_migrate(ci_dir, orb, rules_path, *dry_run),
+            Commands::Prime {
+                orb_path,
+                git_repo,
+                tag_prefix,
+                earliest_version,
+                since,
+                prior_versions_dir,
+                migrations_dir,
+                ephemeral,
+                dry_run,
+            } => run_prime(
+                orb_path,
+                git_repo.as_deref(),
+                tag_prefix,
+                earliest_version.as_deref(),
+                since.as_deref(),
+                prior_versions_dir,
+                migrations_dir,
+                *ephemeral,
+                *dry_run,
+            ),
         }
     }
 }
@@ -441,6 +506,133 @@ fn load_conformance_rules(dir: &std::path::Path) -> Result<Vec<conformance_rule:
     Ok(all_rules)
 }
 
+#[allow(clippy::too_many_arguments)]
+fn run_prime(
+    orb_path: &std::path::Path,
+    git_repo: Option<&std::path::Path>,
+    tag_prefix: &str,
+    earliest_version: Option<&str>,
+    since: Option<&str>,
+    prior_versions_dir: &std::path::Path,
+    migrations_dir: &std::path::Path,
+    ephemeral: bool,
+    dry_run: bool,
+) -> Result<()> {
+    use chrono::Local;
+    use primer::{
+        discover_tags, filter_by_date, filter_by_version, since_cutoff, tag_date, PrimeConfig,
+    };
+
+    // Resolve git repo path: either provided, or walk up from orb_path
+    let repo_path = if let Some(r) = git_repo {
+        r.to_path_buf()
+    } else {
+        find_git_root(orb_path)?
+    };
+
+    // Relative orb path from repo root
+    let orb_abs = orb_path
+        .canonicalize()
+        .unwrap_or_else(|_| orb_path.to_path_buf());
+    let repo_abs = repo_path
+        .canonicalize()
+        .unwrap_or_else(|_| repo_path.to_path_buf());
+    let orb_rel = orb_abs
+        .strip_prefix(&repo_abs)
+        .unwrap_or(orb_path)
+        .to_path_buf();
+
+    // Resolve output dirs
+    let (pv_dir, mig_dir) = if ephemeral {
+        let base =
+            std::path::PathBuf::from(format!("/tmp/gen-orb-mcp-prime-{}", std::process::id()));
+        (base.join("prior-versions"), base.join("migrations"))
+    } else {
+        (
+            prior_versions_dir.to_path_buf(),
+            migrations_dir.to_path_buf(),
+        )
+    };
+
+    // Discover and filter tags
+    let all_tags = discover_tags(&repo_path, tag_prefix)?;
+    tracing::info!(count = all_tags.len(), "Discovered version tags");
+
+    let window_versions: Vec<String> = if let Some(ver_str) = earliest_version {
+        let earliest = semver::Version::parse(ver_str)
+            .map_err(|e| anyhow::anyhow!("Invalid version '{}': {}", ver_str, e))?;
+        filter_by_version(&all_tags, &earliest)
+    } else {
+        let since_str = since.unwrap_or("6 months");
+        let today = Local::now().date_naive();
+        let cutoff = since_cutoff(since_str, today)?;
+        // Need dates for each tag
+        let tags_with_dates: Vec<primer::TagWithDate> = all_tags
+            .iter()
+            .filter_map(|v| match tag_date(&repo_path, tag_prefix, v) {
+                Ok(d) => Some(primer::TagWithDate {
+                    version: v.clone(),
+                    date: d,
+                }),
+                Err(e) => {
+                    tracing::warn!(version = %v, error = %e, "Could not get tag date, skipping");
+                    None
+                }
+            })
+            .collect();
+        filter_by_date(&tags_with_dates, cutoff)
+    };
+
+    tracing::info!(count = window_versions.len(), "Versions in window");
+
+    let config = PrimeConfig {
+        git_repo: repo_path,
+        tag_prefix: tag_prefix.to_string(),
+        orb_path_relative: orb_rel,
+        prior_versions_dir: pv_dir.clone(),
+        migrations_dir: mig_dir.clone(),
+        dry_run,
+    };
+
+    let result = primer::prime(&config, &window_versions)?;
+
+    if ephemeral {
+        println!("PRIME_PV_DIR={}", pv_dir.display());
+        println!("PRIME_MIG_DIR={}", mig_dir.display());
+    }
+
+    println!(
+        "prime: +{} snapshots, -{} snapshots, +{} migrations, -{} migrations",
+        result.snapshots_added,
+        result.snapshots_removed,
+        result.migrations_added,
+        result.migrations_removed,
+    );
+
+    Ok(())
+}
+
+/// Walk up from `start` looking for a `.git` directory.
+fn find_git_root(start: &std::path::Path) -> Result<std::path::PathBuf> {
+    let mut dir = if start.is_file() {
+        start.parent().unwrap_or(start).to_path_buf()
+    } else {
+        start.to_path_buf()
+    };
+    loop {
+        if dir.join(".git").exists() {
+            return Ok(dir);
+        }
+        match dir.parent() {
+            Some(p) => dir = p.to_path_buf(),
+            None => anyhow::bail!(
+                "Could not find git repository root starting from '{}'",
+                start.display()
+            ),
+        }
+    }
+}
+
 /// Derive orb name from the orb path.
 ///
 /// For unpacked orbs (`@orb.yml`), uses the project directory name.
@@ -679,5 +871,90 @@ mod tests {
             "./prior",
         ]);
         assert!(cli.is_ok(), "expected --prior-versions flag to be accepted");
+    }
+
+    // Tests 11-15: prime command CLI parsing
+
+    #[test]
+    fn test_cli_parse_prime_defaults() {
+        let cli = Cli::try_parse_from(["gen-orb-mcp", "prime"]);
+        assert!(cli.is_ok(), "prime with all defaults should parse");
+        if let Commands::Prime {
+            orb_path,
+            tag_prefix,
+            earliest_version,
+            since,
+            prior_versions_dir,
+            migrations_dir,
+            ephemeral,
+            dry_run,
+            git_repo,
+        } = cli.unwrap().command
+        {
+            assert_eq!(orb_path.to_str().unwrap(), "src/@orb.yml");
+            assert_eq!(tag_prefix, "v");
+            assert!(earliest_version.is_none());
+            assert!(since.is_none());
+            assert_eq!(prior_versions_dir.to_str().unwrap(), "prior-versions");
+            assert_eq!(migrations_dir.to_str().unwrap(), "migrations");
+            assert!(!ephemeral);
+            assert!(!dry_run);
+            assert!(git_repo.is_none());
+        } else {
+            panic!("expected Prime variant");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_prime_earliest_version() {
+        let cli = Cli::try_parse_from(["gen-orb-mcp", "prime", "--earliest-version", "4.1.0"]);
+        assert!(cli.is_ok(), "prime --earliest-version should parse");
+        if let Commands::Prime {
+            earliest_version, ..
+        } = cli.unwrap().command
+        {
+            assert_eq!(earliest_version.as_deref(), Some("4.1.0"));
+        } else {
+            panic!("expected Prime variant");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_prime_since() {
+        let cli = Cli::try_parse_from(["gen-orb-mcp", "prime", "--since", "3 months"]);
+        assert!(cli.is_ok(), "prime --since should parse");
+        if let Commands::Prime { since, .. } = cli.unwrap().command {
+            assert_eq!(since.as_deref(), Some("3 months"));
+        } else {
+            panic!("expected Prime variant");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_prime_exclusive_flags() {
+        // --earliest-version and --since are mutually exclusive
+        let cli = Cli::try_parse_from([
+            "gen-orb-mcp",
+            "prime",
+            "--earliest-version",
+            "4.1.0",
+            "--since",
+            "6 months",
+        ]);
+        assert!(
+            cli.is_err(),
+            "prime with both --earliest-version and --since should be rejected"
+        );
+    }
+
+    #[test]
+    fn test_cli_parse_prime_ephemeral() {
+        let cli = Cli::try_parse_from(["gen-orb-mcp", "prime", "--ephemeral"]);
+        assert!(cli.is_ok(), "prime --ephemeral should parse");
+        if let Commands::Prime { ephemeral, .. } = cli.unwrap().command {
+            assert!(ephemeral);
+        } else {
+            panic!("expected Prime variant");
+        }
     }
 }

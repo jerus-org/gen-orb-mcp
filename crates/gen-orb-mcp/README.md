@@ -56,7 +56,39 @@ This generates Rust source code in `./circleci-toolkit-mcp/`. To compile it:
 cd circleci-toolkit-mcp && cargo build --release
 ```
 
-### 2. Generate with migration Tools embedded
+### 2. Automatically populate prior-version history
+
+Use `prime` to discover version tags from git history, snapshot each version's orb, and compute
+conformance rule diffs — all in one step. The sliding window keeps only the last 6 months (or
+from a fixed anchor) to keep binary size bounded.
+
+```bash
+# Populate prior-versions/ and migrations/ from the last 6 months of tags
+gen-orb-mcp prime \
+  --orb-path ./circleci-toolkit/src/@orb.yml
+
+# Anchor at a specific earliest version (covers your full estate)
+gen-orb-mcp prime \
+  --orb-path ./circleci-toolkit/src/@orb.yml \
+  --earliest-version 4.1.0
+
+# In CI: write to /tmp (ephemeral) and print paths for the next step
+eval "$(gen-orb-mcp prime \
+  --orb-path ./src/@orb.yml \
+  --earliest-version 4.1.0 \
+  --ephemeral)"
+# → PRIME_PV_DIR and PRIME_MIG_DIR are now set; pass them to generate:
+gen-orb-mcp generate \
+  --orb-path ./src/@orb.yml \
+  --output ./mcp-build \
+  --version "${ORB_VERSION}" \
+  --prior-versions "${PRIME_PV_DIR}" \
+  --migrations "${PRIME_MIG_DIR}"
+```
+
+`prime` is idempotent: existing files are not overwritten; out-of-window files are removed.
+
+### 3. Generate with migration Tools embedded
 
 First compute conformance rules by diffing two orb versions:
 
@@ -87,7 +119,7 @@ The generated server now exposes:
 - A version index at `orb://versions`
 - `plan_migration` and `apply_migration` MCP Tools
 
-### 3. Migrate a consumer CI directory
+### 4. Migrate a consumer CI directory
 
 Apply migration rules directly from the CLI (no MCP server required):
 
@@ -140,6 +172,34 @@ gen-orb-mcp diff --current <PATH> --previous <PATH> --since-version <VERSION> [-
 
 Emits a JSON array of `ConformanceRule` values describing what changed between versions. These
 rules drive both the `migrate` CLI command and the MCP Tools in generated servers.
+
+### `prime` — Populate prior-versions/ and migrations/ from git history
+
+```
+gen-orb-mcp prime [OPTIONS]
+
+Options:
+  -p, --orb-path <PATH>            Path to the orb YAML entry point [default: src/@orb.yml]
+      --git-repo <PATH>            Git repository root (default: walk up from orb-path to .git)
+      --tag-prefix <PREFIX>        Git tag prefix [default: v]
+      --earliest-version <VER>     Fixed anchor (e.g. "4.1.0"); conflicts with --since
+      --since <DURATION>           Rolling window (e.g. "6 months") [default when neither set: 6 months]
+      --prior-versions-dir <DIR>   Output dir for snapshots [default: prior-versions]
+      --migrations-dir <DIR>       Output dir for rule JSON files [default: migrations]
+      --ephemeral                  Write to /tmp/gen-orb-mcp-prime-<pid>/ and print
+                                   PRIME_PV_DIR=... / PRIME_MIG_DIR=... to stdout
+      --dry-run                    Describe actions without writing any files
+```
+
+Discovers all semver tags matching `<tag-prefix><version>` in the repository, filters to those
+within the window, and for each version:
+- Checks out the tag into a temporary git worktree (RAII cleanup, safe on panic)
+- Saves the parsed orb to `prior-versions/<version>.yml`
+- Computes conformance-rule diff vs the previous version, writes `migrations/<version>.json`
+  (only if diff is non-empty)
+
+Out-of-window snapshots and their matching migration files are removed. Idempotent: existing
+files are not overwritten.
 
 ### `migrate` — Apply migration rules to a consumer CI directory
 
