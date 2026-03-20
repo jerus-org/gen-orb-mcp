@@ -345,7 +345,21 @@ pub fn prime(config: &PrimeConfig, window_versions: &[String]) -> Result<PrimeRe
         std::fs::create_dir_all(&config.migrations_dir)?;
     }
 
-    // ADD: snapshots for in-window versions not yet present
+    result.snapshots_added = add_snapshots(config, window_versions)?;
+    result.migrations_added = add_migrations(config, window_versions)?;
+
+    let window_set: std::collections::HashSet<&String> = window_versions.iter().collect();
+    let (snaps_removed, migs_removed) = remove_out_of_window(config, &window_set)?;
+    result.snapshots_removed = snaps_removed;
+    result.migrations_removed += migs_removed;
+    result.migrations_removed += remove_orphaned_migrations(config)?;
+
+    Ok(result)
+}
+
+/// ADD: snapshots for in-window versions not yet present.
+fn add_snapshots(config: &PrimeConfig, window_versions: &[String]) -> Result<usize> {
+    let mut added = 0;
     for version in window_versions {
         if !snapshot_needed(&config.prior_versions_dir, version) {
             tracing::debug!(version, "Skipping snapshot (already exists)");
@@ -365,12 +379,15 @@ pub fn prime(config: &PrimeConfig, window_versions: &[String]) -> Result<PrimeRe
             std::fs::write(&path, &yaml)?;
             println!("created prior-versions/{version}.yml");
         }
-        result.snapshots_added += 1;
+        added += 1;
     }
+    Ok(added)
+}
 
-    // ADD: migration rules for consecutive in-window pairs
-    let pairs: Vec<_> = window_versions.windows(2).collect();
-    for pair in pairs {
+/// ADD: migration rules for consecutive in-window pairs.
+fn add_migrations(config: &PrimeConfig, window_versions: &[String]) -> Result<usize> {
+    let mut added = 0;
+    for pair in window_versions.windows(2) {
         let prev = &pair[0];
         let curr = &pair[1];
         if !migration_needed(&config.migrations_dir, curr) {
@@ -380,96 +397,107 @@ pub fn prime(config: &PrimeConfig, window_versions: &[String]) -> Result<PrimeRe
         if config.dry_run {
             println!("would create migrations/{curr}.json (if rules non-empty)");
         } else {
-            let prev_path = config.prior_versions_dir.join(format!("{prev}.yml"));
-            let curr_path = config.prior_versions_dir.join(format!("{curr}.yml"));
-            if !prev_path.exists() || !curr_path.exists() {
-                tracing::warn!(prev = %prev, curr = %curr, "Skipping diff: snapshot missing");
-                continue;
-            }
-            let old_orb = OrbParser::parse(&prev_path)
-                .map_err(|e| anyhow::anyhow!("Failed to parse {}: {}", prev_path.display(), e))?;
-            let new_orb = OrbParser::parse(&curr_path)
-                .map_err(|e| anyhow::anyhow!("Failed to parse {}: {}", curr_path.display(), e))?;
-            let rules = compute_diff(&old_orb, &new_orb, curr);
-            if rules.is_empty() {
-                tracing::debug!(version = %curr, "No migration rules (orbs identical in structure)");
-            } else {
-                let json = serde_json::to_string_pretty(&rules)?;
-                let path = config.migrations_dir.join(format!("{curr}.json"));
-                std::fs::write(&path, &json)?;
-                println!("created migrations/{curr}.json ({} rules)", rules.len());
-                result.migrations_added += 1;
-            }
+            added += write_migration_if_nonempty(config, prev, curr)?;
         }
     }
+    Ok(added)
+}
 
-    // REMOVE: snapshots outside the window
-    let window_set: std::collections::HashSet<&String> = window_versions.iter().collect();
-    if config.prior_versions_dir.is_dir() {
-        for entry in std::fs::read_dir(&config.prior_versions_dir)?.flatten() {
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("yml") {
-                continue;
-            }
-            let version = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("")
-                .to_string();
-            if version.is_empty() || window_set.contains(&version) {
-                continue;
-            }
-            if config.dry_run {
-                println!("would remove prior-versions/{version}.yml (outside window)");
-            } else {
-                std::fs::remove_file(&path)?;
-                println!("removed prior-versions/{version}.yml (outside window)");
-            }
-            result.snapshots_removed += 1;
+/// Compute and write a migration file for `curr` vs `prev`; returns 1 if written, 0 if empty.
+fn write_migration_if_nonempty(config: &PrimeConfig, prev: &str, curr: &str) -> Result<usize> {
+    let prev_path = config.prior_versions_dir.join(format!("{prev}.yml"));
+    let curr_path = config.prior_versions_dir.join(format!("{curr}.yml"));
+    if !prev_path.exists() || !curr_path.exists() {
+        tracing::warn!(prev, curr, "Skipping diff: snapshot missing");
+        return Ok(0);
+    }
+    let old_orb = OrbParser::parse(&prev_path)
+        .map_err(|e| anyhow::anyhow!("Failed to parse {}: {}", prev_path.display(), e))?;
+    let new_orb = OrbParser::parse(&curr_path)
+        .map_err(|e| anyhow::anyhow!("Failed to parse {}: {}", curr_path.display(), e))?;
+    let rules = compute_diff(&old_orb, &new_orb, curr);
+    if rules.is_empty() {
+        tracing::debug!(version = %curr, "No migration rules (orbs identical in structure)");
+        return Ok(0);
+    }
+    let json = serde_json::to_string_pretty(&rules)?;
+    let path = config.migrations_dir.join(format!("{curr}.json"));
+    std::fs::write(&path, &json)?;
+    println!("created migrations/{curr}.json ({} rules)", rules.len());
+    Ok(1)
+}
 
-            // Also remove matching migration file
-            let mig_path = config.migrations_dir.join(format!("{version}.json"));
-            if mig_path.exists() {
-                if config.dry_run {
-                    println!("would remove migrations/{version}.json (snapshot removed)");
-                } else {
-                    std::fs::remove_file(&mig_path)?;
-                    println!("removed migrations/{version}.json (snapshot removed)");
-                }
-                result.migrations_removed += 1;
-            }
+/// REMOVE: snapshots outside the window and their matching migration files.
+/// Returns `(snapshots_removed, migrations_removed)`.
+fn remove_out_of_window(
+    config: &PrimeConfig,
+    window_set: &std::collections::HashSet<&String>,
+) -> Result<(usize, usize)> {
+    let (mut snaps, mut migs) = (0, 0);
+    if !config.prior_versions_dir.is_dir() {
+        return Ok((0, 0));
+    }
+    for entry in std::fs::read_dir(&config.prior_versions_dir)?.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("yml") {
+            continue;
+        }
+        let version = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+        if version.is_empty() || window_set.contains(&version) {
+            continue;
+        }
+        remove_or_announce(config.dry_run, &path, &format!("prior-versions/{version}.yml (outside window)"))?;
+        snaps += 1;
+        let mig_path = config.migrations_dir.join(format!("{version}.json"));
+        if mig_path.exists() {
+            remove_or_announce(config.dry_run, &mig_path, &format!("migrations/{version}.json (snapshot removed)"))?;
+            migs += 1;
         }
     }
+    Ok((snaps, migs))
+}
 
-    // REMOVE: orphaned migration files (no matching snapshot)
-    if config.migrations_dir.is_dir() {
-        for entry in std::fs::read_dir(&config.migrations_dir)?.flatten() {
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("json") {
-                continue;
-            }
-            let version = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("")
-                .to_string();
-            if version.is_empty() {
-                continue;
-            }
-            let snapshot = config.prior_versions_dir.join(format!("{version}.yml"));
-            if !snapshot.exists() {
-                if config.dry_run {
-                    println!("would remove migrations/{version}.json (orphaned)");
-                } else {
-                    std::fs::remove_file(&path)?;
-                    println!("removed migrations/{version}.json (orphaned)");
-                }
-                result.migrations_removed += 1;
-            }
+/// REMOVE: orphaned migration files (no matching snapshot). Returns count removed.
+fn remove_orphaned_migrations(config: &PrimeConfig) -> Result<usize> {
+    let mut removed = 0;
+    if !config.migrations_dir.is_dir() {
+        return Ok(0);
+    }
+    for entry in std::fs::read_dir(&config.migrations_dir)?.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let version = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+        if version.is_empty() {
+            continue;
+        }
+        let snapshot = config.prior_versions_dir.join(format!("{version}.yml"));
+        if !snapshot.exists() {
+            remove_or_announce(config.dry_run, &path, &format!("migrations/{version}.json (orphaned)"))?;
+            removed += 1;
         }
     }
+    Ok(removed)
+}
 
-    Ok(result)
+/// Remove a file or print a dry-run announcement.
+fn remove_or_announce(dry_run: bool, path: &Path, label: &str) -> Result<()> {
+    if dry_run {
+        println!("would remove {label}");
+    } else {
+        std::fs::remove_file(path)?;
+        println!("removed {label}");
+    }
+    Ok(())
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -634,7 +662,7 @@ mod tests {
         std::fs::write(pv_dir.join("4.0.0.yml"), "old: true").unwrap();
         std::fs::write(pv_dir.join("5.0.0.yml"), "current: true").unwrap();
 
-        let window = vec!["5.0.0".to_string()];
+        let window = ["5.0.0".to_string()];
         let config = PrimeConfig {
             git_repo: tmp.path().to_owned(),
             tag_prefix: "v".to_string(),

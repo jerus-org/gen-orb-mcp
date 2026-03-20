@@ -137,8 +137,8 @@ enum Commands {
     /// Populate prior-versions/ and migrations/ from git history
     ///
     /// Discovers version tags in a sliding window (default: last 6 months), checks
-    /// out each version, saves a snapshot to prior-versions/<version>.yml, and
-    /// computes conformance-rule diffs to migrations/<version>.json. Removes files
+    /// out each version, saves a snapshot to `prior-versions/<version>.yml`, and
+    /// computes conformance-rule diffs to `migrations/<version>.json`. Removes files
     /// for versions outside the window to keep binary size bounded. Idempotent.
     Prime {
         /// Path to the orb YAML entry point
@@ -169,7 +169,7 @@ enum Commands {
         #[arg(long, default_value = "migrations")]
         migrations_dir: std::path::PathBuf,
 
-        /// Write to /tmp/gen-orb-mcp-prime-<pid>/ and print PRIME_PV_DIR/PRIME_MIG_DIR to stdout
+        /// Write to `/tmp/gen-orb-mcp-prime-<pid>/` and print PRIME_PV_DIR/PRIME_MIG_DIR to stdout
         #[arg(long)]
         ephemeral: bool,
 
