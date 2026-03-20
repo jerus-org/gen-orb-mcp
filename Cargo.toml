@@ -38,7 +38,7 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
 # Date/time — for --since cutoff calculation
-chrono = { version = "0.4", features = ["std"], default-features = false }
+chrono = { version = "0.4.44", features = ["std"], default-features = false }
 
 # Semantic versioning — for --earliest-version comparison and version sorting
 semver = "1.0"
