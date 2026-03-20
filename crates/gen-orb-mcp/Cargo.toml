@@ -37,6 +37,10 @@ handlebars.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 
+# Date/time and semver (for prime command)
+chrono.workspace = true
+semver.workspace = true
+
 [dev-dependencies]
 tempfile.workspace = true
 trycmd.workspace = true

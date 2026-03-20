@@ -1,9 +1,10 @@
 //! Conformance rules for orb migration tooling.
 //!
 //! A `ConformanceRule` describes a single breaking change that occurred between
-//! orb versions and how to detect and remediate it in a consumer's CI configuration.
-//! Rules are generated automatically by the `OrbDiffer` and embedded in the generated
-//! MCP server binary at release time — the orb author never writes them manually.
+//! orb versions and how to detect and remediate it in a consumer's CI
+//! configuration. Rules are generated automatically by the `OrbDiffer` and
+//! embedded in the generated MCP server binary at release time — the orb author
+//! never writes them manually.
 
 use serde::{Deserialize, Serialize};
 
@@ -28,7 +29,8 @@ pub enum ConformanceRule {
         from: String,
         /// The new job name.
         to: String,
-        /// Parameters that exist on `from` but not on `to`; strip them during migration.
+        /// Parameters that exist on `from` but not on `to`; strip them during
+        /// migration.
         removed_parameters: Vec<String>,
         /// The version in which this rename occurred.
         since_version: String,
@@ -44,10 +46,12 @@ pub enum ConformanceRule {
         since_version: String,
     },
 
-    /// A new mandatory parameter (no default value) was added to an existing job.
+    /// A new mandatory parameter (no default value) was added to an existing
+    /// job.
     ///
     /// Any consumer invocation of `job` must now supply `parameter`.
-    /// The appropriate value is context-dependent and cannot be filled automatically.
+    /// The appropriate value is context-dependent and cannot be filled
+    /// automatically.
     ParameterAdded {
         /// The job to which the parameter was added.
         job: String,
@@ -98,7 +102,8 @@ pub enum ConformanceRule {
         from: String,
         /// The new command name.
         to: String,
-        /// Parameters that exist on `from` but not on `to`; strip them during migration.
+        /// Parameters that exist on `from` but not on `to`; strip them during
+        /// migration.
         removed_parameters: Vec<String>,
         /// The version in which this rename occurred.
         since_version: String,
@@ -114,7 +119,8 @@ pub enum ConformanceRule {
         since_version: String,
     },
 
-    /// A new mandatory parameter (no default value) was added to an existing command.
+    /// A new mandatory parameter (no default value) was added to an existing
+    /// command.
     ///
     /// Any consumer invocation of `command` must now supply `parameter`.
     CommandParameterAdded {

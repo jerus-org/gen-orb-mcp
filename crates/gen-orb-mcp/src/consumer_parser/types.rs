@@ -1,7 +1,6 @@
 //! Types for parsed consumer CircleCI configuration.
 
-use std::collections::HashMap;
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -9,7 +8,8 @@ use serde::{Deserialize, Serialize};
 /// Provides a job-graph model suitable for conformance checking.
 #[derive(Debug, Clone, Default)]
 pub struct ConsumerConfig {
-    /// All CI files found, keyed by path relative to the `.circleci/` directory.
+    /// All CI files found, keyed by path relative to the `.circleci/`
+    /// directory.
     pub files: HashMap<PathBuf, CiFile>,
 }
 
@@ -31,7 +31,8 @@ impl ConsumerConfig {
             .filter(move |inv| inv.orb_alias.as_deref() == Some(orb_alias))
     }
 
-    /// Returns all orb command step invocations across all files and custom jobs.
+    /// Returns all orb command step invocations across all files and custom
+    /// jobs.
     pub fn all_step_invocations(&self) -> impl Iterator<Item = &StepInvocation> {
         self.files
             .values()
@@ -107,13 +108,15 @@ pub struct JobInvocation {
     pub reference: String,
     /// Resolved orb alias (e.g. `"toolkit"`), or `None` for local jobs.
     pub orb_alias: Option<String>,
-    /// Job name within the orb (e.g. `"update_prlog"`), or `None` for local jobs.
+    /// Job name within the orb (e.g. `"update_prlog"`), or `None` for local
+    /// jobs.
     pub orb_job: Option<String>,
     /// Parameters passed at the invocation site.
     pub parameters: HashMap<String, serde_yaml::Value>,
     /// Job names (or `name:` overrides) that this invocation requires.
     pub requires: Vec<String>,
-    /// The `name:` override if present; identifies this invocation in `requires` lists.
+    /// The `name:` override if present; identifies this invocation in
+    /// `requires` lists.
     pub name_override: Option<String>,
     /// Source location for targeted YAML editing.
     pub location: SourceLocation,
@@ -123,7 +126,8 @@ impl JobInvocation {
     /// Returns the effective name by which other jobs identify this invocation
     /// in their `requires:` lists.
     ///
-    /// This is the `name:` override if one was given, otherwise the job reference.
+    /// This is the `name:` override if one was given, otherwise the job
+    /// reference.
     pub fn effective_name(&self) -> &str {
         self.name_override
             .as_deref()
@@ -135,7 +139,8 @@ impl JobInvocation {
         self.orb_alias.as_deref() == Some(alias)
     }
 
-    /// Returns `true` if this invocation calls the named job from the named orb.
+    /// Returns `true` if this invocation calls the named job from the named
+    /// orb.
     pub fn matches(&self, orb_alias: &str, job_name: &str) -> bool {
         self.orb_alias.as_deref() == Some(orb_alias) && self.orb_job.as_deref() == Some(job_name)
     }
@@ -181,17 +186,19 @@ pub struct StepInvocation {
 }
 
 impl StepInvocation {
-    /// Returns `true` if this step invokes the named command from the named orb.
+    /// Returns `true` if this step invokes the named command from the named
+    /// orb.
     pub fn matches(&self, orb_alias: &str, command_name: &str) -> bool {
         self.orb_alias.as_deref() == Some(orb_alias)
             && self.orb_command.as_deref() == Some(command_name)
     }
 }
 
-/// Source location pointing to a specific step invocation inside a custom job's steps.
+/// Source location pointing to a specific step invocation inside a custom job's
+/// steps.
 ///
-/// Distinct from `SourceLocation` (which targets workflow job invocations): steps
-/// are located by job name + step index, not workflow + job index.
+/// Distinct from `SourceLocation` (which targets workflow job invocations):
+/// steps are located by job name + step index, not workflow + job index.
 #[derive(Debug, Clone)]
 pub struct StepLocation {
     /// Path to the CI file containing this step.

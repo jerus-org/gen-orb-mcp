@@ -1,7 +1,8 @@
 //! Core data structures for parsed CircleCI orb definitions.
 
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use serde::{Deserialize, Serialize};
 
 /// Root structure representing a complete orb definition.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

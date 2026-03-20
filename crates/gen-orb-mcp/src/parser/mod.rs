@@ -8,6 +8,7 @@
 //!
 //! ```no_run
 //! use std::path::Path;
+//!
 //! use gen_orb_mcp::parser::OrbParser;
 //!
 //! // Parse an unpacked orb from directory
@@ -20,11 +21,10 @@
 pub mod error;
 pub mod types;
 
+use std::{fs, path::Path};
+
 pub use error::ParseError;
 pub use types::*;
-
-use std::fs;
-use std::path::Path;
 
 /// Parser for CircleCI orb definitions.
 ///
@@ -190,9 +190,11 @@ impl OrbParser {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::fs;
+
     use tempfile::TempDir;
+
+    use super::*;
 
     fn create_unpacked_orb(dir: &Path) {
         // Create @orb.yml

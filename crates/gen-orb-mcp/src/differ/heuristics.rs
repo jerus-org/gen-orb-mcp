@@ -62,8 +62,8 @@ fn find_absorbing_job(
 }
 
 /// Returns the set of parameter name candidates that would indicate absorption
-/// of the given job name. For `"label"` this yields `["run_label", "include_label",
-/// "label_step"]`.
+/// of the given job name. For `"label"` this yields `["run_label",
+/// "include_label", "label_step"]`.
 fn absorption_candidate_params(job_name: &str) -> Vec<String> {
     vec![
         format!("run_{job_name}"),
@@ -126,8 +126,9 @@ pub fn detect_renamed_jobs(
 /// Detects `CommandRenamed` cases using parameter-set fuzzy matching.
 ///
 /// Mirrors `detect_renamed_jobs` but operates on `Command` definitions.
-/// A command is considered renamed when a removed command name has parameter-set
-/// Jaccard similarity ≥ `threshold` against a newly added command.
+/// A command is considered renamed when a removed command name has
+/// parameter-set Jaccard similarity ≥ `threshold` against a newly added
+/// command.
 ///
 /// Returns a map of old name → new name.
 pub fn detect_renamed_commands(
