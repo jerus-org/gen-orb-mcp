@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - ci-revert inline release_prlog to standard toolkit job(pr [#66])
 
+### Fixed
+
+- deps: update rust crate chrono to 0.4.44(pr [#68])
+
 ## [0.1.2] - 2026-03-19
 
 ### Added
@@ -170,6 +174,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#65]: https://github.com/jerus-org/gen-orb-mcp/pull/65
 [#66]: https://github.com/jerus-org/gen-orb-mcp/pull/66
 [#67]: https://github.com/jerus-org/gen-orb-mcp/pull/67
+[#68]: https://github.com/jerus-org/gen-orb-mcp/pull/68
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.2...HEAD
 [0.1.2]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...v0.1.1
