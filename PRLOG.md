@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - deps: update rust crate chrono to 0.4.44(pr [#68])
+- deps: update rust crate semver to 1.0.27(pr [#69])
 
 ## [0.1.2] - 2026-03-19
 
@@ -175,6 +176,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#66]: https://github.com/jerus-org/gen-orb-mcp/pull/66
 [#67]: https://github.com/jerus-org/gen-orb-mcp/pull/67
 [#68]: https://github.com/jerus-org/gen-orb-mcp/pull/68
+[#69]: https://github.com/jerus-org/gen-orb-mcp/pull/69
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.2...HEAD
 [0.1.2]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...v0.1.1
