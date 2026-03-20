@@ -1,33 +1,38 @@
-//! Migration planner: converts `Vec<ConformanceRule>` × `ConsumerConfig` → `MigrationPlan`.
+//! Migration planner: converts `Vec<ConformanceRule>` × `ConsumerConfig` →
+//! `MigrationPlan`.
 //!
-//! The planner inspects the consumer's actual CI state and applies each conformance
-//! rule to identify what needs changing. It is version-agnostic: it checks actual
-//! state, not assumed source versions.
+//! The planner inspects the consumer's actual CI state and applies each
+//! conformance rule to identify what needs changing. It is version-agnostic: it
+//! checks actual state, not assumed source versions.
 
 use std::collections::HashSet;
 
-use crate::conformance_rule::ConformanceRule;
-use crate::consumer_parser::graph::find_absorbed_candidates;
-use crate::consumer_parser::types::ConsumerConfig;
-
 use super::types::{ChangeType, MigrationPlan, PlannedChange};
+use crate::{
+    conformance_rule::ConformanceRule,
+    consumer_parser::{graph::find_absorbed_candidates, types::ConsumerConfig},
+};
 
 /// Type alias to reduce repetition in planner function signatures.
 type Changes = Vec<PlannedChange>;
 
-/// Produces a `MigrationPlan` by applying each conformance rule against the consumer config.
+/// Produces a `MigrationPlan` by applying each conformance rule against the
+/// consumer config.
 ///
 /// # Arguments
 /// * `rules` — conformance rules for the target orb version
 /// * `config` — parsed consumer config
-/// * `orb_alias` — the alias used in the consumer's `orbs:` section (e.g. `"toolkit"`)
+/// * `orb_alias` — the alias used in the consumer's `orbs:` section (e.g.
+///   `"toolkit"`)
 pub fn plan(rules: &[ConformanceRule], config: &ConsumerConfig, orb_alias: &str) -> MigrationPlan {
     let mut changes: Vec<PlannedChange> = Vec::new();
 
-    // Detect the current pinned version (take the first file that references the orb)
+    // Detect the current pinned version (take the first file that references the
+    // orb)
     let detected_version = detect_version(config, orb_alias);
 
-    // Determine the target version from the rules (take the first rule's since_version)
+    // Determine the target version from the rules (take the first rule's
+    // since_version)
     let target_version = rules
         .first()
         .map(|r| r.since_version().to_string())
@@ -182,7 +187,8 @@ fn plan_job_renamed(
     }
 }
 
-/// Emits rename and parameter-removal changes for a single matching job invocation.
+/// Emits rename and parameter-removal changes for a single matching job
+/// invocation.
 fn plan_single_job_renamed(
     inv: &crate::consumer_parser::types::JobInvocation,
     workflow_name: &str,
@@ -326,7 +332,8 @@ fn plan_enum_value_removed(
     }
 }
 
-/// Emits a parameter-value replacement change for a single matching job invocation.
+/// Emits a parameter-value replacement change for a single matching job
+/// invocation.
 #[allow(clippy::too_many_arguments)]
 fn plan_single_enum_value(
     inv: &crate::consumer_parser::types::JobInvocation,
@@ -421,7 +428,8 @@ fn plan_command_renamed(
     }
 }
 
-/// Emits rename and parameter-removal changes for a single matching command step.
+/// Emits rename and parameter-removal changes for a single matching command
+/// step.
 fn plan_single_command_renamed(
     step: &crate::consumer_parser::types::StepInvocation,
     job_name: &str,
@@ -526,12 +534,12 @@ fn dedup_changes(changes: &mut Vec<PlannedChange>) {
 
 #[cfg(test)]
 mod tests {
+    use std::{collections::HashMap, path::PathBuf};
+
     use super::*;
     use crate::consumer_parser::types::{
         CiFile, ConsumerConfig, JobInvocation, OrbRef, SourceLocation, Workflow,
     };
-    use std::collections::HashMap;
-    use std::path::PathBuf;
 
     fn make_config_with_label_and_update_prlog() -> ConsumerConfig {
         let mut config = ConsumerConfig::default();

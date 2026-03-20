@@ -94,8 +94,9 @@ impl PlannedChange {
 
 #[cfg(test)]
 mod tests {
-    use crate::migrator::types::{ChangeType, MigrationPlan, PlannedChange};
     use std::path::PathBuf;
+
+    use crate::migrator::types::{ChangeType, MigrationPlan, PlannedChange};
 
     #[test]
     fn test_format_summary_no_changes() {

@@ -22,8 +22,7 @@ pub mod types;
 
 pub use types::{AppliedChanges, ChangeType, MigrationPlan, PlannedChange};
 
-use crate::conformance_rule::ConformanceRule;
-use crate::consumer_parser::types::ConsumerConfig;
+use crate::{conformance_rule::ConformanceRule, consumer_parser::types::ConsumerConfig};
 
 /// Entry point for migration planning and application.
 pub struct Migrator;

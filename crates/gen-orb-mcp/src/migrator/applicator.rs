@@ -15,8 +15,7 @@
 //!
 //! This preserves comments, anchors, and formatting for unchanged sections.
 
-use std::collections::HashMap;
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use crate::migrator::types::{AppliedChanges, ChangeType, MigrationPlan, PlannedChange};
 
@@ -124,7 +123,8 @@ fn apply_single_change(lines: &mut Vec<String>, change: &PlannedChange) -> bool 
 /// Removes a job invocation block from the YAML lines.
 ///
 /// Finds the line containing the job reference (e.g. `- toolkit/label:`) within
-/// the given workflow section and removes it along with all its indented children.
+/// the given workflow section and removes it along with all its indented
+/// children.
 fn remove_job_invocation(lines: &mut Vec<String>, workflow: &str, job_ref: &str) -> bool {
     let Some(workflow_start) = find_workflow_section(lines, workflow) else {
         return false;
@@ -216,7 +216,8 @@ fn replace_parameter_value(
         return false;
     };
 
-    // Replace inline: `          parameter: old_value` → `          parameter: new_value`
+    // Replace inline: `          parameter: old_value` → `          parameter:
+    // new_value`
     let line = &lines[param_idx];
     if let Some(colon_pos) = line.find(": ") {
         let indent_and_key = &line[..colon_pos + 2];
@@ -264,7 +265,8 @@ fn rename_command_invocation(lines: &mut [String], job: &str, from: &str, to: &s
     false
 }
 
-/// Removes a parameter from an orb command step invocation in a consumer's custom job.
+/// Removes a parameter from an orb command step invocation in a consumer's
+/// custom job.
 fn remove_command_parameter(
     lines: &mut Vec<String>,
     job: &str,
@@ -306,7 +308,8 @@ fn find_workflow_section(lines: &[String], workflow: &str) -> Option<usize> {
 
 /// Finds the `jobs:` key within the block starting at `start`.
 ///
-/// Stops searching when it encounters a non-indented line (a new top-level key).
+/// Stops searching when it encounters a non-indented line (a new top-level
+/// key).
 fn find_jobs_line_after(lines: &[String], start: usize) -> Option<usize> {
     for (j, jline) in lines.iter().enumerate().skip(start) {
         let t = jline.trim();
@@ -435,7 +438,8 @@ fn leading_spaces(line: &str) -> usize {
     line.len() - line.trim_start_matches(' ').len()
 }
 
-/// Returns the line index of the `steps:` key inside the named consumer custom job.
+/// Returns the line index of the `steps:` key inside the named consumer custom
+/// job.
 ///
 /// Scans for the top-level `jobs:` key, then finds `  job_name:` beneath it,
 /// then finds `    steps:` within that job block.
@@ -526,9 +530,10 @@ fn find_step_line(lines: &[String], steps_start: usize, command_ref: &str) -> Op
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
     use crate::migrator::types::{ChangeType, PlannedChange};
-    use std::path::PathBuf;
 
     fn remove_change(workflow: &str, job_ref: &str) -> PlannedChange {
         PlannedChange {

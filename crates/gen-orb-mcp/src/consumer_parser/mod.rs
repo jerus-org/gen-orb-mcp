@@ -1,13 +1,14 @@
 //! Consumer configuration parser.
 //!
-//! Parses a consumer's `.circleci/` directory into a [`ConsumerConfig`] job-graph
-//! model that can be inspected by conformance rules.
+//! Parses a consumer's `.circleci/` directory into a [`ConsumerConfig`]
+//! job-graph model that can be inspected by conformance rules.
 //!
 //! ## What is parsed
 //!
 //! - `orbs:` sections → [`OrbRef`] map keyed by alias
 //! - `workflows:` sections → [`Workflow`] with [`JobInvocation`] list
-//! - Per-invocation: job reference, orb alias, parameters, `requires:`, `name:` override
+//! - Per-invocation: job reference, orb alias, parameters, `requires:`, `name:`
+//!   override
 //!
 //! - `jobs:` top-level definitions → [`CustomJob`] with [`StepInvocation`] list
 //!   (only steps that invoke orb commands are captured)
@@ -21,6 +22,11 @@ pub mod error;
 pub mod graph;
 pub mod types;
 
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
+
 pub use error::ConsumerParserError;
 pub use graph::{find_absorbed_candidates, requires_chain, transitively_requires};
 pub use types::{
@@ -28,19 +34,19 @@ pub use types::{
     StepLocation, Workflow,
 };
 
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-
-/// Parses one or more CircleCI YAML files from a directory into a [`ConsumerConfig`].
+/// Parses one or more CircleCI YAML files from a directory into a
+/// [`ConsumerConfig`].
 pub struct ConsumerParser;
 
 impl ConsumerParser {
-    /// Parses all `.yml` and `.yaml` files in `ci_dir` and returns the combined config.
+    /// Parses all `.yml` and `.yaml` files in `ci_dir` and returns the combined
+    /// config.
     ///
-    /// Files that fail to parse are skipped with a warning rather than failing the
-    /// entire parse — a consumer's `.circleci/` may contain non-config YAML files
-    /// (e.g. `renovate.json5` is sometimes placed there). A file is silently skipped
-    /// if it doesn't look like a CircleCI config (no `version:` key).
+    /// Files that fail to parse are skipped with a warning rather than failing
+    /// the entire parse — a consumer's `.circleci/` may contain non-config
+    /// YAML files (e.g. `renovate.json5` is sometimes placed there). A file
+    /// is silently skipped if it doesn't look like a CircleCI config (no
+    /// `version:` key).
     pub fn parse_directory(ci_dir: &Path) -> Result<ConsumerConfig, ConsumerParserError> {
         if !ci_dir.is_dir() {
             return Err(ConsumerParserError::DirectoryNotFound {
@@ -94,8 +100,8 @@ impl ConsumerParser {
 
     /// Parses a single CircleCI YAML file.
     ///
-    /// Returns `Ok(None)` if the file doesn't contain a CircleCI `version:` key,
-    /// indicating it is not a CI config file.
+    /// Returns `Ok(None)` if the file doesn't contain a CircleCI `version:`
+    /// key, indicating it is not a CI config file.
     pub fn parse_file(path: &Path) -> Result<Option<CiFile>, ConsumerParserError> {
         let content = std::fs::read_to_string(path).map_err(|e| ConsumerParserError::IoError {
             path: path.display().to_string(),
@@ -107,7 +113,8 @@ impl ConsumerParser {
 
     /// Parses CircleCI config YAML from a string.
     ///
-    /// The `source_path` is used only for `SourceLocation` tracking and error messages.
+    /// The `source_path` is used only for `SourceLocation` tracking and error
+    /// messages.
     pub fn parse_str(
         content: &str,
         source_path: &Path,
@@ -306,8 +313,9 @@ fn parse_job_invocation(
     }
 }
 
-/// Splits a job reference like `"toolkit/update_prlog"` into `(Some("toolkit"), Some("update_prlog"))`.
-/// Returns `(None, None)` for local job names without a `/`.
+/// Splits a job reference like `"toolkit/update_prlog"` into `(Some("toolkit"),
+/// Some("update_prlog"))`. Returns `(None, None)` for local job names without a
+/// `/`.
 fn split_job_reference(
     reference: &str,
     orb_aliases: &HashMap<String, OrbRef>,
@@ -320,7 +328,8 @@ fn split_job_reference(
     (None, None)
 }
 
-/// Extracts `requires:`, `name:`, and remaining parameters from a job's parameter map.
+/// Extracts `requires:`, `name:`, and remaining parameters from a job's
+/// parameter map.
 fn extract_job_params(
     params_value: &serde_yaml::Value,
 ) -> (
@@ -477,9 +486,11 @@ fn parse_step_invocation(
     }
 }
 
-/// Splits a command reference like `"toolkit/setup_env"` into `("toolkit", "setup_env")`.
+/// Splits a command reference like `"toolkit/setup_env"` into `("toolkit",
+/// "setup_env")`.
 ///
-/// Returns `None` if the alias part is not a known orb alias or the reference has no `/`.
+/// Returns `None` if the alias part is not a known orb alias or the reference
+/// has no `/`.
 fn split_orb_command(
     reference: &str,
     orb_aliases: &HashMap<String, OrbRef>,
@@ -492,7 +503,8 @@ fn split_orb_command(
     }
 }
 
-/// Extracts parameters from a command invocation's value (the map under the command key).
+/// Extracts parameters from a command invocation's value (the map under the
+/// command key).
 ///
 /// Unlike job invocations, command steps have no `requires:` or `name:` fields;
 /// all keys are parameters.
@@ -514,8 +526,9 @@ fn extract_command_params(params_value: &serde_yaml::Value) -> HashMap<String, s
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::path::Path;
+
+    use super::*;
 
     const SAMPLE_CONFIG: &str = r#"
 version: 2.1
@@ -648,6 +661,7 @@ workflows:
     #[test]
     fn test_parse_directory_round_trip() {
         use std::fs;
+
         use tempfile::TempDir;
 
         let tmp = TempDir::new().unwrap();
@@ -780,14 +794,16 @@ workflows:
 
         let job = &ci_file.custom_jobs["my-release-job"];
         // toolkit/setup_env is the 2nd step overall (index 1 in the original YAML,
-        // but step_index tracks position in the full steps array including non-orb steps)
+        // but step_index tracks position in the full steps array including non-orb
+        // steps)
         let setup_step = job
             .steps
             .iter()
             .find(|s| s.reference == "toolkit/setup_env")
             .unwrap();
         assert_eq!(setup_step.location.job, "my-release-job");
-        assert_eq!(setup_step.location.step_index, 1); // index in full steps list
+        assert_eq!(setup_step.location.step_index, 1); // index in full steps
+                                                       // list
     }
 
     #[test]
@@ -812,7 +828,8 @@ workflows:
         let ci_file = result.unwrap();
         let workflow = &ci_file.workflows["update_prlog"];
 
-        // label (index 1) requires update-prlog-on-main (which is update_prlog at index 0)
+        // label (index 1) requires update-prlog-on-main (which is update_prlog at index
+        // 0)
         let candidates =
             find_absorbed_candidates(workflow, "toolkit", "label", "update-prlog-on-main");
         assert_eq!(

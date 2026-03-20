@@ -24,12 +24,13 @@ pub fn build_name_index(workflow: &Workflow) -> HashMap<String, usize> {
 /// Returns the transitive requires-chain of a given job invocation within its
 /// workflow.
 ///
-/// The returned vector contains all jobs that the target invocation transitively
-/// depends on (i.e. all ancestors in the DAG), in breadth-first order.
-/// The target invocation itself is **not** included.
+/// The returned vector contains all jobs that the target invocation
+/// transitively depends on (i.e. all ancestors in the DAG), in breadth-first
+/// order. The target invocation itself is **not** included.
 ///
 /// # Arguments
-/// * `target_index` — index of the invocation to start from within `workflow.jobs`
+/// * `target_index` — index of the invocation to start from within
+///   `workflow.jobs`
 /// * `workflow` — the workflow containing all invocations
 ///
 /// Returns an empty vec if the target has no `requires:` entries or if none of
@@ -116,10 +117,10 @@ pub fn find_absorbed_candidates(
 
 #[cfg(test)]
 mod tests {
+    use std::{collections::HashMap, path::PathBuf};
+
     use super::*;
     use crate::consumer_parser::types::{JobInvocation, SourceLocation, Workflow};
-    use std::collections::HashMap;
-    use std::path::PathBuf;
 
     fn make_job(
         reference: &str,
@@ -200,7 +201,8 @@ mod tests {
             ],
         };
 
-        // job-a (index 2) should transitively require job-c (index 0) via job-b (index 1)
+        // job-a (index 2) should transitively require job-c (index 0) via job-b (index
+        // 1)
         let chain = requires_chain(2, &workflow);
         assert!(chain.contains(&1), "Expected job-b (1) in chain");
         assert!(

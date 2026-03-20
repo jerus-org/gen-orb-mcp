@@ -1,6 +1,7 @@
 //! Generator-specific error types.
 
 use std::path::PathBuf;
+
 use thiserror::Error;
 
 /// Errors that can occur during code generation.

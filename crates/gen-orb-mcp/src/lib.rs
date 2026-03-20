@@ -22,7 +22,6 @@ pub mod primer;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-
 use generator::CodeGenerator;
 use parser::OrbParser;
 
@@ -68,19 +67,21 @@ enum Commands {
         #[arg(long)]
         force: bool,
 
-        /// Directory containing conformance rule JSON files to embed in the server
+        /// Directory containing conformance rule JSON files to embed in the
+        /// server
         ///
-        /// All *.json files in this directory are merged and embedded as migration
-        /// tooling in the generated server. When provided, the server gains
-        /// plan_migration and apply_migration MCP Tools in addition to Resources.
+        /// All *.json files in this directory are merged and embedded as
+        /// migration tooling in the generated server. When provided,
+        /// the server gains plan_migration and apply_migration MCP
+        /// Tools in addition to Resources.
         #[arg(long)]
         migrations: Option<std::path::PathBuf>,
 
         /// Directory of prior orb version YAML snapshots to embed in the server
         ///
         /// Each file should be named `<version>.yml` (e.g., `4.7.1.yml`). The
-        /// generated server will expose version-specific resources for each prior
-        /// version alongside the current version.
+        /// generated server will expose version-specific resources for each
+        /// prior version alongside the current version.
         #[arg(long)]
         prior_versions: Option<std::path::PathBuf>,
     },
@@ -115,14 +116,16 @@ enum Commands {
     },
     /// Apply conformance-based migration to a consumer's .circleci/ directory
     ///
-    /// Reads conformance rules from a JSON file (produced by `diff`) and applies
-    /// them to the consumer's CI config. Reports planned changes before applying.
+    /// Reads conformance rules from a JSON file (produced by `diff`) and
+    /// applies them to the consumer's CI config. Reports planned changes
+    /// before applying.
     Migrate {
         /// Path to the consumer's .circleci/ directory
         #[arg(long, default_value = ".circleci")]
         ci_dir: std::path::PathBuf,
 
-        /// The orb alias as used in the consumer's orbs: section (e.g. "toolkit")
+        /// The orb alias as used in the consumer's orbs: section (e.g.
+        /// "toolkit")
         #[arg(long)]
         orb: String,
 
@@ -136,16 +139,18 @@ enum Commands {
     },
     /// Populate prior-versions/ and migrations/ from git history
     ///
-    /// Discovers version tags in a sliding window (default: last 6 months), checks
-    /// out each version, saves a snapshot to `prior-versions/<version>.yml`, and
-    /// computes conformance-rule diffs to `migrations/<version>.json`. Removes files
-    /// for versions outside the window to keep binary size bounded. Idempotent.
+    /// Discovers version tags in a sliding window (default: last 6 months),
+    /// checks out each version, saves a snapshot to
+    /// `prior-versions/<version>.yml`, and computes conformance-rule diffs
+    /// to `migrations/<version>.json`. Removes files for versions outside
+    /// the window to keep binary size bounded. Idempotent.
     Prime {
         /// Path to the orb YAML entry point
         #[arg(short = 'p', long, default_value = "src/@orb.yml")]
         orb_path: std::path::PathBuf,
 
-        /// Path to the git repository root (default: walk up from orb-path to .git)
+        /// Path to the git repository root (default: walk up from orb-path to
+        /// .git)
         #[arg(long)]
         git_repo: Option<std::path::PathBuf>,
 
@@ -157,7 +162,8 @@ enum Commands {
         #[arg(long, conflicts_with = "since")]
         earliest_version: Option<String>,
 
-        /// Rolling window duration (e.g. "6 months", "1 year"); default: "6 months"
+        /// Rolling window duration (e.g. "6 months", "1 year"); default: "6
+        /// months"
         #[arg(long)]
         since: Option<String>,
 
@@ -169,7 +175,8 @@ enum Commands {
         #[arg(long, default_value = "migrations")]
         migrations_dir: std::path::PathBuf,
 
-        /// Write to `/tmp/gen-orb-mcp-prime-<pid>/` and print PRIME_PV_DIR/PRIME_MIG_DIR to stdout
+        /// Write to `/tmp/gen-orb-mcp-prime-<pid>/` and print
+        /// PRIME_PV_DIR/PRIME_MIG_DIR to stdout
         #[arg(long)]
         ephemeral: bool,
 
@@ -636,8 +643,8 @@ fn find_git_root(start: &std::path::Path) -> Result<std::path::PathBuf> {
 /// Derive orb name from the orb path.
 ///
 /// For unpacked orbs (`@orb.yml`), uses the project directory name.
-/// Handles the common `project/src/@orb.yml` structure by skipping the `src` directory.
-/// For packed orbs, uses the file stem (filename without extension).
+/// Handles the common `project/src/@orb.yml` structure by skipping the `src`
+/// directory. For packed orbs, uses the file stem (filename without extension).
 fn derive_orb_name(path: &std::path::Path) -> String {
     let filename = path.file_name().and_then(|s| s.to_str()).unwrap_or("orb");
 
@@ -717,8 +724,9 @@ fn resolve_version(output: &std::path::Path, version: Option<&str>, force: bool)
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use tempfile::TempDir;
+
+    use super::*;
 
     #[test]
     fn test_cli_parse_generate() {
@@ -781,7 +789,8 @@ mod tests {
         let path = Path::new("my-orb/@orb.yml");
         assert_eq!(derive_orb_name(path), "my-orb");
 
-        // Edge case: src/@orb.yml at root -> "orb" (no grandparent, falls back to default)
+        // Edge case: src/@orb.yml at root -> "orb" (no grandparent, falls back to
+        // default)
         let path = Path::new("src/@orb.yml");
         assert_eq!(derive_orb_name(path), "orb");
     }

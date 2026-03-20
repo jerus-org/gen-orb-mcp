@@ -1,7 +1,8 @@
 //! Orb version history primer.
 //!
 //! Manages `prior-versions/` and `migrations/` directories as a sliding window:
-//! - Versions within the window → snapshots and conformance rule JSON files created
+//! - Versions within the window → snapshots and conformance rule JSON files
+//!   created
 //! - Versions outside the window → snapshots and rule files removed
 //! - Idempotent: existing files are skipped; out-of-window files are removed
 
@@ -10,9 +11,11 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use chrono::{Datelike, NaiveDate};
 
-use crate::conformance_rule::ConformanceRule;
-use crate::differ;
-use crate::parser::{OrbDefinition, OrbParser};
+use crate::{
+    conformance_rule::ConformanceRule,
+    differ,
+    parser::{OrbDefinition, OrbParser},
+};
 
 /// A version tag annotated with its commit date.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,7 +56,8 @@ impl std::fmt::Display for PrimeResult {
     }
 }
 
-// ── Pure functions ────────────────────────────────────────────────────────────
+// ── Pure functions
+// ────────────────────────────────────────────────────────────
 
 /// Filter a version list to those at or after `earliest` (semver comparison).
 ///
@@ -148,12 +152,14 @@ fn days_in_month(year: i32, month: u32) -> u32 {
         .num_days() as u32
 }
 
-/// Returns `true` if the snapshot file for `version` does not yet exist in `dir`.
+/// Returns `true` if the snapshot file for `version` does not yet exist in
+/// `dir`.
 pub fn snapshot_needed(dir: &Path, version: &str) -> bool {
     !dir.join(format!("{version}.yml")).exists()
 }
 
-/// Returns `true` if the migration file for `version` does not yet exist in `dir`.
+/// Returns `true` if the migration file for `version` does not yet exist in
+/// `dir`.
 pub fn migration_needed(dir: &Path, version: &str) -> bool {
     !dir.join(format!("{version}.json")).exists()
 }
@@ -170,9 +176,11 @@ pub fn serialize_orb(orb: &OrbDefinition) -> Result<String> {
     serde_yaml::to_string(orb).map_err(|e| anyhow::anyhow!("Failed to serialise orb: {}", e))
 }
 
-// ── Git subprocess functions ──────────────────────────────────────────────────
+// ── Git subprocess functions
+// ──────────────────────────────────────────────────
 
-/// List all version tags in `git_repo` that start with `tag_prefix`, sorted by semver.
+/// List all version tags in `git_repo` that start with `tag_prefix`, sorted by
+/// semver.
 ///
 /// Returns bare version strings (prefix stripped).
 pub fn discover_tags(git_repo: &Path, tag_prefix: &str) -> Result<Vec<String>> {
@@ -212,7 +220,8 @@ pub fn discover_tags(git_repo: &Path, tag_prefix: &str) -> Result<Vec<String>> {
 
 /// Fetch the commit date for a single version tag.
 ///
-/// Runs `git log -1 --format=%ci <prefix><version>^{}` to dereference annotated tags.
+/// Runs `git log -1 --format=%ci <prefix><version>^{}` to dereference annotated
+/// tags.
 pub fn tag_date(git_repo: &Path, tag_prefix: &str, version: &str) -> Result<NaiveDate> {
     let tag = format!("{}{}", tag_prefix, version);
     let output = std::process::Command::new("git")
@@ -275,7 +284,8 @@ impl Drop for WorktreeGuard {
     }
 }
 
-/// Check out a version tag into a temp worktree, parse the orb, remove the worktree.
+/// Check out a version tag into a temp worktree, parse the orb, remove the
+/// worktree.
 ///
 /// The RAII guard ensures cleanup even on panic.
 pub fn checkout_and_parse(
@@ -334,9 +344,11 @@ pub fn checkout_and_parse(
     })
 }
 
-// ── High-level prime operation ────────────────────────────────────────────────
+// ── High-level prime operation
+// ────────────────────────────────────────────────
 
-/// Run the prime operation: add missing snapshots/rules and remove out-of-window ones.
+/// Run the prime operation: add missing snapshots/rules and remove
+/// out-of-window ones.
 pub fn prime(config: &PrimeConfig, window_versions: &[String]) -> Result<PrimeResult> {
     let mut result = PrimeResult::default();
 
@@ -403,7 +415,8 @@ fn add_migrations(config: &PrimeConfig, window_versions: &[String]) -> Result<us
     Ok(added)
 }
 
-/// Compute and write a migration file for `curr` vs `prev`; returns 1 if written, 0 if empty.
+/// Compute and write a migration file for `curr` vs `prev`; returns 1 if
+/// written, 0 if empty.
 fn write_migration_if_nonempty(config: &PrimeConfig, prev: &str, curr: &str) -> Result<usize> {
     let prev_path = config.prior_versions_dir.join(format!("{prev}.yml"));
     let curr_path = config.prior_versions_dir.join(format!("{curr}.yml"));
@@ -469,7 +482,8 @@ fn remove_out_of_window(
     Ok((snaps, migs))
 }
 
-/// REMOVE: orphaned migration files (no matching snapshot). Returns count removed.
+/// REMOVE: orphaned migration files (no matching snapshot). Returns count
+/// removed.
 fn remove_orphaned_migrations(config: &PrimeConfig) -> Result<usize> {
     let mut removed = 0;
     if !config.migrations_dir.is_dir() {
@@ -515,8 +529,9 @@ fn remove_or_announce(dry_run: bool, path: &Path, label: &str) -> Result<()> {
 // ─────────────────────────────────────────────────────────────────────────────
 #[cfg(test)]
 mod tests {
-    use super::*;
     use tempfile::TempDir;
+
+    use super::*;
 
     // ── Test 1: filter_by_version ─────────────────────────────────────────────
     #[test]
@@ -750,7 +765,8 @@ mod tests {
     }
 
     // ── Tests 11-15: CLI parsing (in lib.rs) ─────────────────────────────────
-    // These are defined in lib.rs in the tests module for the Prime command variant.
+    // These are defined in lib.rs in the tests module for the Prime command
+    // variant.
 
     // ── Test 16: dry-run creates no files ────────────────────────────────────
     // This is an integration test requiring a real git repo fixture.

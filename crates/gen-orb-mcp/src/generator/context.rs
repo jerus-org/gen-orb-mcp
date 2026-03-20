@@ -27,7 +27,8 @@ pub struct GeneratorContext {
     /// Optional description of the orb (raw, may contain newlines)
     pub description: Option<String>,
 
-    /// Description formatted for Rust doc comments (each line prefixed with //!)
+    /// Description formatted for Rust doc comments (each line prefixed with
+    /// //!)
     pub description_doc: Option<String>,
 
     /// Command contexts for template rendering
@@ -51,8 +52,8 @@ pub struct GeneratorContext {
     /// Whether conformance rules are embedded (enables MCP Tools).
     pub has_tools: bool,
 
-    /// Serialised JSON of `Vec<ConformanceRule>` to embed in the generated server.
-    /// Empty string when `has_tools` is false.
+    /// Serialised JSON of `Vec<ConformanceRule>` to embed in the generated
+    /// server. Empty string when `has_tools` is false.
     pub conformance_rules_json: String,
 }
 
@@ -201,7 +202,8 @@ impl GeneratorContext {
     /// # Arguments
     ///
     /// * `orb` - The parsed orb definition
-    /// * `orb_name` - The name to use for the orb (typically derived from filename)
+    /// * `orb_name` - The name to use for the orb (typically derived from
+    ///   filename)
     /// * `version` - The semantic version for the generated MCP server crate
     pub fn from_orb(orb: &OrbDefinition, orb_name: &str, version: &str) -> Self {
         let crate_name = to_snake_case(orb_name).replace('-', "_") + "_mcp";
@@ -253,8 +255,9 @@ impl GeneratorContext {
         }
     }
 
-    /// Create a GeneratorContext from an OrbDefinition with prior-version snapshots
-    /// and optional embedded conformance rules (enables MCP Tools).
+    /// Create a GeneratorContext from an OrbDefinition with prior-version
+    /// snapshots and optional embedded conformance rules (enables MCP
+    /// Tools).
     pub fn from_orb_with_extras(
         orb: &OrbDefinition,
         orb_name: &str,
@@ -278,7 +281,8 @@ impl GeneratorContext {
 }
 
 impl VersionSnapshot {
-    /// Build a snapshot for a prior version with version-prefixed resource URIs.
+    /// Build a snapshot for a prior version with version-prefixed resource
+    /// URIs.
     pub fn build(version: &str, orb: &OrbDefinition) -> Self {
         let version_ident = version.replace(['.', '-'], "_");
         let prefix = format!("orb://v{version}");
@@ -630,9 +634,10 @@ fn create_executor_json(name: &str, exec: &Executor) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
     use crate::parser::{Command, OrbDefinition, Parameter, ParameterType};
-    use std::collections::HashMap;
 
     #[test]
     fn test_to_snake_case() {

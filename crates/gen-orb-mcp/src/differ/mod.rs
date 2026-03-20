@@ -10,22 +10,27 @@
 //! 4. Emit `JobRemoved` for unaccounted removals
 //! 5. Emit `ParameterRemoved` for parameters lost from surviving jobs
 //! 6. Emit `ParameterAdded` for mandatory params added to surviving jobs
-//! 7. Emit `ParameterEnumValueRemoved` for enum values removed from surviving parameters
+//! 7. Emit `ParameterEnumValueRemoved` for enum values removed from surviving
+//!    parameters
 //!
 //! **Command-level passes**
 //! 8. Run `CommandRenamed` heuristic (parameter-set fuzzy match)
 //! 9. Emit `CommandRemoved` for unaccounted removals
-//! 10. Emit `CommandParameterRemoved` for parameters lost from surviving commands
-//! 11. Emit `CommandParameterAdded` for mandatory params added to surviving commands
+//! 10. Emit `CommandParameterRemoved` for parameters lost from surviving
+//!     commands
+//! 11. Emit `CommandParameterAdded` for mandatory params added to surviving
+//!     commands
 
 pub mod heuristics;
 
 use std::collections::{HashMap, HashSet};
 
-use crate::conformance_rule::ConformanceRule;
-use crate::parser::types::{Command, Job, OrbDefinition, Parameter, ParameterType};
-
 use heuristics::{detect_absorbed_jobs, detect_renamed_commands, detect_renamed_jobs};
+
+use crate::{
+    conformance_rule::ConformanceRule,
+    parser::types::{Command, Job, OrbDefinition, Parameter, ParameterType},
+};
 
 /// The default Jaccard similarity threshold for rename detection.
 const RENAME_THRESHOLD: f64 = 0.7;
@@ -51,7 +56,8 @@ type CommandSets<'a> = (
 /// # Arguments
 /// * `old` — the previous orb version (e.g. `4.11.0`)
 /// * `new_orb` — the current orb version (e.g. `5.0.0`)
-/// * `since_version` — the version string to embed in emitted rules (typically the new version)
+/// * `since_version` — the version string to embed in emitted rules (typically
+///   the new version)
 pub fn diff(
     old: &OrbDefinition,
     new_orb: &OrbDefinition,
@@ -194,7 +200,8 @@ impl<'a> OrbDiffer<'a> {
     fn emit_parameter_added(&self, rules: &mut Vec<ConformanceRule>) {
         for (job_name, new_job) in &self.new.jobs {
             let Some(old_job) = self.old.jobs.get(job_name.as_str()) else {
-                continue; // new job entirely — not a breaking change for existing consumers
+                continue; // new job entirely — not a breaking change for
+                          // existing consumers
             };
             for (param_name, param) in &new_job.parameters {
                 if !old_job.parameters.contains_key(param_name.as_str()) && is_mandatory(param) {
@@ -380,7 +387,8 @@ impl<'a> OrbDiffer<'a> {
 
 // ── Free helpers ─────────────────────────────────────────────────────────────
 
-/// Returns `true` if a parameter has no default value (must be supplied by caller).
+/// Returns `true` if a parameter has no default value (must be supplied by
+/// caller).
 fn is_mandatory(param: &Parameter) -> bool {
     param.default.is_none()
 }
@@ -399,9 +407,10 @@ fn subtract_keys<'k, I: Iterator<Item = &'k String>>(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
     use crate::parser::types::{Job, OrbDefinition, Parameter, ParameterType};
-    use std::collections::HashMap;
 
     fn make_orb_with_jobs(jobs: HashMap<String, Job>) -> OrbDefinition {
         OrbDefinition {

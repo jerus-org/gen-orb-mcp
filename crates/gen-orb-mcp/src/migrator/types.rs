@@ -36,7 +36,8 @@ pub enum ChangeType {
     /// Remove an entire job invocation from a workflow.
     RemoveJobInvocation {
         workflow: String,
-        /// The effective name (name_override or reference) of the job to remove.
+        /// The effective name (name_override or reference) of the job to
+        /// remove.
         job_ref: String,
     },
     /// Rename a job invocation's reference within a workflow.

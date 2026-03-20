@@ -1,8 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
 use gen_orb_mcp::Cli;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 fn main() -> Result<()> {
     tracing_subscriber::registry()
