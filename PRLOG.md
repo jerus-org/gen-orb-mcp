@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- add prime command(pr [#67])
+
 ### Changed
 
 - ci-revert inline release_prlog to standard toolkit job(pr [#66])
@@ -165,6 +169,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#64]: https://github.com/jerus-org/gen-orb-mcp/pull/64
 [#65]: https://github.com/jerus-org/gen-orb-mcp/pull/65
 [#66]: https://github.com/jerus-org/gen-orb-mcp/pull/66
+[#67]: https://github.com/jerus-org/gen-orb-mcp/pull/67
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.2...HEAD
 [0.1.2]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.0...v0.1.1
