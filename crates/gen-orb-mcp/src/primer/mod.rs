@@ -450,11 +450,19 @@ fn remove_out_of_window(
         if version.is_empty() || window_set.contains(&version) {
             continue;
         }
-        remove_or_announce(config.dry_run, &path, &format!("prior-versions/{version}.yml (outside window)"))?;
+        remove_or_announce(
+            config.dry_run,
+            &path,
+            &format!("prior-versions/{version}.yml (outside window)"),
+        )?;
         snaps += 1;
         let mig_path = config.migrations_dir.join(format!("{version}.json"));
         if mig_path.exists() {
-            remove_or_announce(config.dry_run, &mig_path, &format!("migrations/{version}.json (snapshot removed)"))?;
+            remove_or_announce(
+                config.dry_run,
+                &mig_path,
+                &format!("migrations/{version}.json (snapshot removed)"),
+            )?;
             migs += 1;
         }
     }
@@ -482,7 +490,11 @@ fn remove_orphaned_migrations(config: &PrimeConfig) -> Result<usize> {
         }
         let snapshot = config.prior_versions_dir.join(format!("{version}.yml"));
         if !snapshot.exists() {
-            remove_or_announce(config.dry_run, &path, &format!("migrations/{version}.json (orphaned)"))?;
+            remove_or_announce(
+                config.dry_run,
+                &path,
+                &format!("migrations/{version}.json (orphaned)"),
+            )?;
             removed += 1;
         }
     }
