@@ -225,7 +225,13 @@ impl Default for Step {
 }
 
 /// Structured step definitions.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// Deserialization uses serde's default externally-tagged derive.
+/// Serialization uses a hand-written impl that always produces a single-key
+/// mapping (`{run: …}`) rather than a YAML tag (`!run …`).  serde_yaml 0.9
+/// serialises externally-tagged enum variants as YAML tags, which cannot be
+/// deserialised back into an `#[serde(untagged)]` enum.
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StructuredStep {
     /// Run a shell command
@@ -263,6 +269,77 @@ pub enum StructuredStep {
     /// Invoke another command or orb command
     #[serde(untagged)]
     CommandInvocation(HashMap<String, serde_yaml::Value>),
+}
+
+impl serde::Serialize for StructuredStep {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        // Always emit a single-key mapping so that snapshots serialised by
+        // `serialize_orb` can be round-tripped back through `OrbParser::parse`.
+        match self {
+            Self::Run(v) => {
+                let mut m = s.serialize_map(Some(1))?;
+                m.serialize_entry("run", v)?;
+                m.end()
+            }
+            Self::Checkout(v) => {
+                let mut m = s.serialize_map(Some(1))?;
+                m.serialize_entry("checkout", v)?;
+                m.end()
+            }
+            Self::RestoreCache(v) => {
+                let mut m = s.serialize_map(Some(1))?;
+                m.serialize_entry("restore_cache", v)?;
+                m.end()
+            }
+            Self::SaveCache(v) => {
+                let mut m = s.serialize_map(Some(1))?;
+                m.serialize_entry("save_cache", v)?;
+                m.end()
+            }
+            Self::When(v) => {
+                let mut m = s.serialize_map(Some(1))?;
+                m.serialize_entry("when", v)?;
+                m.end()
+            }
+            Self::Unless(v) => {
+                let mut m = s.serialize_map(Some(1))?;
+                m.serialize_entry("unless", v)?;
+                m.end()
+            }
+            Self::PersistToWorkspace(v) => {
+                let mut m = s.serialize_map(Some(1))?;
+                m.serialize_entry("persist_to_workspace", v)?;
+                m.end()
+            }
+            Self::AttachWorkspace(v) => {
+                let mut m = s.serialize_map(Some(1))?;
+                m.serialize_entry("attach_workspace", v)?;
+                m.end()
+            }
+            Self::StoreTestResults(v) => {
+                let mut m = s.serialize_map(Some(1))?;
+                m.serialize_entry("store_test_results", v)?;
+                m.end()
+            }
+            Self::StoreArtifacts(v) => {
+                let mut m = s.serialize_map(Some(1))?;
+                m.serialize_entry("store_artifacts", v)?;
+                m.end()
+            }
+            Self::AddSshKeys(v) => {
+                let mut m = s.serialize_map(Some(1))?;
+                m.serialize_entry("add_ssh_keys", v)?;
+                m.end()
+            }
+            Self::SetupRemoteDocker(v) => {
+                let mut m = s.serialize_map(Some(1))?;
+                m.serialize_entry("setup_remote_docker", v)?;
+                m.end()
+            }
+            Self::CommandInvocation(v) => v.serialize(s),
+        }
+    }
 }
 
 /// Run step configuration.
@@ -487,6 +564,96 @@ pub struct MacOsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── Round-trip tests for serde_yaml serialization ─────────────────────────
+    //
+    // serde_yaml 0.9 serialises externally-tagged enum variants as YAML tags
+    // (`!run`, `!when`) rather than single-key mappings (`{run: …}`).  When
+    // the result is deserialised back into an `#[serde(untagged)]` enum the
+    // parser fails with "untagged and internally tagged enums do not support
+    // enum input".  These tests pin the required round-trip behaviour.
+
+    #[test]
+    fn test_step_run_serde_roundtrip() {
+        let step = Step::Structured(StructuredStep::Run(RunStep::Full {
+            command: "cargo test".to_string(),
+            name: Some("Run tests".to_string()),
+            working_directory: None,
+            environment: Default::default(),
+            shell: None,
+            background: None,
+            no_output_timeout: None,
+            when: None,
+        }));
+        let yaml = serde_yaml::to_string(&step).unwrap();
+        // Must not contain YAML tags like `!run`
+        assert!(
+            !yaml.contains("!run"),
+            "serialised step must not use YAML tags, got:\n{yaml}"
+        );
+        let back: Step = serde_yaml::from_str(&yaml).unwrap();
+        matches!(back, Step::Structured(StructuredStep::Run(_)));
+    }
+
+    #[test]
+    fn test_step_when_serde_roundtrip() {
+        let step = Step::Structured(StructuredStep::When(ConditionalStep {
+            condition: serde_yaml::Value::String("always".to_string()),
+            steps: vec![Step::Simple("checkout".to_string())],
+        }));
+        let yaml = serde_yaml::to_string(&step).unwrap();
+        assert!(
+            !yaml.contains("!when"),
+            "serialised step must not use YAML tags, got:\n{yaml}"
+        );
+        let back: Step = serde_yaml::from_str(&yaml).unwrap();
+        matches!(back, Step::Structured(StructuredStep::When(_)));
+    }
+
+    #[test]
+    fn test_step_unless_serde_roundtrip() {
+        let step = Step::Structured(StructuredStep::Unless(ConditionalStep {
+            condition: serde_yaml::Value::Bool(false),
+            steps: vec![],
+        }));
+        let yaml = serde_yaml::to_string(&step).unwrap();
+        assert!(!yaml.contains("!unless"));
+        let back: Step = serde_yaml::from_str(&yaml).unwrap();
+        matches!(back, Step::Structured(StructuredStep::Unless(_)));
+    }
+
+    #[test]
+    fn test_orb_definition_serde_roundtrip() {
+        // Simulate a command with a run step followed by a when step — the
+        // combination that causes prime → generate to fail in CI.
+        let mut commands = std::collections::HashMap::new();
+        commands.insert(
+            "my_cmd".to_string(),
+            Command {
+                description: Some("test".to_string()),
+                parameters: Default::default(),
+                steps: vec![
+                    Step::Structured(StructuredStep::Run(RunStep::Simple(
+                        "echo hello".to_string(),
+                    ))),
+                    Step::Structured(StructuredStep::When(ConditionalStep {
+                        condition: serde_yaml::Value::String("on_success".to_string()),
+                        steps: vec![Step::Simple("checkout".to_string())],
+                    })),
+                ],
+            },
+        );
+        let orb = OrbDefinition {
+            version: "2.1".to_string(),
+            commands,
+            ..Default::default()
+        };
+
+        let yaml = serde_yaml::to_string(&orb).unwrap();
+        let back: OrbDefinition = serde_yaml::from_str(&yaml).unwrap();
+        assert!(back.commands.contains_key("my_cmd"));
+        assert_eq!(back.commands["my_cmd"].steps.len(), 2);
+    }
 
     #[test]
     fn test_parameter_type_deserialize() {
