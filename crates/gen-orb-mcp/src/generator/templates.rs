@@ -11,3 +11,9 @@ pub const LIB_RS: &str = include_str!("../../templates/lib.rs.hbs");
 
 /// Template for the Cargo manifest (Cargo.toml).
 pub const CARGO_TOML: &str = include_str!("../../templates/Cargo.toml.hbs");
+
+/// Template for a per-version module file (src/versions/v{version_ident}.rs).
+pub const VERSION_MODULE_RS: &str = include_str!("../../templates/version_module.rs.hbs");
+
+/// Template for the versions dispatcher module (src/versions/mod.rs).
+pub const VERSIONS_MOD_RS: &str = include_str!("../../templates/versions_mod.rs.hbs");

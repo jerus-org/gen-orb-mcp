@@ -178,6 +178,20 @@ impl<'a> CodeGenerator<'a> {
                 source: e,
             })?;
 
+        handlebars
+            .register_template_string("version_module.rs", templates::VERSION_MODULE_RS)
+            .map_err(|e| GeneratorError::TemplateRegister {
+                name: "version_module.rs".to_string(),
+                source: e,
+            })?;
+
+        handlebars
+            .register_template_string("versions_mod.rs", templates::VERSIONS_MOD_RS)
+            .map_err(|e| GeneratorError::TemplateRegister {
+                name: "versions_mod.rs".to_string(),
+                source: e,
+            })?;
+
         // Register custom helpers
         register_helpers(&mut handlebars);
 
@@ -252,6 +266,36 @@ impl<'a> CodeGenerator<'a> {
                 source: e,
             })?;
         files.insert(PathBuf::from("Cargo.toml"), cargo_toml);
+
+        // Per-version module files (when prior versions are present)
+        if context.has_prior_versions {
+            // src/versions/mod.rs — declares all version modules + dispatch fn
+            let versions_mod = self
+                .handlebars
+                .render("versions_mod.rs", &ctx_json)
+                .map_err(|e| GeneratorError::TemplateRender {
+                    name: "versions_mod.rs".to_string(),
+                    source: e,
+                })?;
+            files.insert(PathBuf::from("src/versions/mod.rs"), versions_mod);
+
+            // src/versions/v{version_ident}.rs — one file per prior version
+            for version_snap in &context.prior_versions {
+                let snap_json = serde_json::to_value(version_snap)
+                    .map_err(|e| GeneratorError::Serialization { source: e })?;
+                let module_content = self
+                    .handlebars
+                    .render("version_module.rs", &snap_json)
+                    .map_err(|e| GeneratorError::TemplateRender {
+                        name: "version_module.rs".to_string(),
+                        source: e,
+                    })?;
+                files.insert(
+                    PathBuf::from(format!("src/versions/v{}.rs", version_snap.version_ident)),
+                    module_content,
+                );
+            }
+        }
 
         Ok(GeneratedServer {
             files,
@@ -636,6 +680,153 @@ mod tests {
         assert!(
             !cargo_toml.contains("gen-orb-mcp = {"),
             "should not include gen-orb-mcp dep entry without tools"
+        );
+    }
+
+    #[test]
+    fn test_generate_with_prior_versions_produces_version_module_files() {
+        let mut prior_orb = OrbDefinition::default();
+        prior_orb.commands.insert(
+            "old-cmd".to_string(),
+            Command {
+                description: Some("An old command".to_string()),
+                parameters: HashMap::new(),
+                steps: vec![],
+            },
+        );
+
+        let current_orb = create_test_orb();
+        let generator = CodeGenerator::new()
+            .unwrap()
+            .with_prior_versions(vec![("1.0.0".to_string(), prior_orb)]);
+
+        let server = generator
+            .generate(&current_orb, "test-orb", "2.0.0")
+            .unwrap();
+
+        assert!(
+            server
+                .files
+                .contains_key(&PathBuf::from("src/versions/v1_0_0.rs")),
+            "expected src/versions/v1_0_0.rs"
+        );
+        assert!(
+            server
+                .files
+                .contains_key(&PathBuf::from("src/versions/mod.rs")),
+            "expected src/versions/mod.rs"
+        );
+    }
+
+    #[test]
+    fn test_generate_without_prior_versions_has_no_versions_dir() {
+        let orb = create_test_orb();
+        let generator = CodeGenerator::new().unwrap();
+
+        let server = generator.generate(&orb, "test-orb", "1.0.0").unwrap();
+
+        assert!(
+            !server
+                .files
+                .contains_key(&PathBuf::from("src/versions/mod.rs")),
+            "should not have versions/mod.rs without prior versions"
+        );
+    }
+
+    #[test]
+    fn test_generate_with_prior_versions_lib_has_mod_declaration() {
+        let mut prior_orb = OrbDefinition::default();
+        prior_orb.commands.insert(
+            "old-cmd".to_string(),
+            Command {
+                description: None,
+                parameters: HashMap::new(),
+                steps: vec![],
+            },
+        );
+
+        let current_orb = create_test_orb();
+        let generator = CodeGenerator::new()
+            .unwrap()
+            .with_prior_versions(vec![("1.0.0".to_string(), prior_orb)]);
+
+        let server = generator
+            .generate(&current_orb, "test-orb", "2.0.0")
+            .unwrap();
+        let lib_rs = server.files.get(&PathBuf::from("src/lib.rs")).unwrap();
+
+        assert!(
+            lib_rs.contains("mod versions;"),
+            "lib.rs should declare mod versions;"
+        );
+    }
+
+    #[test]
+    fn test_generate_with_prior_versions_version_module_has_get_fn() {
+        let mut prior_orb = OrbDefinition::default();
+        prior_orb.commands.insert(
+            "old-cmd".to_string(),
+            Command {
+                description: None,
+                parameters: HashMap::new(),
+                steps: vec![],
+            },
+        );
+
+        let current_orb = create_test_orb();
+        let generator = CodeGenerator::new()
+            .unwrap()
+            .with_prior_versions(vec![("1.0.0".to_string(), prior_orb)]);
+
+        let server = generator
+            .generate(&current_orb, "test-orb", "2.0.0")
+            .unwrap();
+        let version_module = server
+            .files
+            .get(&PathBuf::from("src/versions/v1_0_0.rs"))
+            .unwrap();
+
+        assert!(
+            version_module.contains("pub(super) fn get"),
+            "version module should have pub(super) fn get"
+        );
+        assert!(
+            version_module.contains("orb://v1.0.0/commands/old-cmd"),
+            "version module should contain URI"
+        );
+    }
+
+    #[test]
+    fn test_generate_with_prior_versions_lib_delegates_to_versions_module() {
+        let mut prior_orb = OrbDefinition::default();
+        prior_orb.commands.insert(
+            "old-cmd".to_string(),
+            Command {
+                description: Some("An old command".to_string()),
+                parameters: HashMap::new(),
+                steps: vec![],
+            },
+        );
+
+        let current_orb = create_test_orb();
+        let generator = CodeGenerator::new()
+            .unwrap()
+            .with_prior_versions(vec![("1.0.0".to_string(), prior_orb)]);
+
+        let server = generator
+            .generate(&current_orb, "test-orb", "2.0.0")
+            .unwrap();
+        let lib_rs = server.files.get(&PathBuf::from("src/lib.rs")).unwrap();
+
+        // lib.rs should delegate to versions::get, not inline the JSON
+        assert!(
+            lib_rs.contains("versions::get(uri)"),
+            "lib.rs should delegate to versions::get(uri)"
+        );
+        // The JSON content for prior versions should NOT be inline in lib.rs
+        assert!(
+            !lib_rs.contains("\"An old command\""),
+            "prior version JSON content should not be inline in lib.rs"
         );
     }
 }

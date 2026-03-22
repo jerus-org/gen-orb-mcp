@@ -45,6 +45,9 @@ use gen_orb_mcp::{
     migrator::Migrator,
 };
 {{/if}}
+{{#if has_prior_versions}}
+mod versions;
+{{/if}}
 
 /// The MCP server for the {{orb_name}} orb.
 #[derive(Clone)]
@@ -197,19 +200,15 @@ impl ServerHandler for OrbServer {
 {{/each}}
 {{#if has_prior_versions}}
                 "orb://versions" => VERSIONS_CONTENT.to_string(),
-{{#each prior_versions}}
-{{#each commands}}
-                "{{uri}}" => r##"{{json_content}}"##.to_string(),
-{{/each}}
-{{#each jobs}}
-                "{{uri}}" => r##"{{json_content}}"##.to_string(),
-{{/each}}
-{{#each executors}}
-                "{{uri}}" => r##"{{json_content}}"##.to_string(),
-{{/each}}
-{{/each}}
 {{/if}}
                 _ => {
+{{#if has_prior_versions}}
+                    if let Some(content) = versions::get(uri) {
+                        return Ok(ReadResourceResult {
+                            contents: vec![ResourceContents::text(content, request.uri)],
+                        });
+                    }
+{{/if}}
                     return Err(McpError::resource_not_found(
                         "Resource not found",
                         Some(json!({"uri": uri})),
