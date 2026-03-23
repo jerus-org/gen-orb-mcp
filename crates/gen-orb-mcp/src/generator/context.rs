@@ -61,6 +61,9 @@ pub struct GeneratorContext {
 /// current version in the generated server for cross-version queries.
 #[derive(Debug, Clone, Serialize)]
 pub struct VersionSnapshot {
+    /// The orb name (inherited from the parent context, used in per-version module templates).
+    pub orb_name: String,
+
     /// Version string, e.g. `"4.7.1"`.
     pub version: String,
 
@@ -269,7 +272,7 @@ impl GeneratorContext {
 
         let prior_versions: Vec<VersionSnapshot> = prior_versions_data
             .iter()
-            .map(|(v, orb_def)| VersionSnapshot::build(v, orb_def))
+            .map(|(v, orb_def)| VersionSnapshot::build(v, orb_def, orb_name))
             .collect();
 
         ctx.has_prior_versions = !prior_versions.is_empty();
@@ -283,7 +286,7 @@ impl GeneratorContext {
 impl VersionSnapshot {
     /// Build a snapshot for a prior version with version-prefixed resource
     /// URIs.
-    pub fn build(version: &str, orb: &OrbDefinition) -> Self {
+    pub fn build(version: &str, orb: &OrbDefinition, orb_name: &str) -> Self {
         let version_ident = version.replace(['.', '-'], "_");
         let prefix = format!("orb://v{version}");
 
@@ -320,6 +323,7 @@ impl VersionSnapshot {
         let has_resources = !commands.is_empty() || !jobs.is_empty() || !executors.is_empty();
 
         Self {
+            orb_name: orb_name.to_string(),
             version: version.to_string(),
             version_ident,
             commands,
@@ -795,7 +799,7 @@ mod tests {
     #[test]
     fn test_version_snapshot_build_version_ident() {
         let orb = OrbDefinition::default();
-        let snap = VersionSnapshot::build("4.7.1", &orb);
+        let snap = VersionSnapshot::build("4.7.1", &orb, "test-orb");
         assert_eq!(snap.version, "4.7.1");
         assert_eq!(snap.version_ident, "4_7_1");
     }
@@ -824,7 +828,7 @@ mod tests {
             },
         );
 
-        let snap = VersionSnapshot::build("4.7.1", &orb);
+        let snap = VersionSnapshot::build("4.7.1", &orb, "test-orb");
 
         assert_eq!(snap.commands[0].uri, "orb://v4.7.1/commands/greet");
         assert_eq!(snap.jobs[0].uri, "orb://v4.7.1/jobs/run-job");
@@ -833,7 +837,7 @@ mod tests {
     #[test]
     fn test_version_snapshot_build_has_resources() {
         let empty = OrbDefinition::default();
-        let snap = VersionSnapshot::build("1.0.0", &empty);
+        let snap = VersionSnapshot::build("1.0.0", &empty, "test-orb");
         assert!(!snap.has_resources);
 
         let mut with_cmd = OrbDefinition::default();
@@ -845,7 +849,7 @@ mod tests {
                 steps: vec![],
             },
         );
-        let snap2 = VersionSnapshot::build("1.0.0", &with_cmd);
+        let snap2 = VersionSnapshot::build("1.0.0", &with_cmd, "test-orb");
         assert!(snap2.has_resources);
     }
 }

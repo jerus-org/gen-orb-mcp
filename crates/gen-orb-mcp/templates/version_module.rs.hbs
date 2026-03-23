@@ -1,0 +1,17 @@
+//! Version {{version}} of the {{orb_name}} orb.
+
+pub(super) fn get(uri: &str) -> Option<String> {
+    let content: &str = match uri {
+{{#each commands}}
+        "{{uri}}" => r##"{{json_content}}"##,
+{{/each}}
+{{#each jobs}}
+        "{{uri}}" => r##"{{json_content}}"##,
+{{/each}}
+{{#each executors}}
+        "{{uri}}" => r##"{{json_content}}"##,
+{{/each}}
+        _ => return None,
+    };
+    Some(content.to_string())
+}

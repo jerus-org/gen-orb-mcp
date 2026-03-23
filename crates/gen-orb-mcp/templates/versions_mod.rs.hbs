@@ -1,0 +1,14 @@
+//! Historical version modules for the {{orb_name}} orb.
+
+{{#each prior_versions}}
+pub mod v{{version_ident}};
+{{/each}}
+
+pub(crate) fn get(uri: &str) -> Option<String> {
+{{#each prior_versions}}
+    if let Some(content) = v{{version_ident}}::get(uri) {
+        return Some(content);
+    }
+{{/each}}
+    None
+}
