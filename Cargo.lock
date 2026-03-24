@@ -1241,9 +1241,9 @@ dependencies = [
 
 [[package]]
 name = "pmcp"
-version = "1.20.0"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1f05b254860781fb855f89676afdc1b682cfb71e5c3d3696ab5724033df213b"
+checksum = "96f0db4cf79a50fe6f25e05509150c4c683d9ddc5db4d240840404122bccd0ff"
 dependencies = [
  "anyhow",
  "async-trait",
