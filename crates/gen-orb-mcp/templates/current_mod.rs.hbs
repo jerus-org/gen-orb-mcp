@@ -1,19 +1,18 @@
-//! Historical version data for the {{orb_name}} orb.
+//! Current version resource data for the {{orb_name}} orb.
 //!
-//! All prior-version resource content is stored in `data/versions.bin` and
+//! All current-version resource content is stored in `data/current.bin` and
 //! embedded at compile time via `include_bytes!`.  This avoids placing large
 //! JSON strings directly in Rust source code, which causes LLVM to exhaust
-//! memory when compiling with release optimisations for orbs with many
-//! historical versions.
+//! memory when compiling with release optimisations for large orbs.
 
-static VERSION_DATA: &[u8] = include_bytes!("../../data/versions.bin");
+static CURRENT_DATA: &[u8] = include_bytes!("../../data/current.bin");
 
-/// Look up a prior-version resource by URI.
+/// Look up a current-version resource by URI.
 ///
 /// Performs a sequential scan over the packed binary data.
 /// Returns the JSON content string when found, or `None`.
 pub(crate) fn get(uri: &str) -> Option<String> {
-    let data = VERSION_DATA;
+    let data = CURRENT_DATA;
     if data.len() < 4 {
         return None;
     }
