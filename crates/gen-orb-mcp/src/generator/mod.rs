@@ -38,8 +38,13 @@ use crate::parser::OrbDefinition;
 /// Generated MCP server output containing all source files.
 #[derive(Debug, Clone)]
 pub struct GeneratedServer {
-    /// Map of relative file paths to their content.
+    /// Map of relative file paths to their text content.
     pub files: HashMap<PathBuf, String>,
+
+    /// Map of relative file paths to their binary content.
+    ///
+    /// Used for non-text artefacts such as `data/versions.bin`.
+    pub binary_files: HashMap<PathBuf, Vec<u8>>,
 
     /// The crate name for the generated server.
     pub crate_name: String,
@@ -66,11 +71,28 @@ impl GeneratedServer {
             source: e,
         })?;
 
-        // Write all files
+        // Write text files
         for (rel_path, content) in &self.files {
             let full_path = output_dir.join(rel_path);
 
             // Ensure parent directory exists
+            if let Some(parent) = full_path.parent() {
+                fs::create_dir_all(parent).map_err(|e| GeneratorError::DirectoryCreate {
+                    path: parent.to_path_buf(),
+                    source: e,
+                })?;
+            }
+
+            fs::write(&full_path, content).map_err(|e| GeneratorError::FileWrite {
+                path: full_path.clone(),
+                source: e,
+            })?;
+        }
+
+        // Write binary files
+        for (rel_path, content) in &self.binary_files {
+            let full_path = output_dir.join(rel_path);
+
             if let Some(parent) = full_path.parent() {
                 fs::create_dir_all(parent).map_err(|e| GeneratorError::DirectoryCreate {
                     path: parent.to_path_buf(),
@@ -192,6 +214,13 @@ impl<'a> CodeGenerator<'a> {
                 source: e,
             })?;
 
+        handlebars
+            .register_template_string("current_mod.rs", templates::CURRENT_MOD_RS)
+            .map_err(|e| GeneratorError::TemplateRegister {
+                name: "current_mod.rs".to_string(),
+                source: e,
+            })?;
+
         // Register custom helpers
         register_helpers(&mut handlebars);
 
@@ -238,6 +267,7 @@ impl<'a> CodeGenerator<'a> {
 
         // Render templates
         let mut files = HashMap::new();
+        let mut binary_files: HashMap<PathBuf, Vec<u8>> = HashMap::new();
 
         // main.rs
         let main_rs = self.handlebars.render("main.rs", &ctx_json).map_err(|e| {
@@ -267,9 +297,40 @@ impl<'a> CodeGenerator<'a> {
             })?;
         files.insert(PathBuf::from("Cargo.toml"), cargo_toml);
 
-        // Per-version module files (when prior versions are present)
+        // Current-version resource data
+        //
+        // Instead of embedding json_content inline in the read_resource match
+        // expression (which causes LLVM to OOM for large orbs), all current-
+        // version resource content is packed into data/current.bin and looked
+        // up at runtime via include_bytes! in src/current/mod.rs.
+        if context.has_resources {
+            let current_bin =
+                build_current_bin(&context.commands, &context.jobs, &context.executors);
+            binary_files.insert(PathBuf::from("data/current.bin"), current_bin);
+
+            let current_mod = self
+                .handlebars
+                .render("current_mod.rs", &ctx_json)
+                .map_err(|e| GeneratorError::TemplateRender {
+                    name: "current_mod.rs".to_string(),
+                    source: e,
+                })?;
+            files.insert(PathBuf::from("src/current/mod.rs"), current_mod);
+        }
+
+        // Prior-version data (when prior versions are present)
+        //
+        // Instead of generating one .rs file per version (which embeds all
+        // JSON as inline string literals and causes LLVM to OOM during release
+        // compilation), we pack all content into a single binary blob
+        // (`data/versions.bin`) and generate a tiny `src/versions/mod.rs`
+        // shim that looks up entries via `include_bytes!`.
         if context.has_prior_versions {
-            // src/versions/mod.rs — declares all version modules + dispatch fn
+            // data/versions.bin — compact binary lookup table
+            let versions_bin = build_versions_bin(&context.prior_versions);
+            binary_files.insert(PathBuf::from("data/versions.bin"), versions_bin);
+
+            // src/versions/mod.rs — include_bytes! shim + sequential lookup fn
             let versions_mod = self
                 .handlebars
                 .render("versions_mod.rs", &ctx_json)
@@ -278,27 +339,11 @@ impl<'a> CodeGenerator<'a> {
                     source: e,
                 })?;
             files.insert(PathBuf::from("src/versions/mod.rs"), versions_mod);
-
-            // src/versions/v{version_ident}.rs — one file per prior version
-            for version_snap in &context.prior_versions {
-                let snap_json = serde_json::to_value(version_snap)
-                    .map_err(|e| GeneratorError::Serialization { source: e })?;
-                let module_content = self
-                    .handlebars
-                    .render("version_module.rs", &snap_json)
-                    .map_err(|e| GeneratorError::TemplateRender {
-                        name: "version_module.rs".to_string(),
-                        source: e,
-                    })?;
-                files.insert(
-                    PathBuf::from(format!("src/versions/v{}.rs", version_snap.version_ident)),
-                    module_content,
-                );
-            }
         }
 
         Ok(GeneratedServer {
             files,
+            binary_files,
             crate_name: context.crate_name,
             orb_name: orb_name.to_string(),
         })
@@ -403,6 +448,78 @@ fn run_rustfmt(path: &Path) -> Result<(), GeneratorError> {
             message: e.to_string(),
         }),
     }
+}
+
+/// Encode a list of (key, value) string pairs into the compact binary format.
+///
+/// # Format
+///
+/// ```text
+/// [u32 count (LE)]
+/// For each entry:
+///   [u32 key_len (LE)] [key bytes (UTF-8 URI)]
+///   [u32 val_len (LE)] [val bytes (UTF-8 JSON)]
+/// ```
+fn encode_bin_entries(entries: &[(&str, &str)]) -> Vec<u8> {
+    let count = entries.len() as u32;
+    let mut data: Vec<u8> = Vec::new();
+    data.extend_from_slice(&count.to_le_bytes());
+    for (key, val) in entries {
+        let kb = key.as_bytes();
+        let vb = val.as_bytes();
+        data.extend_from_slice(&(kb.len() as u32).to_le_bytes());
+        data.extend_from_slice(kb);
+        data.extend_from_slice(&(vb.len() as u32).to_le_bytes());
+        data.extend_from_slice(vb);
+    }
+    data
+}
+
+/// Build a compact binary data blob from all prior-version snapshots.
+///
+/// The generated `src/versions/mod.rs` contains an identical sequential-scan
+/// lookup that reads from this blob via `include_bytes!`.  Using binary data
+/// avoids embedding the content as Rust string literals, which causes LLVM to
+/// run out of memory when compiling large orbs with many historical versions.
+fn build_versions_bin(prior_versions: &[context::VersionSnapshot]) -> Vec<u8> {
+    let mut entries: Vec<(&str, &str)> = Vec::new();
+    for snap in prior_versions {
+        for item in &snap.commands {
+            entries.push((&item.uri, &item.json_content));
+        }
+        for item in &snap.jobs {
+            entries.push((&item.uri, &item.json_content));
+        }
+        for item in &snap.executors {
+            entries.push((&item.uri, &item.json_content));
+        }
+    }
+    encode_bin_entries(&entries)
+}
+
+/// Build a compact binary data blob from the current-version resources.
+///
+/// The generated `src/current/mod.rs` contains an identical sequential-scan
+/// lookup that reads from this blob via `include_bytes!`.  This avoids
+/// embedding large JSON strings as inline Rust string literals inside the
+/// `read_resource` match expression, which causes LLVM to run out of memory
+/// when compiling large orbs with many commands/jobs/executors.
+fn build_current_bin(
+    commands: &[context::CommandContext],
+    jobs: &[context::JobContext],
+    executors: &[context::ExecutorContext],
+) -> Vec<u8> {
+    let mut entries: Vec<(&str, &str)> = Vec::new();
+    for item in commands {
+        entries.push((&item.uri, &item.json_content));
+    }
+    for item in jobs {
+        entries.push((&item.uri, &item.json_content));
+    }
+    for item in executors {
+        entries.push((&item.uri, &item.json_content));
+    }
+    encode_bin_entries(&entries)
 }
 
 /// Run clippy --fix on a project directory.
@@ -591,15 +708,18 @@ mod tests {
             .unwrap();
         let lib_rs = server.files.get(&PathBuf::from("src/lib.rs")).unwrap();
 
-        // Should expose version list resource
+        // Should expose the version list resource
         assert!(
             lib_rs.contains("orb://versions"),
             "expected orb://versions resource"
         );
-        // Should expose prior-version URIs
+        // Prior-version URIs must NOT be inline in lib.rs — they live in
+        // versions.bin and are served at runtime via versions::get(uri).
+        // Inlining them causes the list_resources function to grow to hundreds
+        // of KB, exhausting LLVM during release compilation.
         assert!(
-            lib_rs.contains("orb://v1.0.0/commands/old-cmd"),
-            "expected prior version URI"
+            !lib_rs.contains("orb://v1.0.0/commands/old-cmd"),
+            "prior-version URIs must not be inline in lib.rs (causes LLVM OOM)"
         );
     }
 
@@ -684,7 +804,12 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_with_prior_versions_produces_version_module_files() {
+    fn test_generate_with_prior_versions_produces_versions_bin_not_rs_files() {
+        // After the binary-data refactor, per-version .rs files must NOT be
+        // generated.  Instead the content lives in `data/versions.bin` (a
+        // binary blob embedded via include_bytes!).  This prevents the Rust
+        // compiler from running out of memory when processing thousands of
+        // large inline string literals with release optimisations.
         let mut prior_orb = OrbDefinition::default();
         prior_orb.commands.insert(
             "old-cmd".to_string(),
@@ -704,17 +829,26 @@ mod tests {
             .generate(&current_orb, "test-orb", "2.0.0")
             .unwrap();
 
+        // Binary data file must be present
         assert!(
             server
-                .files
-                .contains_key(&PathBuf::from("src/versions/v1_0_0.rs")),
-            "expected src/versions/v1_0_0.rs"
+                .binary_files
+                .contains_key(&PathBuf::from("data/versions.bin")),
+            "expected data/versions.bin in binary_files"
         );
+        // versions/mod.rs (the lookup shim) must be present
         assert!(
             server
                 .files
                 .contains_key(&PathBuf::from("src/versions/mod.rs")),
             "expected src/versions/mod.rs"
+        );
+        // Per-version .rs files must NOT be generated
+        assert!(
+            !server
+                .files
+                .contains_key(&PathBuf::from("src/versions/v1_0_0.rs")),
+            "per-version rs files must not be generated (causes OOM at compile)"
         );
     }
 
@@ -762,7 +896,9 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_with_prior_versions_version_module_has_get_fn() {
+    fn test_generate_with_prior_versions_versions_mod_uses_include_bytes() {
+        // versions/mod.rs must embed data via include_bytes! (not inline
+        // string literals) and expose a `get(uri) -> Option<String>` lookup.
         let mut prior_orb = OrbDefinition::default();
         prior_orb.commands.insert(
             "old-cmd".to_string(),
@@ -781,18 +917,254 @@ mod tests {
         let server = generator
             .generate(&current_orb, "test-orb", "2.0.0")
             .unwrap();
-        let version_module = server
+        let versions_mod = server
             .files
-            .get(&PathBuf::from("src/versions/v1_0_0.rs"))
+            .get(&PathBuf::from("src/versions/mod.rs"))
             .unwrap();
 
         assert!(
-            version_module.contains("pub(super) fn get"),
-            "version module should have pub(super) fn get"
+            versions_mod.contains("include_bytes!"),
+            "versions/mod.rs must use include_bytes! not inline string literals"
         );
         assert!(
-            version_module.contains("orb://v1.0.0/commands/old-cmd"),
-            "version module should contain URI"
+            versions_mod.contains("pub(crate) fn get"),
+            "versions/mod.rs should expose pub(crate) fn get"
+        );
+        // The URI from the prior version must NOT be inline in mod.rs
+        // (it lives in the binary blob instead)
+        assert!(
+            !versions_mod.contains("orb://v1.0.0/commands/old-cmd"),
+            "URI must not be inline in versions/mod.rs — it belongs in the binary blob"
+        );
+    }
+
+    #[test]
+    fn test_versions_bin_contains_correct_entries() {
+        // The binary blob must round-trip: every URI present in the prior
+        // version snapshots must be retrievable by the lookup function.
+        let mut prior_orb = OrbDefinition::default();
+        prior_orb.commands.insert(
+            "old-cmd".to_string(),
+            Command {
+                description: Some("An old command".to_string()),
+                parameters: HashMap::new(),
+                steps: vec![],
+            },
+        );
+
+        let current_orb = create_test_orb();
+        let generator = CodeGenerator::new()
+            .unwrap()
+            .with_prior_versions(vec![("1.0.0".to_string(), prior_orb)]);
+
+        let server = generator
+            .generate(&current_orb, "test-orb", "2.0.0")
+            .unwrap();
+
+        let blob = server
+            .binary_files
+            .get(&PathBuf::from("data/versions.bin"))
+            .expect("data/versions.bin must exist");
+
+        // The blob must contain at least one entry (the old-cmd command)
+        assert!(blob.len() >= 4, "blob must have at least a count header");
+        let count = u32::from_le_bytes(blob[0..4].try_into().unwrap());
+        assert!(count >= 1, "blob must contain at least one entry");
+
+        // Round-trip: look up the expected URI
+        let found = lookup_versions_bin(blob, "orb://v1.0.0/commands/old-cmd");
+        assert!(
+            found.is_some(),
+            "blob must contain entry for orb://v1.0.0/commands/old-cmd"
+        );
+    }
+
+    /// Standalone reimplementation of the runtime lookup used in the generated
+    /// `versions/mod.rs`, used here to verify the binary format round-trips.
+    fn lookup_versions_bin(data: &[u8], uri: &str) -> Option<String> {
+        if data.len() < 4 {
+            return None;
+        }
+        let count = u32::from_le_bytes([data[0], data[1], data[2], data[3]]) as usize;
+        let mut pos = 4usize;
+        for _ in 0..count {
+            if pos + 4 > data.len() {
+                return None;
+            }
+            let key_len =
+                u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
+                    as usize;
+            pos += 4;
+            if pos + key_len > data.len() {
+                return None;
+            }
+            let key = std::str::from_utf8(&data[pos..pos + key_len]).ok()?;
+            pos += key_len;
+            if pos + 4 > data.len() {
+                return None;
+            }
+            let val_len =
+                u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
+                    as usize;
+            pos += 4;
+            if key == uri {
+                return data
+                    .get(pos..pos + val_len)
+                    .and_then(|b| std::str::from_utf8(b).ok())
+                    .map(str::to_owned);
+            }
+            if pos + val_len > data.len() {
+                return None;
+            }
+            pos += val_len;
+        }
+        None
+    }
+
+    #[test]
+    fn test_list_resources_does_not_inline_prior_version_entries() {
+        // list_resources must NOT contain a Self::resource() call for every
+        // prior-version command/job/executor — for large orbs with many
+        // historical versions this creates a function body that exhausts LLVM
+        // during release compilation.  Prior-version URIs are discoverable via
+        // the orb://versions resource; individual entries must NOT be listed.
+        let mut prior_orb = OrbDefinition::default();
+        for name in ["cmd-a", "cmd-b", "cmd-c"] {
+            prior_orb.commands.insert(
+                name.to_string(),
+                Command {
+                    description: None,
+                    parameters: HashMap::new(),
+                    steps: vec![],
+                },
+            );
+        }
+        let current_orb = create_test_orb();
+        let generator = CodeGenerator::new()
+            .unwrap()
+            .with_prior_versions(vec![("1.0.0".to_string(), prior_orb)]);
+
+        let server = generator
+            .generate(&current_orb, "test-orb", "2.0.0")
+            .unwrap();
+        let lib_rs = server.files.get(&PathBuf::from("src/lib.rs")).unwrap();
+
+        // Prior-version URIs must NOT appear in list_resources
+        assert!(
+            !lib_rs.contains("orb://v1.0.0/commands/cmd-a"),
+            "list_resources must not inline prior-version URIs — causes LLVM OOM"
+        );
+    }
+
+    #[test]
+    fn test_current_version_json_not_inline_in_read_resource() {
+        // The json_content for current-version resources must NOT be inline
+        // inside the read_resource function body — doing so causes LLVM to
+        // exhaust memory when compiling large orbs with release optimisations.
+        // Resources must be served via current::get(uri) backed by
+        // data/current.bin (embedded via include_bytes!).
+        let orb = create_test_orb(); // has "greet" command
+        let generator = CodeGenerator::new().unwrap();
+        let server = generator.generate(&orb, "test-orb", "1.0.0").unwrap();
+        let lib_rs = server.files.get(&PathBuf::from("src/lib.rs")).unwrap();
+
+        assert!(
+            !lib_rs.contains("\"orb://commands/greet\" => r##"),
+            "read_resource must not inline json_content as r## literal — use current::get"
+        );
+    }
+
+    #[test]
+    fn test_current_bin_generated_for_orb_with_resources() {
+        let orb = create_test_orb();
+        let generator = CodeGenerator::new().unwrap();
+        let server = generator.generate(&orb, "test-orb", "1.0.0").unwrap();
+
+        assert!(
+            server
+                .binary_files
+                .contains_key(&PathBuf::from("data/current.bin")),
+            "data/current.bin must be generated for orbs with resources"
+        );
+    }
+
+    #[test]
+    fn test_current_bin_not_generated_for_empty_orb() {
+        let orb = OrbDefinition::default();
+        let generator = CodeGenerator::new().unwrap();
+        let server = generator.generate(&orb, "empty-orb", "1.0.0").unwrap();
+
+        assert!(
+            !server
+                .binary_files
+                .contains_key(&PathBuf::from("data/current.bin")),
+            "data/current.bin must not be generated for empty orbs"
+        );
+    }
+
+    #[test]
+    fn test_current_mod_uses_include_bytes() {
+        let orb = create_test_orb();
+        let generator = CodeGenerator::new().unwrap();
+        let server = generator.generate(&orb, "test-orb", "1.0.0").unwrap();
+
+        let current_mod = server
+            .files
+            .get(&PathBuf::from("src/current/mod.rs"))
+            .expect("src/current/mod.rs must be generated when resources exist");
+
+        assert!(
+            current_mod.contains("include_bytes!"),
+            "current/mod.rs must use include_bytes! not inline string literals"
+        );
+        assert!(
+            current_mod.contains("pub(crate) fn get"),
+            "current/mod.rs must expose pub(crate) fn get"
+        );
+    }
+
+    #[test]
+    fn test_current_bin_round_trips() {
+        // Every current-version resource URI must be retrievable from current.bin.
+        let orb = create_test_orb(); // has "greet" command
+        let generator = CodeGenerator::new().unwrap();
+        let server = generator.generate(&orb, "test-orb", "1.0.0").unwrap();
+
+        let blob = server
+            .binary_files
+            .get(&PathBuf::from("data/current.bin"))
+            .expect("data/current.bin must exist");
+
+        let found = lookup_versions_bin(blob, "orb://commands/greet");
+        assert!(
+            found.is_some(),
+            "current.bin must contain entry for orb://commands/greet"
+        );
+    }
+
+    #[test]
+    fn test_lib_declares_mod_current_when_resources_exist() {
+        let orb = create_test_orb();
+        let generator = CodeGenerator::new().unwrap();
+        let server = generator.generate(&orb, "test-orb", "1.0.0").unwrap();
+        let lib_rs = server.files.get(&PathBuf::from("src/lib.rs")).unwrap();
+
+        assert!(
+            lib_rs.contains("mod current;"),
+            "lib.rs must declare mod current; when resources exist"
+        );
+    }
+
+    #[test]
+    fn test_lib_delegates_current_resources_to_current_module() {
+        let orb = create_test_orb();
+        let generator = CodeGenerator::new().unwrap();
+        let server = generator.generate(&orb, "test-orb", "1.0.0").unwrap();
+        let lib_rs = server.files.get(&PathBuf::from("src/lib.rs")).unwrap();
+
+        assert!(
+            lib_rs.contains("current::get(uri)"),
+            "lib.rs must delegate current-version resource lookups to current::get(uri)"
         );
     }
 
