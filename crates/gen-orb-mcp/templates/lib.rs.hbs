@@ -45,6 +45,9 @@ use gen_orb_mcp::{
     migrator::Migrator,
 };
 {{/if}}
+{{#if has_resources}}
+mod current;
+{{/if}}
 {{#if has_prior_versions}}
 mod versions;
 {{/if}}
@@ -143,35 +146,9 @@ impl ServerHandler for OrbServer {
                     Self::resource(
                         "orb://versions",
                         "Orb Versions",
-                        "List of all embedded orb versions",
+                        "List of all embedded orb versions with their resource URIs",
                         "text/plain",
                     ).no_annotation(),
-{{#each prior_versions}}
-{{#each commands}}
-                    Self::resource(
-                        "{{uri}}",
-                        "v{{../version}}/{{name}}",
-                        "Command: {{name}} (v{{../version}}){{#if description_escaped}} - {{description_escaped}}{{/if}}",
-                        "application/json",
-                    ).no_annotation(),
-{{/each}}
-{{#each jobs}}
-                    Self::resource(
-                        "{{uri}}",
-                        "v{{../version}}/{{name}}",
-                        "Job: {{name}} (v{{../version}}){{#if description_escaped}} - {{description_escaped}}{{/if}}",
-                        "application/json",
-                    ).no_annotation(),
-{{/each}}
-{{#each executors}}
-                    Self::resource(
-                        "{{uri}}",
-                        "v{{../version}}/{{name}}",
-                        "Executor: {{name}} (v{{../version}}){{#if description_escaped}} - {{description_escaped}}{{/if}}",
-                        "application/json",
-                    ).no_annotation(),
-{{/each}}
-{{/each}}
 {{/if}}
                 ],
                 next_cursor: None,
@@ -189,19 +166,17 @@ impl ServerHandler for OrbServer {
             let uri = request.uri.as_str();
             let content = match uri {
                 "orb://overview" => OVERVIEW_CONTENT.to_string(),
-{{#each commands}}
-                "{{uri}}" => r##"{{json_content}}"##.to_string(),
-{{/each}}
-{{#each jobs}}
-                "{{uri}}" => r##"{{json_content}}"##.to_string(),
-{{/each}}
-{{#each executors}}
-                "{{uri}}" => r##"{{json_content}}"##.to_string(),
-{{/each}}
 {{#if has_prior_versions}}
                 "orb://versions" => VERSIONS_CONTENT.to_string(),
 {{/if}}
                 _ => {
+{{#if has_resources}}
+                    if let Some(content) = current::get(uri) {
+                        return Ok(ReadResourceResult {
+                            contents: vec![ResourceContents::text(content, request.uri)],
+                        });
+                    }
+{{/if}}
 {{#if has_prior_versions}}
                     if let Some(content) = versions::get(uri) {
                         return Ok(ReadResourceResult {
@@ -448,7 +423,7 @@ URI: `{{uri}}`
 
 {{#if has_prior_versions}}
 /// List of embedded orb versions.
-const VERSIONS_CONTENT: &str = "{{orb_name}} embedded versions:\n- current\n{{#each prior_versions}}- {{version}}\n{{/each}}";
+const VERSIONS_CONTENT: &str = "{{orb_name}} embedded versions.\n\nTo read a resource: request its URI via resources/read.\n\nVersions:\n- current: orb://commands/<name>, orb://jobs/<name>, orb://executors/<name>\n{{#each prior_versions}}- {{version}}: orb://v{{version}}/commands/<name>, orb://v{{version}}/jobs/<name>, orb://v{{version}}/executors/<name>\n{{/each}}";
 {{/if}}
 
 {{#if has_tools}}

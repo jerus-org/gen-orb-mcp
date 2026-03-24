@@ -17,3 +17,6 @@ pub const VERSION_MODULE_RS: &str = include_str!("../../templates/version_module
 
 /// Template for the versions dispatcher module (src/versions/mod.rs).
 pub const VERSIONS_MOD_RS: &str = include_str!("../../templates/versions_mod.rs.hbs");
+
+/// Template for the current-version resource lookup module (src/current/mod.rs).
+pub const CURRENT_MOD_RS: &str = include_str!("../../templates/current_mod.rs.hbs");

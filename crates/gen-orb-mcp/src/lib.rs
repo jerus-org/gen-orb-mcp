@@ -621,8 +621,15 @@ fn run_prime(
 
 /// Walk up from `start` looking for a `.git` directory.
 fn find_git_root(start: &std::path::Path) -> Result<std::path::PathBuf> {
+    // Canonicalise first: a relative path like "src/@orb.yml" would otherwise
+    // produce Path("") when walking up past "src", and "" cannot be
+    // canonicalised.  That propagates as an absolute orb_path_relative which
+    // makes worktree.join() ignore the worktree entirely.
+    let start = start
+        .canonicalize()
+        .map_err(|e| anyhow::anyhow!("Cannot access orb path '{}': {}", start.display(), e))?;
     let mut dir = if start.is_file() {
-        start.parent().unwrap_or(start).to_path_buf()
+        start.parent().unwrap_or(&start).to_path_buf()
     } else {
         start.to_path_buf()
     };
@@ -965,5 +972,58 @@ mod tests {
         } else {
             panic!("expected Prime variant");
         }
+    }
+
+    // Serialises tests that mutate the global CWD.
+    static CWD_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// Regression test: `find_git_root` with a *relative* orb path must return
+    /// an **absolute** path.
+    ///
+    /// When the user runs `gen-orb-mcp prime --orb-path src/@orb.yml` (the
+    /// default), `orb_path` is relative.  `find_git_root` walks up from
+    /// `src/@orb.yml` → `src` → `""` (Rust `Path::parent` of `"src"` is `""`).
+    /// If the function returns `""`, `repo_abs` cannot be canonicalised, so
+    /// `strip_prefix("")` on the absolute `orb_abs` returns the full absolute
+    /// path.  `worktree.join(absolute_path)` then ignores the worktree and reads
+    /// the current working copy — producing snapshots with current-version
+    /// content for every historical tag.
+    ///
+    /// The fix: canonicalise `start` at the top of `find_git_root` so the
+    /// walk-up always operates on absolute paths and returns an absolute result.
+    #[test]
+    fn test_find_git_root_returns_absolute_path_for_relative_input() {
+        let _cwd_guard = CWD_LOCK.lock().unwrap();
+        let original = std::env::current_dir().unwrap();
+
+        let tmp = TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join(".git")).unwrap();
+        std::fs::create_dir_all(tmp.path().join("src")).unwrap();
+        std::fs::write(
+            tmp.path().join("src").join("@orb.yml"),
+            "version: 2.1\ndescription: test",
+        )
+        .unwrap();
+
+        // Change to the fake repo root so that "src/@orb.yml" is a valid
+        // relative path.
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        let result = find_git_root(std::path::Path::new("src/@orb.yml"));
+
+        // Always restore CWD before asserting so a failure doesn't leave the
+        // process in the tmp directory.
+        std::env::set_current_dir(&original).unwrap();
+
+        let result = result.expect("find_git_root should succeed");
+        assert!(
+            result.is_absolute(),
+            "find_git_root must return an absolute path, got: {:?}",
+            result
+        );
+        assert_eq!(
+            result.canonicalize().unwrap(),
+            tmp.path().canonicalize().unwrap(),
+        );
     }
 }
