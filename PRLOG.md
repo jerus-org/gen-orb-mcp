@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - eliminate inline literals to prevent LLVM OOM on release build(pr [#77])
 - deps: update rust crate trycmd to 1.2.0(pr [#74])
+- deps: update rust crate pmcp to v2(pr [#76])
 
 ## [0.1.5] - 2026-03-23
 
@@ -200,6 +201,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#72]: https://github.com/jerus-org/gen-orb-mcp/pull/72
 [#77]: https://github.com/jerus-org/gen-orb-mcp/pull/77
 [#74]: https://github.com/jerus-org/gen-orb-mcp/pull/74
+[#76]: https://github.com/jerus-org/gen-orb-mcp/pull/76
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.5...HEAD
 [0.1.5]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.3...v0.1.4
