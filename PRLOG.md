@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - remove_parameter drains sibling params(pr [#78])
+- deps: update rust crate pmcp to 2.0.2(pr [#79])
 
 ## [0.1.6] - 2026-03-24
 
@@ -209,6 +210,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#74]: https://github.com/jerus-org/gen-orb-mcp/pull/74
 [#76]: https://github.com/jerus-org/gen-orb-mcp/pull/76
 [#78]: https://github.com/jerus-org/gen-orb-mcp/pull/78
+[#79]: https://github.com/jerus-org/gen-orb-mcp/pull/79
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.6...HEAD
 [0.1.6]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.4...v0.1.5
