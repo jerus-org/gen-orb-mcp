@@ -187,8 +187,15 @@ fn remove_parameter(
         return false;
     };
 
-    let param_indent = leading_spaces(&lines[param_idx]);
-    let param_end = find_block_end(lines, param_idx + 1, param_indent);
+    // For a scalar value (`key: value`), remove only that one line.
+    // For a block value (`key:` followed by indented children), remove the
+    // key line plus all its indented children.
+    let param_end = if lines[param_idx].trim_end().ends_with(':') {
+        let param_indent = leading_spaces(&lines[param_idx]);
+        find_param_value_end(lines, param_idx + 1, param_indent)
+    } else {
+        param_idx + 1
+    };
     lines.drain(param_idx..param_end);
     true
 }
@@ -284,8 +291,12 @@ fn remove_command_parameter(
     let Some(param_idx) = find_param_line(lines, step_start, step_end, parameter) else {
         return false;
     };
-    let param_indent = leading_spaces(&lines[param_idx]);
-    let param_end = find_block_end(lines, param_idx + 1, param_indent);
+    let param_end = if lines[param_idx].trim_end().ends_with(':') {
+        let param_indent = leading_spaces(&lines[param_idx]);
+        find_param_value_end(lines, param_idx + 1, param_indent)
+    } else {
+        param_idx + 1
+    };
     lines.drain(param_idx..param_end);
     true
 }
@@ -416,6 +427,25 @@ fn find_param_line(lines: &[String], start: usize, end: usize, parameter: &str) 
         }
     }
     None
+}
+
+/// Returns the line index one past the end of a parameter's block value.
+///
+/// Unlike [`find_block_end`], which stops only at list items (`-`) or
+/// top-level keys, this stops at ANY non-empty line whose indentation is
+/// ≤ `param_indent`. That correctly handles sibling parameters in a job
+/// invocation, which are at the same indent level as the parameter being
+/// removed but are not list-item markers.
+fn find_param_value_end(lines: &[String], start: usize, param_indent: usize) -> usize {
+    for (i, line) in lines.iter().enumerate().skip(start) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        if leading_spaces(line) <= param_indent {
+            return i;
+        }
+    }
+    lines.len()
 }
 
 /// Returns the line index one past the end of the block starting at `start`
@@ -578,6 +608,106 @@ workflows:
           context: [pcu-app]
           requires:
             - update-prlog-on-main"#;
+
+    // A more realistic sample where the removed parameter is NOT the last one —
+    // there are sibling parameters after it in the same job invocation.
+    const SAMPLE_WITH_TRAILING_PARAMS: &str = r#"version: 2.1
+
+orbs:
+  toolkit: jerus-org/circleci-toolkit@4.7.1
+
+workflows:
+  update_prlog:
+    jobs:
+      - toolkit/update_prlog:
+          name: update-prlog-on-main
+          context:
+            - release
+            - bot-check
+            - pcu-app
+          min_rust_version: "1.82"
+          target_branch: "main"
+          pcu_from_merge: --from-merge
+          update_pcu: false
+          pcu_verbosity: "-vvv"
+      - toolkit/label:
+          min_rust_version: "1.82"
+          context: pcu-app
+          requires:
+            - update-prlog-on-main"#;
+
+    #[test]
+    fn test_remove_parameter_preserves_sibling_params() {
+        // Removing a non-last scalar parameter must NOT drain subsequent siblings.
+        let lines: Vec<&str> = SAMPLE_WITH_TRAILING_PARAMS.lines().collect();
+        let change =
+            remove_param_change("update_prlog", "update-prlog-on-main", "min_rust_version");
+        let (new_lines, count) = apply_changes_to_lines(&lines, &[&change]);
+        assert_eq!(count, 1);
+        let output = new_lines.join("\n");
+        // Sibling parameters of update_prlog must survive
+        assert!(
+            output.contains("target_branch:"),
+            "target_branch should remain after min_rust_version removal"
+        );
+        assert!(
+            output.contains("pcu_from_merge:"),
+            "pcu_from_merge should remain after min_rust_version removal"
+        );
+        assert!(
+            output.contains("update_pcu:"),
+            "update_pcu should remain after min_rust_version removal"
+        );
+        assert!(
+            output.contains("pcu_verbosity:"),
+            "pcu_verbosity should remain after min_rust_version removal"
+        );
+        // The label job must survive intact
+        assert!(
+            output.contains("toolkit/label"),
+            "toolkit/label should remain"
+        );
+        // update_prlog invocation must still be present
+        assert!(
+            output.contains("toolkit/update_prlog"),
+            "toolkit/update_prlog should remain"
+        );
+    }
+
+    #[test]
+    fn test_remove_block_parameter_preserves_siblings() {
+        // A block-valued parameter (context: with list children) should be
+        // fully removed but must not consume the sibling that follows.
+        const BLOCK_SAMPLE: &str = r#"version: 2.1
+orbs:
+  toolkit: jerus-org/circleci-toolkit@4.8.0
+workflows:
+  update_prlog:
+    jobs:
+      - toolkit/update_prlog:
+          name: update-prlog-on-main
+          some_block_param:
+            - item1
+            - item2
+          target_branch: "main"
+      - toolkit/label:
+          context: [pcu-app]"#;
+        let lines: Vec<&str> = BLOCK_SAMPLE.lines().collect();
+        let change =
+            remove_param_change("update_prlog", "update-prlog-on-main", "some_block_param");
+        let (new_lines, count) = apply_changes_to_lines(&lines, &[&change]);
+        assert_eq!(count, 1);
+        let output = new_lines.join("\n");
+        assert!(
+            !output.contains("some_block_param"),
+            "some_block_param should be removed"
+        );
+        assert!(!output.contains("item1"), "list children should be removed");
+        assert!(
+            output.contains("target_branch:"),
+            "sibling target_branch should remain"
+        );
+    }
 
     #[test]
     fn test_remove_job_invocation() {
