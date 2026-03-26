@@ -60,6 +60,8 @@ pub struct CiFile {
     /// Consumer-defined jobs declared in this file (top-level `jobs:` key).
     /// Only jobs that contain at least one orb command step are included.
     pub custom_jobs: HashMap<String, CustomJob>,
+    /// Pipeline parameter names declared in the top-level `parameters:` block.
+    pub pipeline_parameters: Vec<String>,
 }
 
 /// Reference to a specific orb at a pinned version.
