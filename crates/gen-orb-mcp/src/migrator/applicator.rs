@@ -318,7 +318,7 @@ fn remove_command_parameter(
 /// Finds lines of the form `  <orb_alias>: ...@<from_version>` and replaces
 /// `@<from_version>` with `@<to_version>`.
 fn update_orb_version(
-    lines: &mut Vec<String>,
+    lines: &mut [String],
     orb_alias: &str,
     from_version: &str,
     to_version: &str,
