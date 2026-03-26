@@ -5,7 +5,10 @@
 //! conformance rule to identify what needs changing. It is version-agnostic: it
 //! checks actual state, not assumed source versions.
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+};
 
 use super::types::{ChangeType, MigrationPlan, PlannedChange};
 use crate::{
@@ -529,7 +532,14 @@ fn plan_orphaned_pipeline_params(
     let jobs_removed = collect_removed_jobs(existing_changes);
 
     for (file_path, removed_params) in &params_removed_by_file {
-        let Some(ci_file) = config.files.get(file_path) else {
+        // config.files is keyed by filename only (as the consumer parser
+        // inserts it), but file_path here is the full path from
+        // SourceLocation.file.  Normalise to filename for the lookup.
+        let lookup_key = file_path
+            .file_name()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| file_path.to_path_buf());
+        let Some(ci_file) = config.files.get(&lookup_key) else {
             continue;
         };
         for param_name in removed_params {
@@ -1082,6 +1092,55 @@ mod tests {
                 ChangeType::RemovePipelineParameter { parameter } if parameter == "min_rust_version"
             )),
             "orphaned pipeline parameter should be scheduled for removal"
+        );
+    }
+
+    /// Same as `test_plan_removes_orphaned_pipeline_param` but uses a full
+    /// filesystem path in `SourceLocation.file` (as the real consumer parser
+    /// does) while `config.files` is keyed by filename only.  This exercises
+    /// the path-normalisation in `plan_orphaned_pipeline_params`.
+    #[test]
+    fn test_plan_removes_orphaned_pipeline_param_full_path() {
+        let mut config = make_config_with_pipeline_param();
+
+        // Re-key config.files to filename only (as the parser does) and update
+        // all SourceLocation.file entries to the full path.
+        let full_path = PathBuf::from("/home/user/project/.circleci/update_prlog.yml");
+        let ci_file = config
+            .files
+            .remove(&PathBuf::from("update_prlog.yml"))
+            .unwrap();
+        config.files.insert(PathBuf::from("update_prlog.yml"), {
+            let mut f = ci_file;
+            // Update every job's source location to use the full path
+            for wf in f.workflows.values_mut() {
+                for inv in wf.jobs.iter_mut() {
+                    inv.location.file = full_path.clone();
+                }
+            }
+            f
+        });
+
+        let rules = vec![
+            ConformanceRule::ParameterRemoved {
+                job: "update_prlog".to_string(),
+                parameter: "min_rust_version".to_string(),
+                since_version: "5.0.0".to_string(),
+            },
+            ConformanceRule::ParameterRemoved {
+                job: "label".to_string(),
+                parameter: "min_rust_version".to_string(),
+                since_version: "5.0.0".to_string(),
+            },
+        ];
+        let plan_result = plan(&rules, &config, "toolkit");
+        assert!(
+            plan_result.changes.iter().any(|c| matches!(
+                &c.change_type,
+                ChangeType::RemovePipelineParameter { parameter }
+                    if parameter == "min_rust_version"
+            )),
+            "orphaned pipeline parameter should be removed even when SourceLocation uses a full path"
         );
     }
 
