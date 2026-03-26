@@ -525,82 +525,122 @@ fn plan_orphaned_pipeline_params(
     existing_changes: &[PlannedChange],
     changes: &mut Vec<PlannedChange>,
 ) {
-    // Build a map: file → set of parameter names being removed via RemoveParameter
-    let mut params_removed_by_file: HashMap<std::path::PathBuf, HashSet<String>> = HashMap::new();
-    for change in existing_changes {
-        if let ChangeType::RemoveParameter { parameter, .. } = &change.change_type {
-            params_removed_by_file
-                .entry(change.file.clone())
-                .or_default()
-                .insert(parameter.clone());
-        }
-    }
-
-    // Build a set of (file, effective_job_ref) pairs being entirely removed
-    let mut jobs_removed: HashSet<(std::path::PathBuf, String)> = HashSet::new();
-    for change in existing_changes {
-        if let ChangeType::RemoveJobInvocation { job_ref, .. } = &change.change_type {
-            jobs_removed.insert((change.file.clone(), job_ref.clone()));
-        }
-    }
+    let params_removed_by_file = collect_removed_params_by_file(existing_changes);
+    let jobs_removed = collect_removed_jobs(existing_changes);
 
     for (file_path, removed_params) in &params_removed_by_file {
         let Some(ci_file) = config.files.get(file_path) else {
             continue;
         };
-
         for param_name in removed_params {
-            // Only care if this param is declared as a pipeline parameter
             if !ci_file.pipeline_parameters.contains(param_name) {
                 continue;
             }
-
-            // Check whether any remaining invocation (not removed) still uses
-            // this parameter
-            let still_in_use = ci_file
-                .workflows
-                .values()
-                .flat_map(|w| w.jobs.iter())
-                .filter(|inv| {
-                    // Exclude invocations that are being entirely removed
-                    !jobs_removed.contains(&(file_path.clone(), inv.effective_name().to_string()))
-                })
-                .any(|inv| {
-                    // This invocation uses param_name AND it is NOT one of the
-                    // invocations from which param_name is being removed
-                    if !inv.parameters.contains_key(param_name.as_str()) {
-                        return false;
-                    }
-                    // If param_name is being removed from this specific
-                    // invocation, don't count it as "still in use"
-                    let being_removed = existing_changes.iter().any(|c| {
-                        c.file == *file_path
-                            && matches!(
-                                &c.change_type,
-                                ChangeType::RemoveParameter {
-                                    job_ref,
-                                    parameter,
-                                    ..
-                                } if job_ref == inv.effective_name() && parameter == param_name
-                            )
-                    });
-                    !being_removed
-                });
-
-            if !still_in_use {
-                changes.push(PlannedChange {
-                    file: file_path.clone(),
-                    description: format!(
-                        "Remove orphaned pipeline parameter `{param_name}` from `parameters:` block"
-                    ),
-                    change_type: ChangeType::RemovePipelineParameter {
-                        parameter: param_name.clone(),
-                    },
-                    before: format!("{param_name}: <declaration>"),
-                    after: String::new(),
-                });
+            if !param_still_in_use(
+                ci_file,
+                file_path,
+                param_name,
+                &jobs_removed,
+                existing_changes,
+            ) {
+                changes.push(make_remove_pipeline_param_change(file_path, param_name));
             }
         }
+    }
+}
+
+/// Builds a map of file path → set of parameter names being stripped via
+/// `RemoveParameter` changes.
+fn collect_removed_params_by_file(
+    changes: &[PlannedChange],
+) -> HashMap<std::path::PathBuf, HashSet<String>> {
+    let mut map: HashMap<std::path::PathBuf, HashSet<String>> = HashMap::new();
+    for change in changes {
+        if let ChangeType::RemoveParameter { parameter, .. } = &change.change_type {
+            map.entry(change.file.clone())
+                .or_default()
+                .insert(parameter.clone());
+        }
+    }
+    map
+}
+
+/// Builds a set of `(file, effective_job_ref)` pairs being entirely removed
+/// via `RemoveJobInvocation` changes.
+fn collect_removed_jobs(changes: &[PlannedChange]) -> HashSet<(std::path::PathBuf, String)> {
+    changes
+        .iter()
+        .filter_map(|c| {
+            if let ChangeType::RemoveJobInvocation { job_ref, .. } = &c.change_type {
+                Some((c.file.clone(), job_ref.clone()))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+/// Returns `true` if `param_name` is still referenced in at least one
+/// invocation in `ci_file` that is neither being entirely removed nor having
+/// `param_name` stripped by an existing `RemoveParameter` change.
+fn param_still_in_use(
+    ci_file: &crate::consumer_parser::types::CiFile,
+    file_path: &std::path::Path,
+    param_name: &str,
+    jobs_removed: &HashSet<(std::path::PathBuf, String)>,
+    existing_changes: &[PlannedChange],
+) -> bool {
+    ci_file
+        .workflows
+        .values()
+        .flat_map(|w| w.jobs.iter())
+        .filter(|inv| {
+            !jobs_removed.contains(&(file_path.to_path_buf(), inv.effective_name().to_string()))
+        })
+        .any(|inv| {
+            inv.parameters.contains_key(param_name)
+                && !param_removed_from_inv(
+                    existing_changes,
+                    file_path,
+                    inv.effective_name(),
+                    param_name,
+                )
+        })
+}
+
+/// Returns `true` if an existing `RemoveParameter` change targets `param_name`
+/// on `job_ref` in `file_path`.
+fn param_removed_from_inv(
+    changes: &[PlannedChange],
+    file_path: &std::path::Path,
+    job_ref: &str,
+    param_name: &str,
+) -> bool {
+    changes.iter().any(|c| {
+        c.file == file_path
+            && matches!(
+                &c.change_type,
+                ChangeType::RemoveParameter { job_ref: jr, parameter: p, .. }
+                if jr == job_ref && p == param_name
+            )
+    })
+}
+
+/// Constructs a `RemovePipelineParameter` planned change.
+fn make_remove_pipeline_param_change(
+    file_path: &std::path::Path,
+    param_name: &str,
+) -> PlannedChange {
+    PlannedChange {
+        file: file_path.to_path_buf(),
+        description: format!(
+            "Remove orphaned pipeline parameter `{param_name}` from `parameters:` block"
+        ),
+        change_type: ChangeType::RemovePipelineParameter {
+            parameter: param_name.to_string(),
+        },
+        before: format!("{param_name}: <declaration>"),
+        after: String::new(),
     }
 }
 
