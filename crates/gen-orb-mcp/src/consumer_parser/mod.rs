@@ -69,7 +69,8 @@ impl ConsumerParser {
             }
 
             match Self::parse_file(&path) {
-                Ok(Some(ci_file)) => {
+                Ok(Some(mut ci_file)) => {
+                    ci_file.source_path = path.clone();
                     // Use filename (not full path) as the key
                     let key = path
                         .file_name()
