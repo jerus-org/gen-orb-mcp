@@ -53,6 +53,8 @@ impl ConsumerConfig {
 /// Parsed representation of a single CI YAML file.
 #[derive(Debug, Clone, Default)]
 pub struct CiFile {
+    /// Full filesystem path to this file.
+    pub source_path: std::path::PathBuf,
     /// Orb aliases declared in this file: alias → orb reference.
     pub orb_aliases: HashMap<String, OrbRef>,
     /// Workflows defined in this file.

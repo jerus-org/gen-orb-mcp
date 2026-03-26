@@ -686,8 +686,15 @@ fn plan_orb_version_updates(
         if orb_ref.version == current_orb_version {
             continue;
         }
+        // Use the full path stored at parse time; fall back to the filename-only
+        // map key when source_path was not set (e.g. in unit tests).
+        let resolved = if ci_file.source_path.is_absolute() {
+            ci_file.source_path.clone()
+        } else {
+            file_path.clone()
+        };
         changes.push(PlannedChange {
-            file: file_path.clone(),
+            file: resolved,
             description: format!(
                 "Update orb pin `{orb_alias}` from `{}` to `{current_orb_version}`",
                 orb_ref.version
