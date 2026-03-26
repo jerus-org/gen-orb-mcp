@@ -1263,4 +1263,99 @@ mod tests {
             "declaration should NOT be removed when label still uses the param"
         );
     }
+
+    // ── JobRenamed planner tests ───────────────────────────────────────────────
+
+    /// Builds a config with a workflow job using `required_builds_rolling`
+    /// with `min_rust_version` — the toolkit 6.0 rename scenario.
+    fn make_config_with_required_builds_rolling() -> ConsumerConfig {
+        let mut config = ConsumerConfig::default();
+        let mut ci_file = CiFile::default();
+        ci_file.orb_aliases.insert(
+            "toolkit".to_string(),
+            OrbRef {
+                org: "jerus-org".to_string(),
+                name: "circleci-toolkit".to_string(),
+                version: "5.3.10".to_string(),
+            },
+        );
+        let mut workflow = Workflow::default();
+        workflow.jobs.push(JobInvocation {
+            reference: "toolkit/required_builds_rolling".to_string(),
+            orb_alias: Some("toolkit".to_string()),
+            orb_job: Some("required_builds_rolling".to_string()),
+            parameters: {
+                let mut p = HashMap::new();
+                p.insert(
+                    "min_rust_version".to_string(),
+                    serde_yaml::Value::String("1.85".to_string()),
+                );
+                p
+            },
+            requires: vec![],
+            name_override: None,
+            location: SourceLocation {
+                file: PathBuf::from("config.yml"),
+                workflow: "validation".to_string(),
+                job_index: 0,
+            },
+        });
+        ci_file.workflows.insert("validation".to_string(), workflow);
+        config.files.insert(PathBuf::from("config.yml"), ci_file);
+        config
+    }
+
+    #[test]
+    fn test_plan_job_renamed_renames_invocation() {
+        // required_builds_rolling → required_builds (toolkit 6.0 rename).
+        // min_rust_version is RETAINED on required_builds, so removed_parameters is empty.
+        let config = make_config_with_required_builds_rolling();
+        let rules = vec![ConformanceRule::JobRenamed {
+            from: "required_builds_rolling".to_string(),
+            to: "required_builds".to_string(),
+            removed_parameters: vec![],
+            since_version: "6.0.0".to_string(),
+        }];
+        let plan_result = plan(&rules, &config, "toolkit", "");
+        assert_eq!(plan_result.changes.len(), 1);
+        assert!(
+            matches!(
+                &plan_result.changes[0].change_type,
+                ChangeType::RenameJobInvocation { workflow, from, to }
+                    if workflow == "validation"
+                    && from == "toolkit/required_builds_rolling"
+                    && to == "toolkit/required_builds"
+            ),
+            "should plan a RenameJobInvocation for required_builds_rolling → required_builds"
+        );
+    }
+
+    #[test]
+    fn test_plan_job_renamed_strips_removed_parameters() {
+        // A rename where a parameter is also removed on the new job.
+        let config = make_config_with_required_builds_rolling();
+        let rules = vec![ConformanceRule::JobRenamed {
+            from: "required_builds_rolling".to_string(),
+            to: "required_builds".to_string(),
+            removed_parameters: vec!["min_rust_version".to_string()],
+            since_version: "6.0.0".to_string(),
+        }];
+        let plan_result = plan(&rules, &config, "toolkit", "");
+        // rename change + parameter removal = 2 changes
+        assert_eq!(plan_result.changes.len(), 2);
+        assert!(
+            plan_result
+                .changes
+                .iter()
+                .any(|c| matches!(&c.change_type, ChangeType::RenameJobInvocation { .. })),
+            "should plan a RenameJobInvocation"
+        );
+        assert!(
+            plan_result.changes.iter().any(|c| matches!(
+                &c.change_type,
+                ChangeType::RemoveParameter { parameter, .. } if parameter == "min_rust_version"
+            )),
+            "should plan a RemoveParameter for the removed parameter"
+        );
+    }
 }
