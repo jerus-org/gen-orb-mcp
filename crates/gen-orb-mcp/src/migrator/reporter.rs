@@ -91,6 +91,13 @@ impl PlannedChange {
             ChangeType::RemovePipelineParameter { parameter } => {
                 format!("Remove orphaned pipeline parameter `{parameter}` from `parameters:` block")
             }
+            ChangeType::UpdateOrbVersion {
+                orb_alias,
+                from_version,
+                to_version,
+            } => {
+                format!("Update orb pin `{orb_alias}` from `{from_version}` to `{to_version}`")
+            }
         }
     }
 }

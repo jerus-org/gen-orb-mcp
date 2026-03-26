@@ -87,6 +87,12 @@ pub enum ChangeType {
     /// Remove a pipeline parameter declaration from the top-level `parameters:`
     /// block when it is no longer referenced in any remaining job invocation.
     RemovePipelineParameter { parameter: String },
+    /// Update the orb version pin in the `orbs:` section to the current version.
+    UpdateOrbVersion {
+        orb_alias: String,
+        from_version: String,
+        to_version: String,
+    },
 }
 
 /// Summary of changes that were actually applied to disk.

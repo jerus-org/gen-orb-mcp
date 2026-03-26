@@ -27,19 +27,29 @@ type Changes = Vec<PlannedChange>;
 /// * `config` — parsed consumer config
 /// * `orb_alias` — the alias used in the consumer's `orbs:` section (e.g.
 ///   `"toolkit"`)
-pub fn plan(rules: &[ConformanceRule], config: &ConsumerConfig, orb_alias: &str) -> MigrationPlan {
+/// * `current_orb_version` — the version of the orb embedded in this binary
+///   (e.g. `"5.3.10"`); used to plan orb version pin updates
+pub fn plan(
+    rules: &[ConformanceRule],
+    config: &ConsumerConfig,
+    orb_alias: &str,
+    current_orb_version: &str,
+) -> MigrationPlan {
     let mut changes: Vec<PlannedChange> = Vec::new();
 
     // Detect the current pinned version (take the first file that references the
     // orb)
     let detected_version = detect_version(config, orb_alias);
 
-    // Determine the target version from the rules (take the first rule's
-    // since_version)
-    let target_version = rules
-        .first()
-        .map(|r| r.since_version().to_string())
-        .unwrap_or_else(|| "unknown".to_string());
+    // Target version is the current orb version embedded in this binary.
+    let target_version = if current_orb_version.is_empty() {
+        rules
+            .first()
+            .map(|r| r.since_version().to_string())
+            .unwrap_or_else(|| "unknown".to_string())
+    } else {
+        current_orb_version.to_string()
+    };
 
     for rule in rules {
         apply_rule(rule, config, orb_alias, &mut changes);
@@ -52,6 +62,10 @@ pub fn plan(rules: &[ConformanceRule], config: &ConsumerConfig, orb_alias: &str)
     // After dedup, detect pipeline parameter declarations that have become
     // orphaned (removed from every remaining invocation in the file).
     plan_orphaned_pipeline_params(config, &changes.clone(), &mut changes);
+
+    // Plan orb version pin updates for files whose current pin differs from
+    // the current orb version.
+    plan_orb_version_updates(config, orb_alias, current_orb_version, &mut changes);
 
     MigrationPlan {
         orb: orb_alias.to_string(),
@@ -654,6 +668,47 @@ fn make_remove_pipeline_param_change(
     }
 }
 
+/// For each file in `config` that has the orb alias pinned to a version other
+/// than `current_orb_version`, emits an `UpdateOrbVersion` change.
+fn plan_orb_version_updates(
+    config: &ConsumerConfig,
+    orb_alias: &str,
+    current_orb_version: &str,
+    changes: &mut Vec<PlannedChange>,
+) {
+    if current_orb_version.is_empty() {
+        return;
+    }
+    for (file_path, ci_file) in &config.files {
+        let Some(orb_ref) = ci_file.orb_aliases.get(orb_alias) else {
+            continue;
+        };
+        if orb_ref.version == current_orb_version {
+            continue;
+        }
+        changes.push(PlannedChange {
+            file: file_path.clone(),
+            description: format!(
+                "Update orb pin `{orb_alias}` from `{}` to `{current_orb_version}`",
+                orb_ref.version
+            ),
+            change_type: ChangeType::UpdateOrbVersion {
+                orb_alias: orb_alias.to_string(),
+                from_version: orb_ref.version.clone(),
+                to_version: current_orb_version.to_string(),
+            },
+            before: format!(
+                "{orb_alias}: {}/{orb_alias}@{}",
+                orb_ref.org, orb_ref.version
+            ),
+            after: format!(
+                "{orb_alias}: {}/{orb_alias}@{current_orb_version}",
+                orb_ref.org
+            ),
+        });
+    }
+}
+
 /// Removes duplicate `RemoveJobInvocation` changes that target the same
 /// workflow + job_ref (can arise when both `JobAbsorbed` and `JobRemoved`
 /// fire for the same invocation).
@@ -752,7 +807,7 @@ mod tests {
             since_version: "5.0.0".to_string(),
         }];
 
-        let plan_result = plan(&rules, &config, "toolkit");
+        let plan_result = plan(&rules, &config, "toolkit", "");
         assert_eq!(plan_result.changes.len(), 1);
         matches!(
             &plan_result.changes[0].change_type,
@@ -769,7 +824,7 @@ mod tests {
             since_version: "5.0.0".to_string(),
         }];
 
-        let plan_result = plan(&rules, &config, "toolkit");
+        let plan_result = plan(&rules, &config, "toolkit", "");
         assert_eq!(
             plan_result.changes.len(),
             1,
@@ -795,7 +850,7 @@ mod tests {
             since_version: "5.0.0".to_string(),
         }];
 
-        let plan_result = plan(&rules, &config, "toolkit");
+        let plan_result = plan(&rules, &config, "toolkit", "");
         assert_eq!(plan_result.detected_version, "4.8.0");
         assert_eq!(plan_result.target_version, "5.0.0");
     }
@@ -810,7 +865,7 @@ mod tests {
             since_version: "5.0.0".to_string(),
         }];
 
-        let plan_result = plan(&rules, &config, "toolkit");
+        let plan_result = plan(&rules, &config, "toolkit", "");
         assert!(plan_result.changes.is_empty());
     }
 
@@ -823,7 +878,7 @@ mod tests {
             since_version: "5.0.0".to_string(),
         }];
 
-        let plan_result = plan(&rules, &config, "toolkit");
+        let plan_result = plan(&rules, &config, "toolkit", "");
         assert_eq!(plan_result.changes.len(), 1);
         assert!(matches!(
             &plan_result.changes[0].change_type,
@@ -900,7 +955,7 @@ mod tests {
             name: "setup_env".to_string(),
             since_version: "5.0.0".to_string(),
         }];
-        let plan_result = plan(&rules, &config, "toolkit");
+        let plan_result = plan(&rules, &config, "toolkit", "");
         assert_eq!(plan_result.changes.len(), 1);
         assert!(matches!(
             &plan_result.changes[0].change_type,
@@ -918,7 +973,7 @@ mod tests {
             removed_parameters: vec![],
             since_version: "5.0.0".to_string(),
         }];
-        let plan_result = plan(&rules, &config, "toolkit");
+        let plan_result = plan(&rules, &config, "toolkit", "");
         assert_eq!(plan_result.changes.len(), 1);
         assert!(matches!(
             &plan_result.changes[0].change_type,
@@ -938,7 +993,7 @@ mod tests {
             removed_parameters: vec!["token".to_string()],
             since_version: "5.0.0".to_string(),
         }];
-        let plan_result = plan(&rules, &config, "toolkit");
+        let plan_result = plan(&rules, &config, "toolkit", "");
         // Rename + remove param = 2 changes
         assert_eq!(plan_result.changes.len(), 2);
         assert!(plan_result
@@ -959,7 +1014,7 @@ mod tests {
             parameter: "package".to_string(),
             since_version: "5.0.0".to_string(),
         }];
-        let plan_result = plan(&rules, &config, "toolkit");
+        let plan_result = plan(&rules, &config, "toolkit", "");
         assert_eq!(plan_result.changes.len(), 1);
         assert!(matches!(
             &plan_result.changes[0].change_type,
@@ -978,7 +1033,7 @@ mod tests {
             parameter: "region".to_string(),
             since_version: "5.0.0".to_string(),
         }];
-        let plan_result = plan(&rules, &config, "toolkit");
+        let plan_result = plan(&rules, &config, "toolkit", "");
         assert!(
             plan_result.changes.is_empty(),
             "CommandParameterAdded should produce no automated changes"
@@ -992,7 +1047,7 @@ mod tests {
             name: "nonexistent_cmd".to_string(),
             since_version: "5.0.0".to_string(),
         }];
-        let plan_result = plan(&rules, &config, "toolkit");
+        let plan_result = plan(&rules, &config, "toolkit", "");
         assert!(plan_result.changes.is_empty());
     }
 
@@ -1071,6 +1126,44 @@ mod tests {
     }
 
     #[test]
+    fn test_plan_updates_orb_version_pin() {
+        let config = make_config_with_pipeline_param(); // has toolkit@4.8.0
+        let rules: Vec<ConformanceRule> = vec![];
+        let plan_result = plan(&rules, &config, "toolkit", "5.3.10");
+        assert!(
+            plan_result.changes.iter().any(|c| matches!(
+                &c.change_type,
+                ChangeType::UpdateOrbVersion { orb_alias, from_version, to_version }
+                    if orb_alias == "toolkit"
+                    && from_version == "4.8.0"
+                    && to_version == "5.3.10"
+            )),
+            "should plan an UpdateOrbVersion change when pin differs from current version"
+        );
+        assert_eq!(plan_result.target_version, "5.3.10");
+    }
+
+    #[test]
+    fn test_plan_skips_orb_version_update_when_already_current() {
+        let mut config = make_config_with_pipeline_param();
+        // Update the orb version to already be 5.3.10
+        if let Some(ci_file) = config.files.values_mut().next() {
+            if let Some(orb_ref) = ci_file.orb_aliases.get_mut("toolkit") {
+                orb_ref.version = "5.3.10".to_string();
+            }
+        }
+        let rules: Vec<ConformanceRule> = vec![];
+        let plan_result = plan(&rules, &config, "toolkit", "5.3.10");
+        assert!(
+            !plan_result
+                .changes
+                .iter()
+                .any(|c| matches!(&c.change_type, ChangeType::UpdateOrbVersion { .. })),
+            "should not plan UpdateOrbVersion when pin already matches current version"
+        );
+    }
+
+    #[test]
     fn test_plan_removes_orphaned_pipeline_param() {
         let config = make_config_with_pipeline_param();
         let rules = vec![
@@ -1085,7 +1178,7 @@ mod tests {
                 since_version: "5.0.0".to_string(),
             },
         ];
-        let plan_result = plan(&rules, &config, "toolkit");
+        let plan_result = plan(&rules, &config, "toolkit", "");
         assert!(
             plan_result.changes.iter().any(|c| matches!(
                 &c.change_type,
@@ -1133,7 +1226,7 @@ mod tests {
                 since_version: "5.0.0".to_string(),
             },
         ];
-        let plan_result = plan(&rules, &config, "toolkit");
+        let plan_result = plan(&rules, &config, "toolkit", "");
         assert!(
             plan_result.changes.iter().any(|c| matches!(
                 &c.change_type,
@@ -1154,7 +1247,7 @@ mod tests {
             parameter: "min_rust_version".to_string(),
             since_version: "5.0.0".to_string(),
         }];
-        let plan_result = plan(&rules, &config, "toolkit");
+        let plan_result = plan(&rules, &config, "toolkit", "");
         assert!(
             !plan_result.changes.iter().any(|c| matches!(
                 &c.change_type,

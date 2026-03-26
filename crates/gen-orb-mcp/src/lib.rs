@@ -445,7 +445,7 @@ fn run_migrate(
     let config = consumer_parser::ConsumerParser::parse_directory(ci_dir)
         .map_err(|e| anyhow::anyhow!("Failed to parse CI config: {}", e))?;
 
-    let plan = migrator::Migrator::plan(&rules, &config, orb);
+    let plan = migrator::Migrator::plan(&rules, &config, orb, "");
     println!("{}", plan.format_summary());
 
     if plan.changes.is_empty() {
