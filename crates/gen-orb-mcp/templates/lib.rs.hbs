@@ -301,7 +301,7 @@ impl ServerHandler for OrbServer {
                     let rules: Vec<ConformanceRule> =
                         serde_json::from_str(CONFORMANCE_RULES_JSON)
                             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-                    let plan = Migrator::plan(&rules, &config, orb_alias);
+                    let plan = Migrator::plan(&rules, &config, orb_alias, "{{version}}");
                     Ok(CallToolResult::success(vec![Content::text(
                         plan.format_summary(),
                     )]))
@@ -326,7 +326,7 @@ impl ServerHandler for OrbServer {
                     let rules: Vec<ConformanceRule> =
                         serde_json::from_str(CONFORMANCE_RULES_JSON)
                             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-                    let plan = Migrator::plan(&rules, &config, orb_alias);
+                    let plan = Migrator::plan(&rules, &config, orb_alias, "{{version}}");
                     let applied = Migrator::apply(&plan, dry_run)
                         .map_err(|e| McpError::internal_error(e.to_string(), None))?;
                     Ok(CallToolResult::success(vec![Content::text(

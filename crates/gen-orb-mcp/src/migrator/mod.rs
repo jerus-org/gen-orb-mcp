@@ -10,7 +10,7 @@
 //! use gen_orb_mcp::consumer_parser::ConsumerParser;
 //!
 //! let config = ConsumerParser::parse_directory(".circleci/".as_ref())?;
-//! let plan = Migrator::plan(&rules, &config, "toolkit");
+//! let plan = Migrator::plan(&rules, &config, "toolkit", "5.3.10");
 //! println!("{}", plan.format_summary());
 //! let applied = Migrator::apply(&plan, false)?;  // false = not dry run
 //! ```
@@ -34,12 +34,15 @@ impl Migrator {
     /// * `rules` — conformance rules for the target version
     /// * `config` — parsed consumer CI config
     /// * `orb_alias` — the orb alias as used in the consumer's config
+    /// * `current_orb_version` — the current version of the orb (e.g. `"5.3.10"`);
+    ///   used to plan orb version pin updates in the `orbs:` section
     pub fn plan(
         rules: &[ConformanceRule],
         config: &ConsumerConfig,
         orb_alias: &str,
+        current_orb_version: &str,
     ) -> MigrationPlan {
-        planner::plan(rules, config, orb_alias)
+        planner::plan(rules, config, orb_alias, current_orb_version)
     }
 
     /// Applies a migration plan to files on disk.

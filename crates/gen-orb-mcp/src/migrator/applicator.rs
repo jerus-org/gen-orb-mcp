@@ -120,6 +120,11 @@ fn apply_single_change(lines: &mut Vec<String>, change: &PlannedChange) -> bool 
         ChangeType::RemovePipelineParameter { parameter } => {
             remove_pipeline_parameter(lines, parameter)
         }
+        ChangeType::UpdateOrbVersion {
+            orb_alias,
+            from_version,
+            to_version,
+        } => update_orb_version(lines, orb_alias, from_version, to_version),
     }
 }
 
@@ -308,6 +313,30 @@ fn remove_command_parameter(
 ///
 /// Finds `parameters:` at indent 0, then finds `  <parameter>:` (indent 2)
 /// within the block, and removes it along with its indented children.
+/// Updates the orb version pin in the `orbs:` section.
+///
+/// Finds lines of the form `  <orb_alias>: ...@<from_version>` and replaces
+/// `@<from_version>` with `@<to_version>`.
+fn update_orb_version(
+    lines: &mut Vec<String>,
+    orb_alias: &str,
+    from_version: &str,
+    to_version: &str,
+) -> bool {
+    let old_suffix = format!("@{from_version}");
+    let new_suffix = format!("@{to_version}");
+    let prefix = format!("{orb_alias}:");
+    let mut changed = false;
+    for line in lines.iter_mut() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with(&prefix) && line.contains(&old_suffix) {
+            *line = line.replace(&old_suffix, &new_suffix);
+            changed = true;
+        }
+    }
+    changed
+}
+
 fn remove_pipeline_parameter(lines: &mut Vec<String>, parameter: &str) -> bool {
     // Find top-level `parameters:` (zero indentation)
     let Some(params_line) = lines
