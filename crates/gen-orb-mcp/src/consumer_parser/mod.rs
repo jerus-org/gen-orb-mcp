@@ -143,6 +143,11 @@ impl ConsumerParser {
 fn parse_ci_file_from_map(map: &serde_yaml::Mapping, source_path: &Path) -> CiFile {
     let mut ci_file = CiFile::default();
 
+    // Parse pipeline parameters
+    if let Some(params_value) = map.get("parameters") {
+        ci_file.pipeline_parameters = parse_pipeline_parameter_names(params_value);
+    }
+
     // Parse orb aliases
     if let Some(orbs_value) = map.get("orbs") {
         ci_file.orb_aliases = parse_orb_aliases(orbs_value);
@@ -159,6 +164,20 @@ fn parse_ci_file_from_map(map: &serde_yaml::Mapping, source_path: &Path) -> CiFi
     }
 
     ci_file
+}
+
+/// Extracts the key names from the top-level `parameters:` block.
+fn parse_pipeline_parameter_names(params_value: &serde_yaml::Value) -> Vec<String> {
+    let mut result = Vec::new();
+    let Some(map) = params_value.as_mapping() else {
+        return result;
+    };
+    for key in map.keys() {
+        if let Some(name) = key.as_str() {
+            result.push(name.to_string());
+        }
+    }
+    result
 }
 
 fn is_yaml_file(path: &Path) -> bool {
@@ -836,6 +855,21 @@ workflows:
             candidates,
             vec![1],
             "label should be detected as absorbed candidate"
+        );
+    }
+
+    #[test]
+    fn test_parse_pipeline_parameters() {
+        // SAMPLE_UPDATE_PRLOG already has a `parameters:` block with `update_pcu`
+        let path = Path::new("update_prlog.yml");
+        let ci_file = ConsumerParser::parse_str(SAMPLE_UPDATE_PRLOG, path)
+            .unwrap()
+            .unwrap();
+        assert!(
+            ci_file
+                .pipeline_parameters
+                .contains(&"update_pcu".to_string()),
+            "update_pcu should be in pipeline_parameters"
         );
     }
 }

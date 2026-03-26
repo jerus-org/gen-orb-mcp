@@ -5,7 +5,7 @@
 //! conformance rule to identify what needs changing. It is version-agnostic: it
 //! checks actual state, not assumed source versions.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use super::types::{ChangeType, MigrationPlan, PlannedChange};
 use crate::{
@@ -45,6 +45,10 @@ pub fn plan(rules: &[ConformanceRule], config: &ConsumerConfig, orb_alias: &str)
     // Deduplicate changes that reference the same file/workflow/job to avoid
     // double-applying when multiple rules target the same invocation
     dedup_changes(&mut changes);
+
+    // After dedup, detect pipeline parameter declarations that have become
+    // orphaned (removed from every remaining invocation in the file).
+    plan_orphaned_pipeline_params(config, &changes.clone(), &mut changes);
 
     MigrationPlan {
         orb: orb_alias.to_string(),
@@ -509,6 +513,137 @@ fn plan_command_parameter_removed(
     }
 }
 
+/// After the main rules pass, check for pipeline parameter declarations that
+/// are no longer referenced in any remaining job invocation in the file.
+///
+/// For each `RemoveParameter` change grouped by file, if the parameter is also
+/// declared in the file's `pipeline_parameters` block and no remaining
+/// invocation (not covered by a `RemoveParameter` or `RemoveJobInvocation` for
+/// this file) still uses it, emit a `RemovePipelineParameter` change.
+fn plan_orphaned_pipeline_params(
+    config: &ConsumerConfig,
+    existing_changes: &[PlannedChange],
+    changes: &mut Vec<PlannedChange>,
+) {
+    let params_removed_by_file = collect_removed_params_by_file(existing_changes);
+    let jobs_removed = collect_removed_jobs(existing_changes);
+
+    for (file_path, removed_params) in &params_removed_by_file {
+        let Some(ci_file) = config.files.get(file_path) else {
+            continue;
+        };
+        for param_name in removed_params {
+            if !ci_file.pipeline_parameters.contains(param_name) {
+                continue;
+            }
+            if !param_still_in_use(
+                ci_file,
+                file_path,
+                param_name,
+                &jobs_removed,
+                existing_changes,
+            ) {
+                changes.push(make_remove_pipeline_param_change(file_path, param_name));
+            }
+        }
+    }
+}
+
+/// Builds a map of file path → set of parameter names being stripped via
+/// `RemoveParameter` changes.
+fn collect_removed_params_by_file(
+    changes: &[PlannedChange],
+) -> HashMap<std::path::PathBuf, HashSet<String>> {
+    let mut map: HashMap<std::path::PathBuf, HashSet<String>> = HashMap::new();
+    for change in changes {
+        if let ChangeType::RemoveParameter { parameter, .. } = &change.change_type {
+            map.entry(change.file.clone())
+                .or_default()
+                .insert(parameter.clone());
+        }
+    }
+    map
+}
+
+/// Builds a set of `(file, effective_job_ref)` pairs being entirely removed
+/// via `RemoveJobInvocation` changes.
+fn collect_removed_jobs(changes: &[PlannedChange]) -> HashSet<(std::path::PathBuf, String)> {
+    changes
+        .iter()
+        .filter_map(|c| {
+            if let ChangeType::RemoveJobInvocation { job_ref, .. } = &c.change_type {
+                Some((c.file.clone(), job_ref.clone()))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+/// Returns `true` if `param_name` is still referenced in at least one
+/// invocation in `ci_file` that is neither being entirely removed nor having
+/// `param_name` stripped by an existing `RemoveParameter` change.
+fn param_still_in_use(
+    ci_file: &crate::consumer_parser::types::CiFile,
+    file_path: &std::path::Path,
+    param_name: &str,
+    jobs_removed: &HashSet<(std::path::PathBuf, String)>,
+    existing_changes: &[PlannedChange],
+) -> bool {
+    ci_file
+        .workflows
+        .values()
+        .flat_map(|w| w.jobs.iter())
+        .filter(|inv| {
+            !jobs_removed.contains(&(file_path.to_path_buf(), inv.effective_name().to_string()))
+        })
+        .any(|inv| {
+            inv.parameters.contains_key(param_name)
+                && !param_removed_from_inv(
+                    existing_changes,
+                    file_path,
+                    inv.effective_name(),
+                    param_name,
+                )
+        })
+}
+
+/// Returns `true` if an existing `RemoveParameter` change targets `param_name`
+/// on `job_ref` in `file_path`.
+fn param_removed_from_inv(
+    changes: &[PlannedChange],
+    file_path: &std::path::Path,
+    job_ref: &str,
+    param_name: &str,
+) -> bool {
+    changes.iter().any(|c| {
+        c.file == file_path
+            && matches!(
+                &c.change_type,
+                ChangeType::RemoveParameter { job_ref: jr, parameter: p, .. }
+                if jr == job_ref && p == param_name
+            )
+    })
+}
+
+/// Constructs a `RemovePipelineParameter` planned change.
+fn make_remove_pipeline_param_change(
+    file_path: &std::path::Path,
+    param_name: &str,
+) -> PlannedChange {
+    PlannedChange {
+        file: file_path.to_path_buf(),
+        description: format!(
+            "Remove orphaned pipeline parameter `{param_name}` from `parameters:` block"
+        ),
+        change_type: ChangeType::RemovePipelineParameter {
+            parameter: param_name.to_string(),
+        },
+        before: format!("{param_name}: <declaration>"),
+        after: String::new(),
+    }
+}
+
 /// Removes duplicate `RemoveJobInvocation` changes that target the same
 /// workflow + job_ref (can arise when both `JobAbsorbed` and `JobRemoved`
 /// fire for the same invocation).
@@ -849,5 +984,124 @@ mod tests {
         }];
         let plan_result = plan(&rules, &config, "toolkit");
         assert!(plan_result.changes.is_empty());
+    }
+
+    // ── Pipeline parameter orphan-detection tests ─────────────────────────────
+
+    /// Builds a config where both `update_prlog` and `label` invocations in
+    /// `update_prlog.yml` pass `min_rust_version`, and the file declares it as
+    /// a pipeline parameter.
+    fn make_config_with_pipeline_param() -> ConsumerConfig {
+        let mut config = ConsumerConfig::default();
+        let mut ci_file = CiFile::default();
+
+        ci_file.orb_aliases.insert(
+            "toolkit".to_string(),
+            OrbRef {
+                org: "jerus-org".to_string(),
+                name: "circleci-toolkit".to_string(),
+                version: "4.8.0".to_string(),
+            },
+        );
+
+        // Declare min_rust_version as a pipeline parameter
+        ci_file
+            .pipeline_parameters
+            .push("min_rust_version".to_string());
+
+        let mut workflow = Workflow::default();
+        workflow.jobs.push(JobInvocation {
+            reference: "toolkit/update_prlog".to_string(),
+            orb_alias: Some("toolkit".to_string()),
+            orb_job: Some("update_prlog".to_string()),
+            parameters: {
+                let mut p = HashMap::new();
+                p.insert(
+                    "min_rust_version".to_string(),
+                    serde_yaml::Value::String("1.85".to_string()),
+                );
+                p
+            },
+            requires: vec![],
+            name_override: Some("update-prlog-on-main".to_string()),
+            location: SourceLocation {
+                file: PathBuf::from("update_prlog.yml"),
+                workflow: "update_prlog".to_string(),
+                job_index: 0,
+            },
+        });
+        workflow.jobs.push(JobInvocation {
+            reference: "toolkit/label".to_string(),
+            orb_alias: Some("toolkit".to_string()),
+            orb_job: Some("label".to_string()),
+            parameters: {
+                let mut p = HashMap::new();
+                p.insert(
+                    "min_rust_version".to_string(),
+                    serde_yaml::Value::String("1.85".to_string()),
+                );
+                p
+            },
+            requires: vec!["update-prlog-on-main".to_string()],
+            name_override: None,
+            location: SourceLocation {
+                file: PathBuf::from("update_prlog.yml"),
+                workflow: "update_prlog".to_string(),
+                job_index: 1,
+            },
+        });
+
+        ci_file
+            .workflows
+            .insert("update_prlog".to_string(), workflow);
+        config
+            .files
+            .insert(PathBuf::from("update_prlog.yml"), ci_file);
+        config
+    }
+
+    #[test]
+    fn test_plan_removes_orphaned_pipeline_param() {
+        let config = make_config_with_pipeline_param();
+        let rules = vec![
+            ConformanceRule::ParameterRemoved {
+                job: "update_prlog".to_string(),
+                parameter: "min_rust_version".to_string(),
+                since_version: "5.0.0".to_string(),
+            },
+            ConformanceRule::ParameterRemoved {
+                job: "label".to_string(),
+                parameter: "min_rust_version".to_string(),
+                since_version: "5.0.0".to_string(),
+            },
+        ];
+        let plan_result = plan(&rules, &config, "toolkit");
+        assert!(
+            plan_result.changes.iter().any(|c| matches!(
+                &c.change_type,
+                ChangeType::RemovePipelineParameter { parameter } if parameter == "min_rust_version"
+            )),
+            "orphaned pipeline parameter should be scheduled for removal"
+        );
+    }
+
+    #[test]
+    fn test_plan_does_not_remove_still_used_pipeline_param() {
+        // Only remove min_rust_version from update_prlog but not from label.
+        // label still uses it, so the declaration must NOT be removed.
+        let config = make_config_with_pipeline_param();
+        let rules = vec![ConformanceRule::ParameterRemoved {
+            job: "update_prlog".to_string(),
+            parameter: "min_rust_version".to_string(),
+            since_version: "5.0.0".to_string(),
+        }];
+        let plan_result = plan(&rules, &config, "toolkit");
+        assert!(
+            !plan_result.changes.iter().any(|c| matches!(
+                &c.change_type,
+                ChangeType::RemovePipelineParameter { parameter } if parameter == "min_rust_version"
+            )),
+            "declaration should NOT be removed when label still uses the param"
+        );
     }
 }

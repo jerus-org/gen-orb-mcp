@@ -84,6 +84,9 @@ pub enum ChangeType {
         /// The parameter name to remove.
         parameter: String,
     },
+    /// Remove a pipeline parameter declaration from the top-level `parameters:`
+    /// block when it is no longer referenced in any remaining job invocation.
+    RemovePipelineParameter { parameter: String },
 }
 
 /// Summary of changes that were actually applied to disk.

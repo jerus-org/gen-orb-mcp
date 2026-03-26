@@ -88,6 +88,9 @@ impl PlannedChange {
             } => {
                 format!("Remove parameter `{parameter}` from `{command_ref}` in job `{job}`")
             }
+            ChangeType::RemovePipelineParameter { parameter } => {
+                format!("Remove orphaned pipeline parameter `{parameter}` from `parameters:` block")
+            }
         }
     }
 }

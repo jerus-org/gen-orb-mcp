@@ -117,6 +117,9 @@ fn apply_single_change(lines: &mut Vec<String>, change: &PlannedChange) -> bool 
             command_ref,
             parameter,
         } => remove_command_parameter(lines, job, command_ref, parameter),
+        ChangeType::RemovePipelineParameter { parameter } => {
+            remove_pipeline_parameter(lines, parameter)
+        }
     }
 }
 
@@ -299,6 +302,48 @@ fn remove_command_parameter(
     };
     lines.drain(param_idx..param_end);
     true
+}
+
+/// Removes a parameter declaration from the top-level `parameters:` block.
+///
+/// Finds `parameters:` at indent 0, then finds `  <parameter>:` (indent 2)
+/// within the block, and removes it along with its indented children.
+fn remove_pipeline_parameter(lines: &mut Vec<String>, parameter: &str) -> bool {
+    // Find top-level `parameters:` (zero indentation)
+    let Some(params_line) = lines
+        .iter()
+        .position(|l| l.trim_end() == "parameters:" && !l.starts_with(' '))
+    else {
+        return false;
+    };
+
+    // Search within the parameters block for `  <parameter>:` (indent 2)
+    let mut i = params_line + 1;
+    while i < lines.len() {
+        let line = &lines[i];
+        if line.trim().is_empty() {
+            i += 1;
+            continue;
+        }
+        // Stop if we've left the parameters block (back to zero indentation)
+        if !line.starts_with(' ') {
+            break;
+        }
+        let indent = leading_spaces(line);
+        let trimmed = line.trim();
+        // Match only direct children of `parameters:` at indent 2
+        if indent == 2
+            && (trimmed == format!("{parameter}:") || trimmed.starts_with(&format!("{parameter}:")))
+        {
+            // Remove this line and all indented children
+            let param_end = find_param_value_end(lines, i + 1, indent);
+            lines.drain(i..param_end);
+            return true;
+        }
+        i += 1;
+    }
+
+    false
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -883,5 +928,48 @@ workflows:
         let change = remove_change("update_prlog", "toolkit/nonexistent");
         let (_, count) = apply_changes_to_lines(&lines, &[&change]);
         assert_eq!(count, 0);
+    }
+
+    const SAMPLE_WITH_PIPELINE_PARAMS: &str = r#"version: 2.1
+parameters:
+  min_rust_version:
+    type: string
+    default: "1.82"
+  update_pcu:
+    type: boolean
+    default: false
+orbs:
+  toolkit: jerus-org/circleci-toolkit@4.7.1
+workflows:
+  update_prlog:
+    jobs:
+      - toolkit/update_prlog:
+          context: [pcu-app]
+          target_branch: "main""#;
+
+    #[test]
+    fn test_remove_pipeline_parameter() {
+        let lines: Vec<&str> = SAMPLE_WITH_PIPELINE_PARAMS.lines().collect();
+        let change = PlannedChange {
+            file: PathBuf::from("test.yml"),
+            description: "test".to_string(),
+            change_type: ChangeType::RemovePipelineParameter {
+                parameter: "min_rust_version".to_string(),
+            },
+            before: String::new(),
+            after: String::new(),
+        };
+        let (new_lines, count) = apply_changes_to_lines(&lines, &[&change]);
+        assert_eq!(count, 1);
+        let output = new_lines.join("\n");
+        assert!(
+            !output.contains("min_rust_version"),
+            "declaration should be removed"
+        );
+        assert!(
+            output.contains("update_pcu:"),
+            "sibling param should remain"
+        );
+        assert!(output.contains("target_branch:"), "job params unaffected");
     }
 }
