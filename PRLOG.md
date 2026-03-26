@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - remove orphaned pipeline param declarations(pr [#81])
+- normalise file_path to filename for config.files lookup(pr [#82])
 
 ## [0.1.7] - 2026-03-25
 
@@ -218,6 +219,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#78]: https://github.com/jerus-org/gen-orb-mcp/pull/78
 [#79]: https://github.com/jerus-org/gen-orb-mcp/pull/79
 [#81]: https://github.com/jerus-org/gen-orb-mcp/pull/81
+[#82]: https://github.com/jerus-org/gen-orb-mcp/pull/82
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.7...HEAD
 [0.1.7]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.5...v0.1.6
