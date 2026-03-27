@@ -99,16 +99,7 @@ pub fn detect_renamed_jobs(
     let mut renamed = HashMap::new();
 
     // Pass 1 — apply authoritative git hints first.
-    let mut covered_by_hint: HashSet<&String> = HashSet::new();
-    for removed_name in removed_names {
-        if let Some(new_name) = git_hints.get(removed_name) {
-            // Only accept the hint if the new job actually exists in the new orb.
-            if new_jobs.contains_key(new_name.as_str()) {
-                renamed.insert(removed_name.clone(), new_name.clone());
-                covered_by_hint.insert(removed_name);
-            }
-        }
-    }
+    let covered_by_hint = apply_git_hints(removed_names, new_jobs, git_hints, &mut renamed);
 
     // Pass 2 — Jaccard fallback for removed jobs not covered by a hint.
     // Only consider new jobs that didn't exist before (truly new, not modified).
@@ -120,33 +111,66 @@ pub fn detect_renamed_jobs(
 
     for removed_name in removed_names {
         if covered_by_hint.contains(removed_name) {
-            continue; // already handled by git hint
+            continue;
         }
         let Some(old_job) = old_jobs.get(removed_name.as_str()) else {
             continue;
         };
         let old_params: HashSet<&str> = old_job.parameters.keys().map(|s| s.as_str()).collect();
-
-        let mut best_match: Option<(&str, f64)> = None;
-
-        for (new_name, new_job) in &added_jobs {
-            let new_params: HashSet<&str> = new_job.parameters.keys().map(|s| s.as_str()).collect();
-            let sim = jaccard_similarity(&old_params, &new_params);
-            if sim >= threshold {
-                match best_match {
-                    None => best_match = Some((new_name, sim)),
-                    Some((_, best_sim)) if sim > best_sim => best_match = Some((new_name, sim)),
-                    _ => {}
-                }
-            }
-        }
-
-        if let Some((new_name, _)) = best_match {
+        if let Some(new_name) = best_jaccard_match(&old_params, &added_jobs, threshold) {
             renamed.insert(removed_name.clone(), new_name.to_string());
         }
     }
 
     renamed
+}
+
+/// Apply git rename hints for removed jobs that have an authoritative hint.
+///
+/// Inserts matching entries into `renamed` and returns the set of removed job
+/// names that were successfully resolved by a hint (so callers can skip them
+/// in the Jaccard fallback pass).
+fn apply_git_hints<'a>(
+    removed_names: &'a HashSet<String>,
+    new_jobs: &HashMap<String, &Job>,
+    git_hints: &HashMap<String, String>,
+    renamed: &mut HashMap<String, String>,
+) -> HashSet<&'a String> {
+    let mut covered = HashSet::new();
+    for removed_name in removed_names {
+        if let Some(new_name) = git_hints.get(removed_name) {
+            // Only accept the hint if the new job actually exists in the new orb.
+            if new_jobs.contains_key(new_name.as_str()) {
+                renamed.insert(removed_name.clone(), new_name.clone());
+                covered.insert(removed_name);
+            }
+        }
+    }
+    covered
+}
+
+/// Find the best Jaccard similarity match for `old_params` among `added_jobs`.
+///
+/// Returns the job name of the best match if its similarity meets `threshold`,
+/// or `None` if no candidate qualifies.
+fn best_jaccard_match<'a>(
+    old_params: &HashSet<&str>,
+    added_jobs: &HashMap<&'a str, &Job>,
+    threshold: f64,
+) -> Option<&'a str> {
+    let mut best: Option<(&str, f64)> = None;
+    for (new_name, new_job) in added_jobs {
+        let new_params: HashSet<&str> = new_job.parameters.keys().map(|s| s.as_str()).collect();
+        let sim = jaccard_similarity(old_params, &new_params);
+        if sim >= threshold {
+            match best {
+                None => best = Some((new_name, sim)),
+                Some((_, best_sim)) if sim > best_sim => best = Some((new_name, sim)),
+                _ => {}
+            }
+        }
+    }
+    best.map(|(name, _)| name)
 }
 
 /// Detects `CommandRenamed` cases using parameter-set fuzzy matching.
