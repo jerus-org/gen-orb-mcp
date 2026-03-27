@@ -66,11 +66,29 @@ pub fn diff(
     OrbDiffer::new(old, new_orb, since_version).diff()
 }
 
+/// Like [`diff`] but accepts authoritative git rename hints.
+///
+/// `job_rename_hints` maps old job file stem → new job file stem (both without
+/// `.yml` extension), derived from `git log --diff-filter=R --name-status`
+/// between the two version tags.
+pub fn diff_with_hints(
+    old: &OrbDefinition,
+    new_orb: &OrbDefinition,
+    since_version: &str,
+    job_rename_hints: HashMap<String, String>,
+) -> Vec<ConformanceRule> {
+    OrbDiffer::new(old, new_orb, since_version)
+        .with_job_rename_hints(job_rename_hints)
+        .diff()
+}
+
 /// Computes conformance rules between two orb versions.
 pub struct OrbDiffer<'a> {
     old: &'a OrbDefinition,
     new: &'a OrbDefinition,
     since_version: String,
+    /// Authoritative job rename hints from git history (old name → new name).
+    job_rename_hints: HashMap<String, String>,
 }
 
 impl<'a> OrbDiffer<'a> {
@@ -80,7 +98,14 @@ impl<'a> OrbDiffer<'a> {
             old,
             new: new_orb,
             since_version: since_version.to_string(),
+            job_rename_hints: HashMap::new(),
         }
+    }
+
+    /// Set authoritative job rename hints derived from git file rename history.
+    pub fn with_job_rename_hints(mut self, hints: HashMap<String, String>) -> Self {
+        self.job_rename_hints = hints;
+        self
     }
 
     /// Runs all detection passes and returns the combined conformance rules.
@@ -100,7 +125,13 @@ impl<'a> OrbDiffer<'a> {
         self.emit_absorbed(&absorbed, rules);
 
         let unaccounted = subtract_keys(&removed_names, absorbed.keys());
-        let renamed = detect_renamed_jobs(&unaccounted, &new_jobs, &old_jobs, RENAME_THRESHOLD);
+        let renamed = detect_renamed_jobs(
+            &unaccounted,
+            &new_jobs,
+            &old_jobs,
+            RENAME_THRESHOLD,
+            &self.job_rename_hints,
+        );
         self.emit_renamed_jobs(&renamed, rules);
 
         let still_unaccounted = subtract_keys(&unaccounted, renamed.keys());
