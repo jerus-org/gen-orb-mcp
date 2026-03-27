@@ -11,6 +11,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use chrono::{Datelike, NaiveDate};
 
+use std::collections::HashMap;
+
 use crate::{
     conformance_rule::ConformanceRule,
     differ,
@@ -169,6 +171,101 @@ pub fn migration_needed(dir: &Path, version: &str) -> bool {
 /// Returns an empty `Vec` when the orbs are structurally identical.
 pub fn compute_diff(old: &OrbDefinition, new: &OrbDefinition, since: &str) -> Vec<ConformanceRule> {
     differ::diff(old, new, since)
+}
+
+/// Compute conformance rules using authoritative git rename hints.
+///
+/// `job_rename_hints` maps old job name → new job name as derived from
+/// `git_rename_hints_for_jobs`.
+pub fn compute_diff_with_hints(
+    old: &OrbDefinition,
+    new: &OrbDefinition,
+    since: &str,
+    job_rename_hints: HashMap<String, String>,
+) -> Vec<ConformanceRule> {
+    differ::diff_with_hints(old, new, since, job_rename_hints)
+}
+
+/// Extract job file rename pairs from git history between two version tags.
+///
+/// Runs `git log <old_tag>..<new_tag> --diff-filter=R --name-status`
+/// restricted to `src/jobs/*.yml` and returns a map of
+/// `old_job_name → new_job_name` (file stems, without `.yml`).
+///
+/// Returns an empty map on any error (callers fall back to Jaccard).
+pub fn git_rename_hints_for_jobs(
+    git_repo: &Path,
+    tag_prefix: &str,
+    prev_version: &str,
+    curr_version: &str,
+) -> HashMap<String, String> {
+    let old_tag = format!("{}{}", tag_prefix, prev_version);
+    let new_tag = format!("{}{}", tag_prefix, curr_version);
+    let range = format!("{}..{}", old_tag, new_tag);
+
+    let output = std::process::Command::new("git")
+        .args([
+            "-C",
+            git_repo.to_str().unwrap_or("."),
+            "log",
+            &range,
+            "--diff-filter=R",
+            "--name-status",
+            "--",
+            "src/jobs/*.yml",
+            "src/commands/*.yml",
+        ])
+        .output();
+
+    let output = match output {
+        Ok(o) if o.status.success() => o,
+        Ok(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr);
+            tracing::warn!(prev = prev_version, curr = curr_version, stderr = %stderr, "git log for rename hints failed");
+            return HashMap::new();
+        }
+        Err(e) => {
+            tracing::warn!(prev = prev_version, curr = curr_version, error = %e, "Failed to run git log for rename hints");
+            return HashMap::new();
+        }
+    };
+
+    parse_rename_hints_output(&String::from_utf8_lossy(&output.stdout))
+}
+
+/// Parse the output of `git log --diff-filter=R --name-status` into a map of
+/// old job name → new job name.
+///
+/// Each rename appears as a line like: `R100\tsrc/jobs/old.yml\tsrc/jobs/new.yml`
+pub fn parse_rename_hints_output(output: &str) -> HashMap<String, String> {
+    let mut hints = HashMap::new();
+    for line in output.lines() {
+        let line = line.trim();
+        // Skip non-rename lines (commit messages, blank lines, etc.)
+        if !line.starts_with('R') {
+            continue;
+        }
+        let parts: Vec<&str> = line.splitn(3, '\t').collect();
+        if parts.len() != 3 {
+            continue;
+        }
+        // Extract file stem (job name) from path like "src/jobs/old_name.yml"
+        let old_stem = file_stem_from_path(parts[1]);
+        let new_stem = file_stem_from_path(parts[2]);
+        if !old_stem.is_empty() && !new_stem.is_empty() {
+            hints.insert(old_stem, new_stem);
+        }
+    }
+    hints
+}
+
+/// Extract the file stem (name without directory and `.yml` extension).
+fn file_stem_from_path(path: &str) -> String {
+    let path = std::path::Path::new(path.trim());
+    path.file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_string()
 }
 
 /// Serialise an `OrbDefinition` to YAML for storage as a snapshot file.
@@ -428,7 +525,14 @@ fn write_migration_if_nonempty(config: &PrimeConfig, prev: &str, curr: &str) -> 
         .map_err(|e| anyhow::anyhow!("Failed to parse {}: {}", prev_path.display(), e))?;
     let new_orb = OrbParser::parse(&curr_path)
         .map_err(|e| anyhow::anyhow!("Failed to parse {}: {}", curr_path.display(), e))?;
-    let rules = compute_diff(&old_orb, &new_orb, curr);
+
+    // Fetch authoritative job rename hints from git history between the two tags.
+    let hints = git_rename_hints_for_jobs(&config.git_repo, &config.tag_prefix, prev, curr);
+    if !hints.is_empty() {
+        tracing::debug!(prev, curr, hints = ?hints, "Using git rename hints for migration diff");
+    }
+
+    let rules = compute_diff_with_hints(&old_orb, &new_orb, curr, hints);
     if rules.is_empty() {
         tracing::debug!(version = %curr, "No migration rules (orbs identical in structure)");
         return Ok(0);
@@ -764,7 +868,35 @@ mod tests {
         );
     }
 
-    // ── Tests 11-15: CLI parsing (in lib.rs) ─────────────────────────────────
+    // ── Test 11: parse_rename_hints_output ───────────────────────────────────
+    #[test]
+    fn test_parse_rename_hints_output() {
+        let output = "R100\tsrc/jobs/required_builds_rolling.yml\tsrc/jobs/required_builds.yml\n\
+                      R100\tsrc/jobs/common_tests_rolling.yml\tsrc/jobs/common_tests.yml\n\
+                      M\tsrc/jobs/other.yml\n\
+                      \n\
+                      commit abc123\n";
+        let hints = parse_rename_hints_output(output);
+        assert_eq!(
+            hints.get("required_builds_rolling"),
+            Some(&"required_builds".to_string())
+        );
+        assert_eq!(
+            hints.get("common_tests_rolling"),
+            Some(&"common_tests".to_string())
+        );
+        // Non-rename lines must not appear in output
+        assert!(!hints.contains_key("other"), "M-lines must be ignored");
+        assert_eq!(hints.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_rename_hints_output_empty() {
+        let hints = parse_rename_hints_output("");
+        assert!(hints.is_empty());
+    }
+
+    // ── Tests 12-15: CLI parsing (in lib.rs) ─────────────────────────────────
     // These are defined in lib.rs in the tests module for the Prime command
     // variant.
 
