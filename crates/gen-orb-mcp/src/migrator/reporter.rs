@@ -106,6 +106,13 @@ impl PlannedChange {
             } => {
                 format!("Update `requires: {old_req}` → `{new_req}` in `{job_ref}` in `{workflow}`")
             }
+            ChangeType::RemoveRequiresEntry {
+                workflow,
+                job_ref,
+                entry_name,
+            } => {
+                format!("Remove dangling `requires: {entry_name}` from `{job_ref}` in `{workflow}`")
+            }
         }
     }
 }

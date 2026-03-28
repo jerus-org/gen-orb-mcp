@@ -102,6 +102,13 @@ pub enum ChangeType {
         old_req: String,
         new_req: String,
     },
+    /// Remove a specific entry from a job invocation's `requires:` list.
+    RemoveRequiresEntry {
+        workflow: String,
+        /// The effective name of the job whose requires list is being updated.
+        job_ref: String,
+        entry_name: String,
+    },
 }
 
 /// Summary of changes that were actually applied to disk.

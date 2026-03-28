@@ -131,6 +131,11 @@ fn apply_single_change(lines: &mut Vec<String>, change: &PlannedChange) -> bool 
             old_req,
             new_req,
         } => update_requires_entry(lines, workflow, job_ref, old_req, new_req),
+        ChangeType::RemoveRequiresEntry {
+            workflow,
+            job_ref,
+            entry_name,
+        } => remove_requires_entry(lines, workflow, job_ref, entry_name),
     }
 }
 
@@ -381,24 +386,12 @@ fn update_requires_entry(
     };
     let job_indent = leading_spaces(&lines[job_start]);
     let job_end = find_block_end(lines, job_start + 1, job_indent);
-
-    // Find `requires:` within the job block
-    let requires_idx = lines
-        .iter()
-        .enumerate()
-        .skip(job_start + 1)
-        .take(job_end - job_start - 1)
-        .find(|(_, l)| l.trim() == "requires:")
-        .map(|(i, _)| i);
-    let Some(requires_idx) = requires_idx else {
+    let Some(requires_idx) = find_requires_block(lines, job_start, job_end) else {
         return false;
     };
-
     let requires_indent = leading_spaces(&lines[requires_idx]);
     let old_entry = format!("- {old_req}");
     let new_entry = format!("- {new_req}");
-
-    // Search for `- old_req` within the requires block
     let mut i = requires_idx + 1;
     while i < lines.len() {
         let line = &lines[i];
@@ -406,12 +399,10 @@ fn update_requires_entry(
             i += 1;
             continue;
         }
-        // Stop when we've left the requires block
         if leading_spaces(line) <= requires_indent {
             break;
         }
         if line.trim() == old_entry {
-            // Replace only the entry text, preserving indentation
             let entry_indent = leading_spaces(line);
             lines[i] = format!("{}{}", " ".repeat(entry_indent), new_entry);
             return true;
@@ -419,6 +410,56 @@ fn update_requires_entry(
         i += 1;
     }
     false
+}
+
+/// Removes a specific entry from a job invocation's `requires:` list.
+fn remove_requires_entry(
+    lines: &mut Vec<String>,
+    workflow: &str,
+    job_ref: &str,
+    entry_name: &str,
+) -> bool {
+    let Some(workflow_start) = find_workflow_section(lines, workflow) else {
+        return false;
+    };
+    let Some(job_start) = find_job_line(lines, workflow_start, job_ref) else {
+        return false;
+    };
+    let job_indent = leading_spaces(&lines[job_start]);
+    let job_end = find_block_end(lines, job_start + 1, job_indent);
+    let Some(requires_idx) = find_requires_block(lines, job_start, job_end) else {
+        return false;
+    };
+    let requires_indent = leading_spaces(&lines[requires_idx]);
+    let target_entry = format!("- {entry_name}");
+    let mut i = requires_idx + 1;
+    while i < lines.len() {
+        let line = &lines[i];
+        if line.trim().is_empty() {
+            i += 1;
+            continue;
+        }
+        if leading_spaces(line) <= requires_indent {
+            break;
+        }
+        if line.trim() == target_entry {
+            lines.remove(i);
+            return true;
+        }
+        i += 1;
+    }
+    false
+}
+
+/// Finds the index of the `requires:` line within a job's parameter block.
+fn find_requires_block(lines: &[String], job_start: usize, job_end: usize) -> Option<usize> {
+    lines
+        .iter()
+        .enumerate()
+        .skip(job_start + 1)
+        .take(job_end - job_start - 1)
+        .find(|(_, l)| l.trim() == "requires:")
+        .map(|(i, _)| i)
 }
 
 fn remove_pipeline_parameter(lines: &mut Vec<String>, parameter: &str) -> bool {
@@ -1107,12 +1148,10 @@ workflows:
         let (new_lines, count) = apply_changes_to_lines(&lines, &[&change]);
         assert_eq!(count, 1);
         let output = new_lines.join("\n");
-        // Job line must NOT have a trailing colon when all params are removed
         assert!(
             output.contains("- toolkit/test_doc_build\n"),
             "job line should have no trailing colon when last param removed, got:\n{output}"
         );
-        // Sibling job with remaining params should be untouched
         assert!(
             output.contains("other_param: value"),
             "sibling job must be untouched"
@@ -1176,6 +1215,59 @@ workflows:
         assert!(
             output.contains("security with sonarcloud"),
             "other requires entry must remain"
+        );
+    }
+
+    // ── Fix #92: Dangling requires cleanup after job removal ────────────────
+
+    fn remove_requires_change(workflow: &str, job_ref: &str, entry_name: &str) -> PlannedChange {
+        PlannedChange {
+            file: PathBuf::from("test.yml"),
+            description: "test".to_string(),
+            change_type: ChangeType::RemoveRequiresEntry {
+                workflow: workflow.to_string(),
+                job_ref: job_ref.to_string(),
+                entry_name: entry_name.to_string(),
+            },
+            before: String::new(),
+            after: String::new(),
+        }
+    }
+
+    #[test]
+    fn test_remove_requires_entry() {
+        const YAML: &str = r#"version: 2.1
+orbs:
+  toolkit: digital-prstv/circleci-toolkit@5.3.10
+workflows:
+  execute:
+    jobs:
+      - toolkit/run_data_retention_rules:
+          execute: true
+          context: [cull-gmail]
+          requires:
+            - toolkit/no_unreleased_changes
+            - other-job"#;
+        let lines: Vec<&str> = YAML.lines().collect();
+        let change = remove_requires_change(
+            "execute",
+            "toolkit/run_data_retention_rules",
+            "toolkit/no_unreleased_changes",
+        );
+        let (new_lines, count) = apply_changes_to_lines(&lines, &[&change]);
+        assert_eq!(count, 1);
+        let output = new_lines.join("\n");
+        assert!(
+            !output.contains("toolkit/no_unreleased_changes"),
+            "requires entry should be removed"
+        );
+        assert!(
+            output.contains("other-job"),
+            "other requires entry must remain"
+        );
+        assert!(
+            output.contains("toolkit/run_data_retention_rules"),
+            "job itself must remain"
         );
     }
 }

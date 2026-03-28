@@ -165,6 +165,7 @@ fn plan_job_removed(
         for (workflow_name, workflow) in &ci_file.workflows {
             for inv in &workflow.jobs {
                 if inv.matches(orb_alias, job_name) {
+                    let removed_effective = inv.effective_name().to_string();
                     changes.push(PlannedChange {
                         file: inv.location.file.clone(),
                         description: format!(
@@ -172,11 +173,38 @@ fn plan_job_removed(
                         ),
                         change_type: ChangeType::RemoveJobInvocation {
                             workflow: workflow_name.clone(),
-                            job_ref: inv.effective_name().to_string(),
+                            job_ref: removed_effective.clone(),
                         },
                         before: format!("- {orb_alias}/{job_name}"),
                         after: String::new(),
                     });
+
+                    // Emit RemoveRequiresEntry for any other jobs that list
+                    // the removed job's effective name in their requires.
+                    for other_inv in &workflow.jobs {
+                        if std::ptr::eq(other_inv, inv) {
+                            continue;
+                        }
+                        for req in &other_inv.requires {
+                            if req == &removed_effective {
+                                changes.push(PlannedChange {
+                                    file: other_inv.location.file.clone(),
+                                    description: format!(
+                                        "Remove dangling `requires: {removed_effective}` from \
+                                         job `{}`",
+                                        other_inv.effective_name()
+                                    ),
+                                    change_type: ChangeType::RemoveRequiresEntry {
+                                        workflow: workflow_name.clone(),
+                                        job_ref: other_inv.effective_name().to_string(),
+                                        entry_name: removed_effective.clone(),
+                                    },
+                                    before: format!("- {removed_effective}"),
+                                    after: String::new(),
+                                });
+                            }
+                        }
+                    }
                 }
             }
         }
