@@ -136,6 +136,12 @@ fn apply_single_change(lines: &mut Vec<String>, change: &PlannedChange) -> bool 
             job_ref,
             entry_name,
         } => remove_requires_entry(lines, workflow, job_ref, entry_name),
+        ChangeType::RenameParameter {
+            workflow,
+            job_ref,
+            from,
+            to,
+        } => rename_parameter(lines, workflow, job_ref, from, to),
     }
 }
 
@@ -445,6 +451,43 @@ fn find_requires_block(lines: &[String], job_start: usize, job_end: usize) -> Op
         .take(job_end - job_start - 1)
         .find(|(_, l)| l.trim() == "requires:")
         .map(|(i, _)| i)
+}
+
+/// Renames a parameter key in a job invocation, preserving its value.
+fn rename_parameter(
+    lines: &mut [String],
+    workflow: &str,
+    job_ref: &str,
+    from: &str,
+    to: &str,
+) -> bool {
+    let Some(workflow_start) = find_workflow_section(lines, workflow) else {
+        return false;
+    };
+    let Some(job_start) = find_job_line(lines, workflow_start, job_ref) else {
+        return false;
+    };
+    let job_indent = leading_spaces(&lines[job_start]);
+    let job_end = find_block_end(lines, job_start + 1, job_indent);
+
+    let Some(param_idx) = find_param_line(lines, job_start, job_end, from) else {
+        return false;
+    };
+
+    // Replace the parameter key prefix, preserving the rest of the line
+    // (everything from the colon onwards).
+    //
+    // Line looks like: `          from: value`
+    // We want:         `          to: value`
+    let line = &lines[param_idx];
+    let from_prefix = format!("{from}:");
+    if let Some(colon_pos) = line.find(&from_prefix) {
+        let indent = &line[..colon_pos];
+        let rest = &line[colon_pos + from_prefix.len()..]; // everything after `from:`
+        lines[param_idx] = format!("{indent}{to}:{rest}");
+        return true;
+    }
+    false
 }
 
 fn remove_pipeline_parameter(lines: &mut Vec<String>, parameter: &str) -> bool {
@@ -1253,6 +1296,59 @@ workflows:
         assert!(
             output.contains("toolkit/run_data_retention_rules"),
             "job itself must remain"
+        );
+    }
+
+    // ── Fix #95: ParameterRenamed conformance rule ──────────────────────────
+
+    fn rename_param_change(workflow: &str, job_ref: &str, from: &str, to: &str) -> PlannedChange {
+        PlannedChange {
+            file: PathBuf::from("test.yml"),
+            description: "test".to_string(),
+            change_type: ChangeType::RenameParameter {
+                workflow: workflow.to_string(),
+                job_ref: job_ref.to_string(),
+                from: from.to_string(),
+                to: to.to_string(),
+            },
+            before: String::new(),
+            after: String::new(),
+        }
+    }
+
+    #[test]
+    fn test_rename_parameter() {
+        const YAML: &str = r#"version: 2.1
+orbs:
+  toolkit: jerus-org/circleci-toolkit@6.0.0
+workflows:
+  validation:
+    jobs:
+      - toolkit/test_features:
+          name: test-unique
+          min_rust_version: "1.85"
+          cargo_args: --package mockd --features unique"#;
+        let lines: Vec<&str> = YAML.lines().collect();
+        let change = rename_param_change(
+            "validation",
+            "test-unique",
+            "min_rust_version",
+            "rust_version",
+        );
+        let (new_lines, count) = apply_changes_to_lines(&lines, &[&change]);
+        assert_eq!(count, 1);
+        let output = new_lines.join("\n");
+        assert!(
+            output.contains("rust_version: \"1.85\""),
+            "parameter should be renamed with value preserved"
+        );
+        assert!(
+            !output.contains("min_rust_version"),
+            "old parameter name should be gone"
+        );
+        assert!(
+            output.contains("cargo_args:"),
+            "other params should be untouched"
         );
     }
 }

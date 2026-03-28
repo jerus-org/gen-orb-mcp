@@ -109,6 +109,19 @@ pub enum ConformanceRule {
         since_version: String,
     },
 
+    /// A parameter was renamed in a job (old name removed, new name added with
+    /// the same value).
+    ParameterRenamed {
+        /// The job whose parameter was renamed.
+        job: String,
+        /// The old parameter name.
+        from: String,
+        /// The new parameter name.
+        to: String,
+        /// The version in which this rename occurred.
+        since_version: String,
+    },
+
     /// A parameter was removed from a reusable command.
     CommandParameterRemoved {
         /// The command from which the parameter was removed.
@@ -147,6 +160,7 @@ impl ConformanceRule {
             ConformanceRule::CommandRenamed { since_version, .. } => since_version,
             ConformanceRule::CommandParameterRemoved { since_version, .. } => since_version,
             ConformanceRule::CommandParameterAdded { since_version, .. } => since_version,
+            ConformanceRule::ParameterRenamed { since_version, .. } => since_version,
         }
     }
 
@@ -238,6 +252,16 @@ impl ConformanceRule {
                 format!(
                     "Mandatory parameter `{parameter}` was added to command `{command}` in \
                      {since_version}; all invocations must supply it"
+                )
+            }
+            ConformanceRule::ParameterRenamed {
+                job,
+                from,
+                to,
+                since_version,
+            } => {
+                format!(
+                    "Parameter `{from}` was renamed to `{to}` in job `{job}` in {since_version}"
                 )
             }
         }
@@ -362,5 +386,22 @@ mod tests {
         for rule in &rules {
             assert!(!rule.description().is_empty());
         }
+    }
+
+    // ── Fix #95: ParameterRenamed round-trip ────────────────────────────────
+
+    #[test]
+    fn test_parameter_renamed_round_trip() {
+        let rule = ConformanceRule::ParameterRenamed {
+            job: "test_features".to_string(),
+            from: "min_rust_version".to_string(),
+            to: "rust_version".to_string(),
+            since_version: "6.0.0".to_string(),
+        };
+        let json = serde_json::to_string(&rule).unwrap();
+        let back: ConformanceRule = serde_json::from_str(&json).unwrap();
+        assert_eq!(rule, back);
+        assert_eq!(rule.since_version(), "6.0.0");
+        assert!(!rule.description().is_empty());
     }
 }

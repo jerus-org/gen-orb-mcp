@@ -152,6 +152,9 @@ fn apply_rule(
             // Cannot auto-apply: value for new mandatory command parameter is
             // context-dependent. The MCP tool layer advises the user to add it.
         }
+        ConformanceRule::ParameterRenamed { job, from, to, .. } => {
+            plan_parameter_renamed(config, orb_alias, job, from, to, changes);
+        }
     }
 }
 
@@ -382,6 +385,38 @@ fn plan_parameter_removed(
                         },
                         before: format!("{parameter}: <value>"),
                         after: String::new(),
+                    });
+                }
+            }
+        }
+    }
+}
+
+fn plan_parameter_renamed(
+    config: &ConsumerConfig,
+    orb_alias: &str,
+    job_name: &str,
+    from: &str,
+    to: &str,
+    changes: &mut Vec<PlannedChange>,
+) {
+    for ci_file in config.files.values() {
+        for (workflow_name, workflow) in &ci_file.workflows {
+            for inv in &workflow.jobs {
+                if inv.matches(orb_alias, job_name) && inv.parameters.contains_key(from) {
+                    changes.push(PlannedChange {
+                        file: inv.location.file.clone(),
+                        description: format!(
+                            "Rename parameter `{from}` → `{to}` in `{orb_alias}/{job_name}`"
+                        ),
+                        change_type: ChangeType::RenameParameter {
+                            workflow: workflow_name.clone(),
+                            job_ref: inv.effective_name().to_string(),
+                            from: from.to_string(),
+                            to: to.to_string(),
+                        },
+                        before: format!("{from}: <value>"),
+                        after: format!("{to}: <value>"),
                     });
                 }
             }

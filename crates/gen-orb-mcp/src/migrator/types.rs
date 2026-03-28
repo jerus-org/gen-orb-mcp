@@ -109,6 +109,13 @@ pub enum ChangeType {
         job_ref: String,
         entry_name: String,
     },
+    /// Rename a parameter key in a job invocation, preserving its value.
+    RenameParameter {
+        workflow: String,
+        job_ref: String,
+        from: String,
+        to: String,
+    },
 }
 
 /// Summary of changes that were actually applied to disk.
