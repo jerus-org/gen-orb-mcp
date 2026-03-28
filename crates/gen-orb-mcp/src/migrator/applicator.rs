@@ -205,7 +205,29 @@ fn remove_parameter(
         param_idx + 1
     };
     lines.drain(param_idx..param_end);
+
+    // Fix #93: if the job line ends with `:` and now has no children,
+    // strip the trailing colon to produce valid YAML.
+    if lines[job_start].trim_end().ends_with(':')
+        && !has_children_after(lines, job_start, job_indent)
+    {
+        let trimmed = lines[job_start].trim_end_matches(':').to_string();
+        lines[job_start] = trimmed;
+    }
+
     true
+}
+
+/// Returns `true` if any non-blank line after `after` has indentation greater
+/// than `parent_indent`.
+fn has_children_after(lines: &[String], after: usize, parent_indent: usize) -> bool {
+    for line in lines.iter().skip(after + 1) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        return leading_spaces(line) > parent_indent;
+    }
+    false
 }
 
 /// Replaces the value of a parameter in a job invocation.
@@ -1000,5 +1022,38 @@ workflows:
             "sibling param should remain"
         );
         assert!(output.contains("target_branch:"), "job params unaffected");
+    }
+
+    // ── Fix #93: Bare mapping key after last parameter removal ──────────────
+
+    #[test]
+    fn test_remove_last_parameter_strips_trailing_colon() {
+        const YAML: &str = r#"version: 2.1
+orbs:
+  toolkit: jerus-org/circleci-toolkit@4.9.5
+workflows:
+  validation:
+    jobs:
+      - toolkit/test_doc_build:
+          min_rust_version: "1.85"
+      - toolkit/required_builds:
+          min_rust_version: "1.85"
+          other_param: value"#;
+        let lines: Vec<&str> = YAML.lines().collect();
+        let change =
+            remove_param_change("validation", "toolkit/test_doc_build", "min_rust_version");
+        let (new_lines, count) = apply_changes_to_lines(&lines, &[&change]);
+        assert_eq!(count, 1);
+        let output = new_lines.join("\n");
+        // Job line must NOT have a trailing colon when all params are removed
+        assert!(
+            output.contains("- toolkit/test_doc_build\n"),
+            "job line should have no trailing colon when last param removed, got:\n{output}"
+        );
+        // Sibling job with remaining params should be untouched
+        assert!(
+            output.contains("other_param: value"),
+            "sibling job must be untouched"
+        );
     }
 }
