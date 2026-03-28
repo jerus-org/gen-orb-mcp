@@ -113,6 +113,14 @@ impl PlannedChange {
             } => {
                 format!("Remove dangling `requires: {entry_name}` from `{job_ref}` in `{workflow}`")
             }
+            ChangeType::RenameParameter {
+                workflow,
+                job_ref,
+                from,
+                to,
+            } => {
+                format!("Rename parameter `{from}` → `{to}` in `{job_ref}` in `{workflow}`")
+            }
         }
     }
 }
