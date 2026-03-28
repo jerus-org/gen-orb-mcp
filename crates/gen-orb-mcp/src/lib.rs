@@ -180,6 +180,14 @@ enum Commands {
         #[arg(long)]
         ephemeral: bool,
 
+        /// Override git rename detection for a specific job (repeatable).
+        /// Format: `OLD=NEW`, e.g. `--rename-map common_tests_rolling=common_tests`.
+        /// Manual entries take precedence over git-detected hints for matching
+        /// old names.  Use this when commits cannot be restructured to follow
+        /// the two-commit rename rule.
+        #[arg(long, value_name = "OLD=NEW")]
+        rename_map: Vec<String>,
+
         /// Describe actions without writing any files
         #[arg(long)]
         dry_run: bool,
@@ -250,6 +258,7 @@ impl Cli {
                 since,
                 prior_versions_dir,
                 migrations_dir,
+                rename_map,
                 ephemeral,
                 dry_run,
             } => run_prime(
@@ -260,6 +269,7 @@ impl Cli {
                 since.as_deref(),
                 prior_versions_dir,
                 migrations_dir,
+                rename_map,
                 *ephemeral,
                 *dry_run,
             ),
@@ -522,6 +532,7 @@ fn run_prime(
     since: Option<&str>,
     prior_versions_dir: &std::path::Path,
     migrations_dir: &std::path::Path,
+    rename_map: &[String],
     ephemeral: bool,
     dry_run: bool,
 ) -> Result<()> {
@@ -592,6 +603,21 @@ fn run_prime(
 
     tracing::info!(count = window_versions.len(), "Versions in window");
 
+    // Parse --rename-map OLD=NEW entries into (from, to) pairs.
+    let extra_rename_hints: Vec<(String, String)> = rename_map
+        .iter()
+        .filter_map(|entry| {
+            let mut parts = entry.splitn(2, '=');
+            let from = parts.next()?.trim().to_string();
+            let to = parts.next()?.trim().to_string();
+            if from.is_empty() || to.is_empty() {
+                tracing::warn!(entry, "--rename-map entry is malformed; skipping");
+                return None;
+            }
+            Some((from, to))
+        })
+        .collect();
+
     let config = PrimeConfig {
         git_repo: repo_path,
         tag_prefix: tag_prefix.to_string(),
@@ -599,6 +625,7 @@ fn run_prime(
         prior_versions_dir: pv_dir.clone(),
         migrations_dir: mig_dir.clone(),
         dry_run,
+        extra_rename_hints,
     };
 
     let result = primer::prime(&config, &window_versions)?;
@@ -902,6 +929,7 @@ mod tests {
             since,
             prior_versions_dir,
             migrations_dir,
+            rename_map,
             ephemeral,
             dry_run,
             git_repo,
@@ -913,6 +941,7 @@ mod tests {
             assert!(since.is_none());
             assert_eq!(prior_versions_dir.to_str().unwrap(), "prior-versions");
             assert_eq!(migrations_dir.to_str().unwrap(), "migrations");
+            assert!(rename_map.is_empty());
             assert!(!ephemeral);
             assert!(!dry_run);
             assert!(git_repo.is_none());
@@ -961,6 +990,26 @@ mod tests {
             cli.is_err(),
             "prime with both --earliest-version and --since should be rejected"
         );
+    }
+
+    #[test]
+    fn test_cli_parse_prime_rename_map() {
+        let cli = Cli::try_parse_from([
+            "gen-orb-mcp",
+            "prime",
+            "--rename-map",
+            "common_tests_rolling=common_tests",
+            "--rename-map",
+            "required_builds_rolling=required_builds",
+        ]);
+        assert!(cli.is_ok(), "prime --rename-map should parse");
+        if let Commands::Prime { rename_map, .. } = cli.unwrap().command {
+            assert_eq!(rename_map.len(), 2);
+            assert!(rename_map.contains(&"common_tests_rolling=common_tests".to_string()));
+            assert!(rename_map.contains(&"required_builds_rolling=required_builds".to_string()));
+        } else {
+            panic!("expected Prime variant");
+        }
     }
 
     #[test]

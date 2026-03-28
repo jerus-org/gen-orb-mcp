@@ -108,11 +108,12 @@ commit is fine: git detects the pair without ambiguity.
 
 ---
 
-## Escape hatch: `--rename-map` (see issue #89)
+## Escape hatch: `--rename-map`
 
 When the commits cannot be restructured (e.g. history already pushed and
-tagged), `prime` will support a `--rename-map OLD=NEW` flag that injects
-authoritative hints directly, bypassing git detection:
+tagged), use the `--rename-map OLD=NEW` flag to inject authoritative hints
+directly, bypassing git detection.  Manual entries take precedence over any
+git-detected hint for the same old name.
 
 ```bash
 gen-orb-mcp prime \
@@ -125,8 +126,9 @@ gen-orb-mcp prime \
   --rename-map "required_builds_rolling=required_builds"
 ```
 
-Until that feature ships, incorrect migration rules must be corrected manually
-in the generated JSON files before committing them to the repository.
+The flag is repeatable; supply one `--rename-map` entry per rename pair.
+Without this flag, incorrect migration rules must be corrected manually in the
+generated JSON files before committing them to the repository.
 
 ---
 
@@ -161,4 +163,4 @@ generated rule needs manual correction (or a `--rename-map` override).
 | Simple rename: `foo → bar` | Single commit OK | Correct `JobRenamed` generated |
 | Family swap: `foo → foo_pinned`, `foo_rolling → foo` | **Two commits required** | Correct rules generated |
 | Family swap in one commit | Single commit | Wrong target (`→ foo_pinned`); needs manual fix or `--rename-map` |
-| Already released, history fixed | N/A | Use `--rename-map` override (issue #89) |
+| Already released, history fixed | N/A | Use `--rename-map` override |

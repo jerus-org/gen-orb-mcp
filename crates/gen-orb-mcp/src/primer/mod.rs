@@ -34,6 +34,9 @@ pub struct PrimeConfig {
     pub prior_versions_dir: PathBuf,
     pub migrations_dir: PathBuf,
     pub dry_run: bool,
+    /// Manual rename-map overrides (`OLD → NEW`) injected via `--rename-map`.
+    /// These take precedence over git-detected rename hints for matching keys.
+    pub extra_rename_hints: Vec<(String, String)>,
 }
 
 /// Result of a prime operation.
@@ -171,6 +174,20 @@ pub fn migration_needed(dir: &Path, version: &str) -> bool {
 /// Returns an empty `Vec` when the orbs are structurally identical.
 pub fn compute_diff(old: &OrbDefinition, new: &OrbDefinition, since: &str) -> Vec<ConformanceRule> {
     differ::diff(old, new, since)
+}
+
+/// Merge git-detected rename hints with manually supplied overrides.
+///
+/// Manual entries (from `--rename-map`) take precedence: they are inserted
+/// last and overwrite any conflicting git-detected entry for the same old name.
+pub fn merge_rename_hints(
+    mut git_hints: HashMap<String, String>,
+    manual: &[(String, String)],
+) -> HashMap<String, String> {
+    for (from, to) in manual {
+        git_hints.insert(from.clone(), to.clone());
+    }
+    git_hints
 }
 
 /// Compute conformance rules using authoritative git rename hints.
@@ -526,10 +543,12 @@ fn write_migration_if_nonempty(config: &PrimeConfig, prev: &str, curr: &str) -> 
     let new_orb = OrbParser::parse(&curr_path)
         .map_err(|e| anyhow::anyhow!("Failed to parse {}: {}", curr_path.display(), e))?;
 
-    // Fetch authoritative job rename hints from git history between the two tags.
-    let hints = git_rename_hints_for_jobs(&config.git_repo, &config.tag_prefix, prev, curr);
+    // Fetch authoritative job rename hints from git history between the two tags,
+    // then overlay any manually supplied --rename-map entries (manual wins on conflict).
+    let git_hints = git_rename_hints_for_jobs(&config.git_repo, &config.tag_prefix, prev, curr);
+    let hints = merge_rename_hints(git_hints, &config.extra_rename_hints);
     if !hints.is_empty() {
-        tracing::debug!(prev, curr, hints = ?hints, "Using git rename hints for migration diff");
+        tracing::debug!(prev, curr, hints = ?hints, "Using rename hints for migration diff");
     }
 
     let rules = compute_diff_with_hints(&old_orb, &new_orb, curr, hints);
@@ -801,6 +820,7 @@ mod tests {
             prior_versions_dir: pv_dir.clone(),
             migrations_dir: mig_dir,
             dry_run: false,
+            extra_rename_hints: vec![],
         };
 
         // Only run the removal part (window already satisfied, no git ops needed)
@@ -896,11 +916,70 @@ mod tests {
         assert!(hints.is_empty());
     }
 
-    // ── Tests 12-15: CLI parsing (in lib.rs) ─────────────────────────────────
+    // ── Test 12: extra_rename_hints override git-detected hints ──────────────
+    #[test]
+    fn test_extra_rename_hints_override_git_hints() {
+        // Manual hint says `common_tests_rolling -> common_tests`.
+        // Git hint (simulated) would say `common_tests_rolling -> common_tests_pinned`.
+        // The manual entry must win.
+        let mut git_hints = HashMap::new();
+        git_hints.insert(
+            "common_tests_rolling".to_string(),
+            "common_tests_pinned".to_string(),
+        );
+        let manual: Vec<(String, String)> = vec![(
+            "common_tests_rolling".to_string(),
+            "common_tests".to_string(),
+        )];
+        let merged = merge_rename_hints(git_hints, &manual);
+        assert_eq!(
+            merged.get("common_tests_rolling"),
+            Some(&"common_tests".to_string()),
+            "manual hint must override git-detected hint"
+        );
+    }
+
+    // ── Test 13: extra_rename_hints supplement git hints for uncovered jobs ──
+    #[test]
+    fn test_extra_rename_hints_supplement_git_hints() {
+        // Git only detected one rename; manual adds another.
+        let mut git_hints = HashMap::new();
+        git_hints.insert(
+            "required_builds_rolling".to_string(),
+            "required_builds".to_string(),
+        );
+        let manual: Vec<(String, String)> = vec![(
+            "common_tests_rolling".to_string(),
+            "common_tests".to_string(),
+        )];
+        let merged = merge_rename_hints(git_hints, &manual);
+        assert_eq!(merged.len(), 2);
+        assert_eq!(
+            merged.get("required_builds_rolling"),
+            Some(&"required_builds".to_string()),
+            "git hint must be preserved"
+        );
+        assert_eq!(
+            merged.get("common_tests_rolling"),
+            Some(&"common_tests".to_string()),
+            "manual hint must be added"
+        );
+    }
+
+    // ── Test 14: empty manual hints leaves git hints unchanged ────────────────
+    #[test]
+    fn test_extra_rename_hints_empty_manual_is_noop() {
+        let mut git_hints = HashMap::new();
+        git_hints.insert("foo".to_string(), "bar".to_string());
+        let merged = merge_rename_hints(git_hints.clone(), &[]);
+        assert_eq!(merged, git_hints);
+    }
+
+    // ── Tests 15+: CLI parsing (in lib.rs) ───────────────────────────────────
     // These are defined in lib.rs in the tests module for the Prime command
     // variant.
 
-    // ── Test 16: dry-run creates no files ────────────────────────────────────
+    // ── Test integration: dry-run creates no files ────────────────────────────
     // This is an integration test requiring a real git repo fixture.
     // Defined in tests/prime_integration_tests.rs (to be added).
 }
