@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - remove jq from tools verification(pr [#96])
 - strip trailing colon after last param removed (#93)(pr [#97])
 - update requires entries when job is renamed (#94)(pr [#98])
+- remove dangling requires entries after job removal (#92)(pr [#99])
 
 ## [0.1.9] - 2026-03-26
 
@@ -254,6 +255,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#96]: https://github.com/jerus-org/gen-orb-mcp/pull/96
 [#97]: https://github.com/jerus-org/gen-orb-mcp/pull/97
 [#98]: https://github.com/jerus-org/gen-orb-mcp/pull/98
+[#99]: https://github.com/jerus-org/gen-orb-mcp/pull/99
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.9...HEAD
 [0.1.9]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.7...v0.1.8
