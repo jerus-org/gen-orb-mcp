@@ -378,38 +378,12 @@ fn update_requires_entry(
     old_req: &str,
     new_req: &str,
 ) -> bool {
-    let Some(workflow_start) = find_workflow_section(lines, workflow) else {
+    let Some(idx) = find_requires_entry_idx(lines, workflow, job_ref, old_req) else {
         return false;
     };
-    let Some(job_start) = find_job_line(lines, workflow_start, job_ref) else {
-        return false;
-    };
-    let job_indent = leading_spaces(&lines[job_start]);
-    let job_end = find_block_end(lines, job_start + 1, job_indent);
-    let Some(requires_idx) = find_requires_block(lines, job_start, job_end) else {
-        return false;
-    };
-    let requires_indent = leading_spaces(&lines[requires_idx]);
-    let old_entry = format!("- {old_req}");
-    let new_entry = format!("- {new_req}");
-    let mut i = requires_idx + 1;
-    while i < lines.len() {
-        let line = &lines[i];
-        if line.trim().is_empty() {
-            i += 1;
-            continue;
-        }
-        if leading_spaces(line) <= requires_indent {
-            break;
-        }
-        if line.trim() == old_entry {
-            let entry_indent = leading_spaces(line);
-            lines[i] = format!("{}{}", " ".repeat(entry_indent), new_entry);
-            return true;
-        }
-        i += 1;
-    }
-    false
+    let entry_indent = leading_spaces(&lines[idx]);
+    lines[idx] = format!("{}- {new_req}", " ".repeat(entry_indent));
+    true
 }
 
 /// Removes a specific entry from a job invocation's `requires:` list.
@@ -419,19 +393,31 @@ fn remove_requires_entry(
     job_ref: &str,
     entry_name: &str,
 ) -> bool {
-    let Some(workflow_start) = find_workflow_section(lines, workflow) else {
+    let Some(idx) = find_requires_entry_idx(lines, workflow, job_ref, entry_name) else {
         return false;
     };
-    let Some(job_start) = find_job_line(lines, workflow_start, job_ref) else {
-        return false;
-    };
+    lines.remove(idx);
+    true
+}
+
+/// Finds the line index of a specific entry inside a job invocation's
+/// `requires:` list.
+///
+/// Returns `None` if the workflow, job, `requires:` block, or entry is not
+/// found.
+fn find_requires_entry_idx(
+    lines: &[String],
+    workflow: &str,
+    job_ref: &str,
+    entry: &str,
+) -> Option<usize> {
+    let workflow_start = find_workflow_section(lines, workflow)?;
+    let job_start = find_job_line(lines, workflow_start, job_ref)?;
     let job_indent = leading_spaces(&lines[job_start]);
     let job_end = find_block_end(lines, job_start + 1, job_indent);
-    let Some(requires_idx) = find_requires_block(lines, job_start, job_end) else {
-        return false;
-    };
+    let requires_idx = find_requires_block(lines, job_start, job_end)?;
     let requires_indent = leading_spaces(&lines[requires_idx]);
-    let target_entry = format!("- {entry_name}");
+    let target = format!("- {entry}");
     let mut i = requires_idx + 1;
     while i < lines.len() {
         let line = &lines[i];
@@ -442,13 +428,12 @@ fn remove_requires_entry(
         if leading_spaces(line) <= requires_indent {
             break;
         }
-        if line.trim() == target_entry {
-            lines.remove(i);
-            return true;
+        if line.trim() == target {
+            return Some(i);
         }
         i += 1;
     }
-    false
+    None
 }
 
 /// Finds the index of the `requires:` line within a job's parameter block.
