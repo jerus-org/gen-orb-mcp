@@ -204,6 +204,67 @@ fn plan_job_renamed(
                     changes,
                 );
             }
+            plan_requires_updates_for_renamed_job(
+                workflow,
+                workflow_name,
+                orb_alias,
+                from,
+                to,
+                changes,
+            );
+        }
+    }
+}
+
+/// Updates `requires:` entries in other jobs when a job is renamed.
+///
+/// When a job has no `name_override`, its effective name changes from
+/// `{alias}/{from}` to `{alias}/{to}`. Any other job in the workflow whose
+/// `requires:` list references the old effective name must be updated.
+fn plan_requires_updates_for_renamed_job(
+    workflow: &crate::consumer_parser::types::Workflow,
+    workflow_name: &str,
+    orb_alias: &str,
+    from: &str,
+    to: &str,
+    changes: &mut Changes,
+) {
+    // If the renamed job has a `name_override`, its effective name doesn't
+    // change — no requires entries need updating.
+    let renamed_inv = workflow
+        .jobs
+        .iter()
+        .find(|inv| inv.matches(orb_alias, from));
+    let Some(renamed_inv) = renamed_inv else {
+        return;
+    };
+    if renamed_inv.name_override.is_some() {
+        return;
+    }
+    let old_effective = format!("{orb_alias}/{from}");
+    let new_effective = format!("{orb_alias}/{to}");
+    for other_inv in &workflow.jobs {
+        if other_inv.matches(orb_alias, from) {
+            continue; // skip the renamed job itself
+        }
+        for req in &other_inv.requires {
+            if req == &old_effective {
+                changes.push(PlannedChange {
+                    file: other_inv.location.file.clone(),
+                    description: format!(
+                        "Update `requires: {old_effective}` → `{new_effective}` in job `{}`",
+                        other_inv.effective_name()
+                    ),
+                    change_type: ChangeType::UpdateRequiresEntry {
+                        workflow: workflow_name.to_string(),
+                        job_ref: other_inv.effective_name().to_string(),
+                        old_req: old_effective.clone(),
+                        new_req: new_effective.clone(),
+                    },
+                    before: format!("- {old_effective}"),
+                    after: format!("- {new_effective}"),
+                });
+            }
         }
     }
 }
