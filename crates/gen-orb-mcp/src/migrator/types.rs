@@ -93,6 +93,15 @@ pub enum ChangeType {
         from_version: String,
         to_version: String,
     },
+    /// Update a `requires:` entry in a job invocation from `old_req` to
+    /// `new_req`.
+    UpdateRequiresEntry {
+        workflow: String,
+        /// The effective name of the job whose requires list is being updated.
+        job_ref: String,
+        old_req: String,
+        new_req: String,
+    },
 }
 
 /// Summary of changes that were actually applied to disk.

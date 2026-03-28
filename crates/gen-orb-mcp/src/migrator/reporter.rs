@@ -98,6 +98,14 @@ impl PlannedChange {
             } => {
                 format!("Update orb pin `{orb_alias}` from `{from_version}` to `{to_version}`")
             }
+            ChangeType::UpdateRequiresEntry {
+                workflow,
+                job_ref,
+                old_req,
+                new_req,
+            } => {
+                format!("Update `requires: {old_req}` → `{new_req}` in `{job_ref}` in `{workflow}`")
+            }
         }
     }
 }

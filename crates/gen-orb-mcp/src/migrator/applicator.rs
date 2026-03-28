@@ -125,6 +125,12 @@ fn apply_single_change(lines: &mut Vec<String>, change: &PlannedChange) -> bool 
             from_version,
             to_version,
         } => update_orb_version(lines, orb_alias, from_version, to_version),
+        ChangeType::UpdateRequiresEntry {
+            workflow,
+            job_ref,
+            old_req,
+            new_req,
+        } => update_requires_entry(lines, workflow, job_ref, old_req, new_req),
     }
 }
 
@@ -357,6 +363,62 @@ fn update_orb_version(
         }
     }
     changed
+}
+
+/// Updates a `requires:` entry in a job invocation from `old_req` to `new_req`.
+fn update_requires_entry(
+    lines: &mut [String],
+    workflow: &str,
+    job_ref: &str,
+    old_req: &str,
+    new_req: &str,
+) -> bool {
+    let Some(workflow_start) = find_workflow_section(lines, workflow) else {
+        return false;
+    };
+    let Some(job_start) = find_job_line(lines, workflow_start, job_ref) else {
+        return false;
+    };
+    let job_indent = leading_spaces(&lines[job_start]);
+    let job_end = find_block_end(lines, job_start + 1, job_indent);
+
+    // Find `requires:` within the job block
+    let requires_idx = lines
+        .iter()
+        .enumerate()
+        .skip(job_start + 1)
+        .take(job_end - job_start - 1)
+        .find(|(_, l)| l.trim() == "requires:")
+        .map(|(i, _)| i);
+    let Some(requires_idx) = requires_idx else {
+        return false;
+    };
+
+    let requires_indent = leading_spaces(&lines[requires_idx]);
+    let old_entry = format!("- {old_req}");
+    let new_entry = format!("- {new_req}");
+
+    // Search for `- old_req` within the requires block
+    let mut i = requires_idx + 1;
+    while i < lines.len() {
+        let line = &lines[i];
+        if line.trim().is_empty() {
+            i += 1;
+            continue;
+        }
+        // Stop when we've left the requires block
+        if leading_spaces(line) <= requires_indent {
+            break;
+        }
+        if line.trim() == old_entry {
+            // Replace only the entry text, preserving indentation
+            let entry_indent = leading_spaces(line);
+            lines[i] = format!("{}{}", " ".repeat(entry_indent), new_entry);
+            return true;
+        }
+        i += 1;
+    }
+    false
 }
 
 fn remove_pipeline_parameter(lines: &mut Vec<String>, parameter: &str) -> bool {
@@ -1054,6 +1116,66 @@ workflows:
         assert!(
             output.contains("other_param: value"),
             "sibling job must be untouched"
+        );
+    }
+
+    // ── Fix #94: `requires` entries updated on job rename ──────────────────
+
+    fn update_requires_change(
+        workflow: &str,
+        job_ref: &str,
+        old_req: &str,
+        new_req: &str,
+    ) -> PlannedChange {
+        PlannedChange {
+            file: PathBuf::from("test.yml"),
+            description: "test".to_string(),
+            change_type: ChangeType::UpdateRequiresEntry {
+                workflow: workflow.to_string(),
+                job_ref: job_ref.to_string(),
+                old_req: old_req.to_string(),
+                new_req: new_req.to_string(),
+            },
+            before: String::new(),
+            after: String::new(),
+        }
+    }
+
+    #[test]
+    fn test_update_requires_entry() {
+        const YAML: &str = r#"version: 2.1
+orbs:
+  toolkit: jerus-org/circleci-toolkit@5.3.10
+workflows:
+  validation:
+    jobs:
+      - toolkit/common_tests:
+          min_rust_version: "1.85"
+      - toolkit/idiomatic_rust:
+          requires:
+            - toolkit/common_tests_rolling
+            - security with sonarcloud"#;
+        let lines: Vec<&str> = YAML.lines().collect();
+        let change = update_requires_change(
+            "validation",
+            "toolkit/idiomatic_rust",
+            "toolkit/common_tests_rolling",
+            "toolkit/common_tests",
+        );
+        let (new_lines, count) = apply_changes_to_lines(&lines, &[&change]);
+        assert_eq!(count, 1);
+        let output = new_lines.join("\n");
+        assert!(
+            output.contains("- toolkit/common_tests\n"),
+            "requires entry should be updated"
+        );
+        assert!(
+            !output.contains("toolkit/common_tests_rolling"),
+            "old requires entry should be gone"
+        );
+        assert!(
+            output.contains("security with sonarcloud"),
+            "other requires entry must remain"
         );
     }
 }
