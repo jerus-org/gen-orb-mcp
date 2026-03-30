@@ -85,18 +85,12 @@ enum Commands {
         #[arg(long)]
         prior_versions: Option<std::path::PathBuf>,
 
-        /// Git repository path to auto-discover the current orb version
+        /// Tag prefix used to discover the orb version from git tags
         ///
-        /// When provided (with --tag-prefix), the latest version tag is used as
-        /// the generated server version. Takes lower priority than --version.
-        #[arg(long)]
-        git_repo: Option<std::path::PathBuf>,
-
-        /// Tag prefix for version auto-discovery (e.g., "v" for v6.0.0)
-        ///
-        /// Only used when --git-repo is provided. Defaults to "v".
-        #[arg(long)]
-        tag_prefix: Option<String>,
+        /// The git repository is derived automatically from --orb-path.
+        /// Defaults to "v" (matches tags like v6.0.0).
+        #[arg(long, default_value = "v")]
+        tag_prefix: String,
     },
     /// Validate an orb definition without generating
     Validate {
@@ -216,15 +210,11 @@ pub enum OutputFormat {
     Source,
 }
 
-/// Default version for fresh generation when no version is specified.
-const DEFAULT_VERSION: &str = "0.1.0";
-
 /// Optional embedding inputs for `run_generate`.
 struct GenerateExtras<'a> {
     migrations: &'a Option<std::path::PathBuf>,
     prior_versions_dir: &'a Option<std::path::PathBuf>,
-    git_repo: &'a Option<std::path::PathBuf>,
-    tag_prefix: &'a Option<String>,
+    tag_prefix: &'a str,
 }
 
 impl Cli {
@@ -240,7 +230,6 @@ impl Cli {
                 force,
                 migrations,
                 prior_versions,
-                git_repo,
                 tag_prefix,
             } => run_generate(
                 orb_path,
@@ -252,7 +241,6 @@ impl Cli {
                 GenerateExtras {
                     migrations,
                     prior_versions_dir: prior_versions,
-                    git_repo,
                     tag_prefix,
                 },
             ),
@@ -317,12 +305,10 @@ fn run_generate(
 
     let orb_name = name.clone().unwrap_or_else(|| derive_orb_name(orb_path));
 
-    // Auto-discover version from git tags when --git-repo is provided
-    let git_hint: Option<String> = if let Some(repo) = extras.git_repo {
-        let prefix = extras.tag_prefix.as_deref().unwrap_or("v");
-        discover_latest_version(repo, prefix)?
-    } else {
-        None
+    // Auto-discover version from the git repo containing orb_path
+    let git_hint: Option<String> = match find_git_root(orb_path) {
+        Ok(repo) => discover_latest_version(&repo, extras.tag_prefix)?,
+        Err(_) => None,
     };
     let resolved_version = resolve_version(output, version.as_deref(), force, git_hint.as_deref())?;
     tracing::info!(version = %resolved_version, "Using version");
@@ -789,21 +775,28 @@ fn resolve_version(
         return Ok(v.to_string());
     }
 
-    // No version available
-    if output_exists {
-        anyhow::bail!(
-            "Output directory '{}' already exists.\n\
-             To regenerate, you must specify the version explicitly:\n\n\
+    // No version available — refuse to generate with an unknown version
+    let msg = if output_exists {
+        format!(
+            "Output directory '{}' already exists and no version could be determined.\n\
+             Provide the version explicitly:\n\n\
              \x20   gen-orb-mcp generate --orb-path <PATH> --output {} --version <VERSION> --force\n\n\
-             Or use --git-repo to auto-discover the version from the orb repository's tags.\n\
-             For CI release workflows, use the orb release version (e.g., --version 6.0.0).",
+             Or ensure --orb-path is inside a git repository with version tags (e.g. v6.0.0).\n\
+             Use --tag-prefix if your tags use a non-standard prefix.",
             output.display(),
             output.display()
-        );
-    }
-
-    tracing::debug!("Fresh generation with default version");
-    Ok(DEFAULT_VERSION.to_string())
+        )
+    } else {
+        format!(
+            "No version could be determined for the generated MCP server.\n\
+             Provide the version explicitly:\n\n\
+             \x20   gen-orb-mcp generate --orb-path <PATH> --output {} --version <VERSION>\n\n\
+             Or ensure --orb-path is inside a git repository with version tags (e.g. v6.0.0).\n\
+             Use --tag-prefix if your tags use a non-standard prefix.",
+            output.display()
+        )
+    };
+    anyhow::bail!(msg)
 }
 
 #[cfg(test)]
@@ -898,11 +891,10 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_version_fresh_with_default() {
+    fn test_resolve_version_fresh_no_version_errors() {
         let temp_dir = TempDir::new().unwrap();
         let result = resolve_version(temp_dir.path(), None, false, None);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), DEFAULT_VERSION);
+        assert!(result.is_err());
     }
 
     #[test]
@@ -1199,15 +1191,16 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_version_falls_back_to_default_without_hint() {
+    fn test_resolve_version_errors_without_version_or_hint() {
         let temp_dir = TempDir::new().unwrap();
         let result = resolve_version(temp_dir.path(), None, false, None);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), DEFAULT_VERSION);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("No version could be determined"), "got: {msg}");
     }
 
     #[test]
-    fn test_cli_parse_generate_with_git_repo_and_tag_prefix() {
+    fn test_cli_parse_generate_with_tag_prefix() {
         let cli = Cli::try_parse_from([
             "gen-orb-mcp",
             "generate",
@@ -1215,20 +1208,30 @@ mod tests {
             "test.yml",
             "--output",
             "./out",
-            "--git-repo",
-            ".",
             "--tag-prefix",
-            "v",
+            "orb-v",
         ]);
-        assert!(cli.is_ok(), "generate --git-repo --tag-prefix should parse");
-        if let Commands::Generate {
-            git_repo,
-            tag_prefix,
-            ..
-        } = cli.unwrap().command
-        {
-            assert!(git_repo.is_some());
-            assert_eq!(tag_prefix.as_deref(), Some("v"));
+        assert!(cli.is_ok(), "generate --tag-prefix should parse");
+        if let Commands::Generate { tag_prefix, .. } = cli.unwrap().command {
+            assert_eq!(tag_prefix, "orb-v");
+        } else {
+            panic!("expected Generate variant");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_generate_tag_prefix_defaults_to_v() {
+        let cli = Cli::try_parse_from([
+            "gen-orb-mcp",
+            "generate",
+            "--orb-path",
+            "test.yml",
+            "--output",
+            "./out",
+        ]);
+        assert!(cli.is_ok());
+        if let Commands::Generate { tag_prefix, .. } = cli.unwrap().command {
+            assert_eq!(tag_prefix, "v");
         } else {
             panic!("expected Generate variant");
         }
