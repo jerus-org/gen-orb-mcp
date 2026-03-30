@@ -1156,6 +1156,40 @@ mod tests {
     }
 
     #[test]
+    fn test_get_version_tool_always_present() {
+        // get_version must appear in list_tools even without conformance rules
+        let orb = create_test_orb();
+        let generator = CodeGenerator::new().unwrap();
+        let server = generator.generate(&orb, "test-orb", "6.0.0").unwrap();
+        let lib_rs = server.files.get(&PathBuf::from("src/lib.rs")).unwrap();
+        assert!(
+            lib_rs.contains("get_version"),
+            "expected get_version tool to be present without conformance rules"
+        );
+        assert!(
+            lib_rs.contains("6.0.0"),
+            "expected orb version to be embedded in get_version response"
+        );
+    }
+
+    #[test]
+    fn test_get_version_tool_present_with_conformance_rules() {
+        let rules_json =
+            r#"[{"type":"JobRenamed","from":"old","to":"new","since_version":"2.0.0","description":"renamed"}]"#
+                .to_string();
+        let orb = create_test_orb();
+        let generator = CodeGenerator::new()
+            .unwrap()
+            .with_conformance_rules_json(rules_json);
+        let server = generator.generate(&orb, "test-orb", "2.0.0").unwrap();
+        let lib_rs = server.files.get(&PathBuf::from("src/lib.rs")).unwrap();
+        assert!(
+            lib_rs.contains("get_version"),
+            "expected get_version tool when conformance rules are present"
+        );
+    }
+
+    #[test]
     fn test_lib_delegates_current_resources_to_current_module() {
         let orb = create_test_orb();
         let generator = CodeGenerator::new().unwrap();
