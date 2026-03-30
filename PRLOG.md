@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - add --rename-map override to prime command(pr [#101])
+- auto-infer orb version and add get_version tool(pr [#102])
 
 ### Changed
 
@@ -263,6 +264,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#99]: https://github.com/jerus-org/gen-orb-mcp/pull/99
 [#100]: https://github.com/jerus-org/gen-orb-mcp/pull/100
 [#101]: https://github.com/jerus-org/gen-orb-mcp/pull/101
+[#102]: https://github.com/jerus-org/gen-orb-mcp/pull/102
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.9...HEAD
 [0.1.9]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.7...v0.1.8
