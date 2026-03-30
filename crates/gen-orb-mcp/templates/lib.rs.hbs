@@ -197,15 +197,35 @@ impl ServerHandler for OrbServer {
         }
     }
 
-{{#if has_tools}}
     fn list_tools(
         &self,
         _request: Option<PaginatedRequestParams>,
         _ctx: RequestContext<RoleServer>,
     ) -> impl std::future::Future<Output = Result<ListToolsResult, McpError>> + Send + '_ {
         async move {
-            Ok(ListToolsResult {
-                tools: vec![
+            let mut tools = vec![
+                Tool {
+                    name: "get_version".into(),
+                    title: None,
+                    description: Some(
+                        "Return the orb name and version this MCP server was generated from."
+                            .into(),
+                    ),
+                    input_schema: std::sync::Arc::new(
+                        serde_json::from_value(serde_json::json!({
+                            "type": "object",
+                            "properties": {}
+                        }))
+                        .expect("valid schema"),
+                    ),
+                    output_schema: None,
+                    annotations: None,
+                    icons: None,
+                    meta: None,
+                },
+            ];
+{{#if has_tools}}
+            tools.extend([
                     Tool {
                         name: "plan_migration".into(),
                         title: None,
@@ -270,7 +290,10 @@ impl ServerHandler for OrbServer {
                         icons: None,
                         meta: None,
                     },
-                ],
+            ]);
+{{/if}}
+            Ok(ListToolsResult {
+                tools,
                 next_cursor: None,
                 meta: None,
             })
@@ -285,6 +308,14 @@ impl ServerHandler for OrbServer {
         async move {
             let args = request.arguments.unwrap_or_default();
             match request.name.as_ref() {
+                "get_version" => Ok(CallToolResult::success(vec![Content::text(
+                    serde_json::json!({
+                        "orb": "{{orb_name}}",
+                        "version": "{{version}}"
+                    })
+                    .to_string(),
+                )])),
+{{#if has_tools}}
                 "plan_migration" => {
                     let ci_dir = args
                         .get("ci_dir")
@@ -333,6 +364,7 @@ impl ServerHandler for OrbServer {
                         applied.format_summary(),
                     )]))
                 }
+{{/if}}
                 name => Err(McpError::invalid_params(
                     format!("Unknown tool: {name}"),
                     None,
@@ -340,7 +372,6 @@ impl ServerHandler for OrbServer {
             }
         }
     }
-{{/if}}
 }
 
 /// Overview content for the orb.

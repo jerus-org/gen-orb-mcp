@@ -84,6 +84,19 @@ enum Commands {
         /// prior version alongside the current version.
         #[arg(long)]
         prior_versions: Option<std::path::PathBuf>,
+
+        /// Git repository path to auto-discover the current orb version
+        ///
+        /// When provided (with --tag-prefix), the latest version tag is used as
+        /// the generated server version. Takes lower priority than --version.
+        #[arg(long)]
+        git_repo: Option<std::path::PathBuf>,
+
+        /// Tag prefix for version auto-discovery (e.g., "v" for v6.0.0)
+        ///
+        /// Only used when --git-repo is provided. Defaults to "v".
+        #[arg(long)]
+        tag_prefix: Option<String>,
     },
     /// Validate an orb definition without generating
     Validate {
@@ -210,6 +223,8 @@ const DEFAULT_VERSION: &str = "0.1.0";
 struct GenerateExtras<'a> {
     migrations: &'a Option<std::path::PathBuf>,
     prior_versions_dir: &'a Option<std::path::PathBuf>,
+    git_repo: &'a Option<std::path::PathBuf>,
+    tag_prefix: &'a Option<String>,
 }
 
 impl Cli {
@@ -225,6 +240,8 @@ impl Cli {
                 force,
                 migrations,
                 prior_versions,
+                git_repo,
+                tag_prefix,
             } => run_generate(
                 orb_path,
                 output,
@@ -235,6 +252,8 @@ impl Cli {
                 GenerateExtras {
                     migrations,
                     prior_versions_dir: prior_versions,
+                    git_repo,
+                    tag_prefix,
                 },
             ),
             Commands::Validate { orb_path } => run_validate(orb_path),
@@ -297,7 +316,15 @@ fn run_generate(
     );
 
     let orb_name = name.clone().unwrap_or_else(|| derive_orb_name(orb_path));
-    let resolved_version = resolve_version(output, version.as_deref(), force)?;
+
+    // Auto-discover version from git tags when --git-repo is provided
+    let git_hint: Option<String> = if let Some(repo) = extras.git_repo {
+        let prefix = extras.tag_prefix.as_deref().unwrap_or("v");
+        discover_latest_version(repo, prefix)?
+    } else {
+        None
+    };
+    let resolved_version = resolve_version(output, version.as_deref(), force, git_hint.as_deref())?;
     tracing::info!(version = %resolved_version, "Using version");
 
     let conformance_rules = if let Some(migrations_dir) = extras.migrations {
@@ -707,53 +734,76 @@ fn derive_orb_name(path: &std::path::Path) -> String {
     }
 }
 
+/// Discover the latest version tag in a git repository with the given prefix.
+///
+/// Returns `None` when no matching tags exist. On error (e.g. not a git repo),
+/// returns `Ok(None)` rather than propagating so callers fall through to the
+/// next resolution strategy.
+fn discover_latest_version(repo: &std::path::Path, tag_prefix: &str) -> Result<Option<String>> {
+    use primer::discover_tags;
+    let tags = discover_tags(repo, tag_prefix).unwrap_or_default();
+    // discover_tags returns versions sorted ascending; highest is last
+    Ok(tags.into_iter().last())
+}
+
 /// Resolve the version to use for the generated MCP server.
 ///
-/// # Version Resolution Rules
+/// # Version Resolution Rules (priority order)
 ///
-/// 1. If `--version` is provided, use it
-/// 2. If output directory exists with Cargo.toml and no `--version`:
-///    - Error: must specify version to regenerate
-/// 3. If fresh generation and no `--version`: use DEFAULT_VERSION
+/// 1. Explicit `--version` — always wins
+/// 2. `git_hint` — version auto-discovered from git tags via `--git-repo`
+/// 3. Fresh generation with no hints — `DEFAULT_VERSION`
+/// 4. Existing output with no version — error (must specify `--version`)
 ///
 /// The `--force` flag is required when overwriting existing output.
-fn resolve_version(output: &std::path::Path, version: Option<&str>, force: bool) -> Result<String> {
+fn resolve_version(
+    output: &std::path::Path,
+    version: Option<&str>,
+    force: bool,
+    git_hint: Option<&str>,
+) -> Result<String> {
     let cargo_toml = output.join("Cargo.toml");
     let output_exists = cargo_toml.exists();
 
-    match (version, output_exists) {
-        // Explicit version provided - use it
-        (Some(v), false) => {
-            tracing::debug!("Using provided version for fresh generation");
-            Ok(v.to_string())
-        }
-        (Some(v), true) => {
-            if !force {
-                anyhow::bail!(
-                    "Output directory '{}' already exists. Use --force to overwrite.",
-                    output.display()
-                );
-            }
-            tracing::debug!("Using provided version, overwriting existing output");
-            Ok(v.to_string())
-        }
-
-        // No version provided
-        (None, false) => {
-            tracing::debug!("Fresh generation with default version");
-            Ok(DEFAULT_VERSION.to_string())
-        }
-        (None, true) => {
+    // Explicit version always wins (with force check if output exists)
+    if let Some(v) = version {
+        if output_exists && !force {
             anyhow::bail!(
-                "Output directory '{}' already exists.\n\
-                 To regenerate, you must specify the version explicitly:\n\n\
-                 \x20   gen-orb-mcp generate --orb-path <PATH> --output {} --version <VERSION> --force\n\n\
-                 For CI release workflows, use the orb release version (e.g., --version 1.6.0).",
-                output.display(),
+                "Output directory '{}' already exists. Use --force to overwrite.",
                 output.display()
             );
         }
+        tracing::debug!("Using provided version");
+        return Ok(v.to_string());
     }
+
+    // Git-discovered version
+    if let Some(v) = git_hint {
+        if output_exists && !force {
+            anyhow::bail!(
+                "Output directory '{}' already exists. Use --force to overwrite.",
+                output.display()
+            );
+        }
+        tracing::debug!(version = %v, "Using git-discovered version");
+        return Ok(v.to_string());
+    }
+
+    // No version available
+    if output_exists {
+        anyhow::bail!(
+            "Output directory '{}' already exists.\n\
+             To regenerate, you must specify the version explicitly:\n\n\
+             \x20   gen-orb-mcp generate --orb-path <PATH> --output {} --version <VERSION> --force\n\n\
+             Or use --git-repo to auto-discover the version from the orb repository's tags.\n\
+             For CI release workflows, use the orb release version (e.g., --version 6.0.0).",
+            output.display(),
+            output.display()
+        );
+    }
+
+    tracing::debug!("Fresh generation with default version");
+    Ok(DEFAULT_VERSION.to_string())
 }
 
 #[cfg(test)]
@@ -842,7 +892,7 @@ mod tests {
     #[test]
     fn test_resolve_version_fresh_with_explicit() {
         let temp_dir = TempDir::new().unwrap();
-        let result = resolve_version(temp_dir.path(), Some("2.0.0"), false);
+        let result = resolve_version(temp_dir.path(), Some("2.0.0"), false, None);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "2.0.0");
     }
@@ -850,7 +900,7 @@ mod tests {
     #[test]
     fn test_resolve_version_fresh_with_default() {
         let temp_dir = TempDir::new().unwrap();
-        let result = resolve_version(temp_dir.path(), None, false);
+        let result = resolve_version(temp_dir.path(), None, false, None);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), DEFAULT_VERSION);
     }
@@ -865,7 +915,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = resolve_version(temp_dir.path(), None, false);
+        let result = resolve_version(temp_dir.path(), None, false, None);
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("already exists"));
@@ -881,7 +931,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = resolve_version(temp_dir.path(), Some("1.5.0"), false);
+        let result = resolve_version(temp_dir.path(), Some("1.5.0"), false, None);
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("--force"));
@@ -896,7 +946,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = resolve_version(temp_dir.path(), Some("1.5.0"), true);
+        let result = resolve_version(temp_dir.path(), Some("1.5.0"), true, None);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "1.5.0");
     }
@@ -1074,5 +1124,113 @@ mod tests {
             result.canonicalize().unwrap(),
             tmp.path().canonicalize().unwrap(),
         );
+    }
+
+    // --- Tests for discover_latest_version ---
+
+    #[test]
+    fn test_discover_latest_version_returns_none_for_no_tags() {
+        let tmp = TempDir::new().unwrap();
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(tmp.path())
+            .output()
+            .unwrap();
+        let result = discover_latest_version(tmp.path(), "v");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), None);
+    }
+
+    #[test]
+    fn test_discover_latest_version_returns_highest_semver_tag() {
+        let tmp = TempDir::new().unwrap();
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(tmp.path())
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.email", "test@test.com"])
+            .current_dir(tmp.path())
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.name", "Test"])
+            .current_dir(tmp.path())
+            .output()
+            .unwrap();
+        std::fs::write(tmp.path().join("README.md"), "test").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(tmp.path())
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(tmp.path())
+            .output()
+            .unwrap();
+        for tag in ["v1.0.0", "v2.0.0", "v1.5.0"] {
+            std::process::Command::new("git")
+                .args(["tag", tag])
+                .current_dir(tmp.path())
+                .output()
+                .unwrap();
+        }
+        let result = discover_latest_version(tmp.path(), "v");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Some("2.0.0".to_string()));
+    }
+
+    #[test]
+    fn test_resolve_version_uses_git_hint_when_no_explicit_version() {
+        let temp_dir = TempDir::new().unwrap();
+        let result = resolve_version(temp_dir.path(), None, false, Some("3.1.0"));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "3.1.0");
+    }
+
+    #[test]
+    fn test_resolve_version_explicit_overrides_git_hint() {
+        let temp_dir = TempDir::new().unwrap();
+        let result = resolve_version(temp_dir.path(), Some("5.0.0"), false, Some("3.1.0"));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "5.0.0");
+    }
+
+    #[test]
+    fn test_resolve_version_falls_back_to_default_without_hint() {
+        let temp_dir = TempDir::new().unwrap();
+        let result = resolve_version(temp_dir.path(), None, false, None);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), DEFAULT_VERSION);
+    }
+
+    #[test]
+    fn test_cli_parse_generate_with_git_repo_and_tag_prefix() {
+        let cli = Cli::try_parse_from([
+            "gen-orb-mcp",
+            "generate",
+            "--orb-path",
+            "test.yml",
+            "--output",
+            "./out",
+            "--git-repo",
+            ".",
+            "--tag-prefix",
+            "v",
+        ]);
+        assert!(cli.is_ok(), "generate --git-repo --tag-prefix should parse");
+        if let Commands::Generate {
+            git_repo,
+            tag_prefix,
+            ..
+        } = cli.unwrap().command
+        {
+            assert!(git_repo.is_some());
+            assert_eq!(tag_prefix.as_deref(), Some("v"));
+        } else {
+            panic!("expected Generate variant");
+        }
     }
 }
