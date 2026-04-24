@@ -41,7 +41,7 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 chrono = { version = "0.4.44", features = ["std"], default-features = false }
 
 # Semantic versioning — for --earliest-version comparison and version sorting
-semver = "1.0.27"
+semver = "1.0.28"
 
 # Testing
 tempfile = "3.27.0"
