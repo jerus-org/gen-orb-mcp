@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - deps: update rust crate semver to 1.0.28(pr [#104])
+- deps: update rust crate pmcp to 2.6.0(pr [#106])
 
 ## [0.1.10] - 2026-04-07
 
@@ -272,6 +273,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#101]: https://github.com/jerus-org/gen-orb-mcp/pull/101
 [#102]: https://github.com/jerus-org/gen-orb-mcp/pull/102
 [#104]: https://github.com/jerus-org/gen-orb-mcp/pull/104
+[#106]: https://github.com/jerus-org/gen-orb-mcp/pull/106
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.10...HEAD
 [0.1.10]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.8...v0.1.9
