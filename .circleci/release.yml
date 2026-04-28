@@ -13,6 +13,8 @@ parameters:
 orbs:
   toolkit: jerus-org/circleci-toolkit@6.2.0
 
+  orb-tools: circleci/orb-tools@12.3.3
+  docker: circleci/docker@3.2.0
 jobs:
   tools:
     executor: toolkit/rust_env_rolling
@@ -26,6 +28,20 @@ jobs:
             cargo release --version
             rsign --version
 
+  build-container:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Build Docker image
+          command: |
+            docker build -t jerusdp/gen-orb-mcp:${CIRCLE_TAG} orb
+      - run:
+          name: Push Docker image
+          command: |
+            docker push jerusdp/gen-orb-mcp:${CIRCLE_TAG}
 workflows:
   release:
     jobs:
@@ -60,3 +76,16 @@ workflows:
             - release
             - bot-check
             - pcu-app
+      - orb-tools/pack:
+          name: pack-orb-release
+          source_dir: orb/src
+          requires: [release-gen-orb-mcp]
+      - build-container:
+          requires: [release-gen-orb-mcp]
+          context: [docker-credentials]
+      - orb-tools/publish:
+          name: publish-orb-jerus-org
+          orb_name: jerus-org/gen-orb-mcp
+          pub_type: production
+          requires: [build-container, pack-orb-release]
+          context: [orb-publishing]

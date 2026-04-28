@@ -1,0 +1,22 @@
+description: Run diff command in a dedicated job.
+executor: default
+parameters:
+  current:
+    type: string
+    description: Path to the current orb YAML (the new version)
+  previous:
+    type: string
+    description: Path to the previous orb YAML (the old version to diff against)
+  since_version:
+    type: string
+    description: The version string to embed in emitted rules (e.g. "5.0.0")
+  output:
+    type: string
+    description: 'Optional output file for the JSON rules (default: stdout)'
+steps:
+- checkout
+- diff:
+    current: << parameters.current >>
+    previous: << parameters.previous >>
+    since_version: << parameters.since_version >>
+    output: << parameters.output >>

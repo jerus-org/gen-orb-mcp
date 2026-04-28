@@ -1,0 +1,11 @@
+description: Validate an orb definition without generating
+parameters:
+  orb_path:
+    type: string
+    description: Path to the orb YAML file
+steps:
+- run:
+    name: validate
+    command: |-
+      gen-orb-mcp validate \
+        --orb-path "<< parameters.orb_path >>"
