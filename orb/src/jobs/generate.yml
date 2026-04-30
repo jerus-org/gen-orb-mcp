@@ -15,10 +15,6 @@ parameters:
     enum:
     - binary
     - source
-  name:
-    type: string
-    description: Name for the generated orb server (defaults to filename)
-    default: ''
   force:
     type: boolean
     description: Required for non-interactive CI environments when output exists.
@@ -41,7 +37,6 @@ steps:
     orb_path: << parameters.orb_path >>
     output: << parameters.output >>
     format: << parameters.format >>
-    name: << parameters.name >>
     force: << parameters.force >>
     migrations: << parameters.migrations >>
     prior_versions: << parameters.prior_versions >>
