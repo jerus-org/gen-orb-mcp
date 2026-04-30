@@ -8,6 +8,25 @@ parameters:
 orbs:
   toolkit: jerus-org/circleci-toolkit@6.2.0
 
+  orb-tools: circleci/orb-tools@12.3.3
+
+jobs:
+  regenerate-orb:
+    docker:
+      - image: cimg/rust:stable
+    steps:
+      - checkout
+      - run:
+          name: Install gen-circleci-orb
+          command: cargo binstall --no-confirm gen-circleci-orb
+      - run:
+          name: Regenerate orb source
+          command: |
+            gen-circleci-orb generate \
+              --binary gen-orb-mcp \
+              --namespace jerus-org \
+              --orb-dir orb
+
 workflows:
   validation:
     jobs:
@@ -78,3 +97,13 @@ workflows:
                 - /pull\/[0-9]+/
                 - main
 
+      - regenerate-orb:
+          requires: [toolkit/common_tests]
+      - orb-tools/pack:
+          name: pack-orb
+          source_dir: orb/src
+          requires: [regenerate-orb]
+      - orb-tools/review:
+          name: review-orb
+          source_dir: orb/src
+          requires: [pack-orb]

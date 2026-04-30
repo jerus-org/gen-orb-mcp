@@ -1,0 +1,25 @@
+description: Apply conformance-based migration to a consumer's .circleci/ directory  Reads conformance rules from a JSON file (produced by `diff`) and applies them to the consumer's CI config. Reports planned changes before applying.
+parameters:
+  ci_dir:
+    type: string
+    description: Path to the consumer's .circleci/ directory
+    default: .circleci
+  orb:
+    type: string
+    description: 'The orb alias as used in the consumer''s orbs: section (e.g. "toolkit")'
+  rules:
+    type: string
+    description: Path to the conformance rules JSON file (produced by `diff`)
+  dry_run:
+    type: boolean
+    description: Show planned changes without modifying files
+    default: false
+steps:
+- run:
+    name: migrate
+    command: |-
+      gen-orb-mcp migrate \
+        <<# parameters.ci_dir >>--ci-dir "<< parameters.ci_dir >>"<</ parameters.ci_dir >> \
+        --orb "<< parameters.orb >>" \
+        --rules "<< parameters.rules >>" \
+        <<# parameters.dry_run >>--dry-run<</ parameters.dry_run >>

@@ -1,0 +1,56 @@
+description: Run prime command in a dedicated job.
+executor: default
+parameters:
+  orb_path:
+    type: string
+    description: Path to the orb YAML entry point
+    default: src/@orb.yml
+  git_repo:
+    type: string
+    description: 'Path to the git repository root (default: walk up from orb-path to .git)'
+    default: ''
+  tag_prefix:
+    type: string
+    description: Git tag prefix (e.g. "v" matches tags like "v4.1.0")
+    default: v
+  earliest_version:
+    type: string
+    description: Fixed earliest version anchor (e.g. "4.1.0"); conflicts with --since
+    default: ''
+  since:
+    type: string
+    description: 'Rolling window duration (e.g. "6 months", "1 year"); default: "6 months"'
+    default: ''
+  prior_versions_dir:
+    type: string
+    description: Directory to write prior-version snapshots
+    default: prior-versions
+  migrations_dir:
+    type: string
+    description: Directory to write migration rule JSON files
+    default: migrations
+  ephemeral:
+    type: boolean
+    description: /` and print PRIME_PV_DIR/PRIME_MIG_DIR to stdout
+    default: false
+  rename_map:
+    type: string
+    description: 'Override git rename detection for a specific job (repeatable). Format: `OLD=NEW`, e.g. `--rename-map common_tests_rolling=common_tests`. Manual entries take precedence over git-detected hints for matching old names.  Use this when commits cannot be restructured to follow the two-commit rename rule'
+    default: ''
+  dry_run:
+    type: boolean
+    description: Describe actions without writing any files
+    default: false
+steps:
+- checkout
+- prime:
+    orb_path: << parameters.orb_path >>
+    git_repo: << parameters.git_repo >>
+    tag_prefix: << parameters.tag_prefix >>
+    earliest_version: << parameters.earliest_version >>
+    since: << parameters.since >>
+    prior_versions_dir: << parameters.prior_versions_dir >>
+    migrations_dir: << parameters.migrations_dir >>
+    ephemeral: << parameters.ephemeral >>
+    rename_map: << parameters.rename_map >>
+    dry_run: << parameters.dry_run >>
