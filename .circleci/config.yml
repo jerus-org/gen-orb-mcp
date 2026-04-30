@@ -25,6 +25,7 @@ jobs:
             echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
             source "$BASH_ENV"
             cargo-binstall --no-confirm gen-circleci-orb
+            cargo-binstall --no-confirm gen-orb-mcp
       - run:
           name: Regenerate orb source
           command: |
