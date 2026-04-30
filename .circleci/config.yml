@@ -11,24 +11,32 @@ orbs:
   orb-tools: circleci/orb-tools@12.3.3
 
 jobs:
-  regenerate-orb:
+  build-binary:
     docker:
-      - image: ubuntu:24.04
+      - image: jerusdp/ci-rust:rolling-6mo
     steps:
       - checkout
       - run:
+          name: Build binary
+          command: cargo build --release
+      - persist_to_workspace:
+          root: target/release
+          paths: [gen-orb-mcp]
+
+  regenerate-orb:
+    docker:
+      - image: jerusdp/ci-rust:rolling-6mo
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /tmp/bin
+      - run:
           name: Install gen-circleci-orb
-          command: |
-            apt-get update -qq && apt-get install -y --no-install-recommends curl ca-certificates
-            curl -L --proto '=https' --tlsv1.2 -sSf \
-              https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
-            echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
-            source "$BASH_ENV"
-            cargo-binstall --no-confirm gen-circleci-orb
-            cargo-binstall --no-confirm gen-orb-mcp
+          command: cargo binstall --no-confirm gen-circleci-orb
       - run:
           name: Regenerate orb source
           command: |
+            export PATH="/tmp/bin:$PATH"
             gen-circleci-orb generate \
               --binary gen-orb-mcp \
               --namespace jerus-org \
@@ -104,8 +112,10 @@ workflows:
                 - /pull\/[0-9]+/
                 - main
 
-      - regenerate-orb:
+      - build-binary:
           requires: [toolkit/common_tests]
+      - regenerate-orb:
+          requires: [build-binary]
       - orb-tools/pack:
           name: pack-orb
           source_dir: orb/src
