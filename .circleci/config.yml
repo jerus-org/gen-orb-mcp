@@ -30,7 +30,7 @@ jobs:
           at: /tmp/bin
       - run:
           name: Install gen-circleci-orb
-          command: cargo binstall --no-confirm gen-circleci-orb
+          command: cargo-binstall --no-confirm gen-circleci-orb
       - run:
           name: Regenerate orb source
           command: |
