@@ -18,6 +18,10 @@ parameters:
     type: string
     description: Name for the generated orb server (defaults to filename)
     default: ''
+  version:
+    type: string
+    description: Version for the generated MCP server crate (e.g., "1.0.0")  Required when regenerating an existing output directory. For CI workflows, this should match the orb release version.
+    default: ''
   force:
     type: boolean
     description: Required for non-interactive CI environments when output exists.
@@ -43,6 +47,7 @@ steps:
         <<# parameters.output >>--output "<< parameters.output >>"<</ parameters.output >> \
         <<# parameters.format >>--format "<< parameters.format >>"<</ parameters.format >> \
         <<# parameters.name >>--name "<< parameters.name >>"<</ parameters.name >> \
+        <<# parameters.version >>--version "<< parameters.version >>"<</ parameters.version >> \
         <<# parameters.force >>--force<</ parameters.force >> \
         <<# parameters.migrations >>--migrations "<< parameters.migrations >>"<</ parameters.migrations >> \
         <<# parameters.prior_versions >>--prior-versions "<< parameters.prior_versions >>"<</ parameters.prior_versions >> \

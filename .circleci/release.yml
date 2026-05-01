@@ -15,7 +15,6 @@ orbs:
 
   orb-tools: circleci/orb-tools@12.3.3
   docker: circleci/docker@3.2.0
-
 jobs:
   tools:
     executor: toolkit/rust_env_rolling
@@ -43,7 +42,6 @@ jobs:
           name: Push Docker image
           command: |
             docker push jerusdp/gen-orb-mcp:${CIRCLE_TAG}
-
 workflows:
   release:
     jobs:

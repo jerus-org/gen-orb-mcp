@@ -9,7 +9,6 @@ orbs:
   toolkit: jerus-org/circleci-toolkit@6.2.0
 
   orb-tools: circleci/orb-tools@12.3.3
-
 jobs:
   build-binary:
     docker:
@@ -22,7 +21,6 @@ jobs:
       - persist_to_workspace:
           root: target/release
           paths: [gen-orb-mcp]
-
   regenerate-orb:
     docker:
       - image: jerusdp/ci-rust:rolling-6mo
@@ -41,6 +39,7 @@ jobs:
               --binary gen-orb-mcp \
               --namespace jerus-org \
               --orb-dir orb
+
 
 workflows:
   validation:
