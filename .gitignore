@@ -28,3 +28,6 @@ tarpaulin-report.html
 # OS
 .DS_Store
 Thumbs.db
+
+# Binary copied into orb build context during release; not for version control
+/orb/gen-orb-mcp

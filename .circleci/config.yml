@@ -8,6 +8,36 @@ parameters:
 orbs:
   toolkit: jerus-org/circleci-toolkit@6.2.0
 
+  orb-tools: circleci/orb-tools@12.3.3
+jobs:
+  build-binary:
+    docker:
+      - image: rust:latest
+    steps:
+      - checkout
+      - run:
+          name: Build binary
+          command: cargo build --release
+      - persist_to_workspace:
+          root: target/release
+          paths: [gen-orb-mcp]
+  regenerate-orb:
+    docker:
+      - image: jerusdp/gen-circleci-orb:latest
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /tmp/bin
+      - run:
+          name: Regenerate orb source
+          command: |
+            export PATH="/tmp/bin:$PATH"
+            gen-circleci-orb generate \
+              --binary gen-orb-mcp \
+              --namespace jerus-org \
+              --orb-dir orb
+
+
 workflows:
   validation:
     jobs:
@@ -78,3 +108,15 @@ workflows:
                 - /pull\/[0-9]+/
                 - main
 
+      - build-binary:
+          requires: [toolkit/common_tests]
+      - regenerate-orb:
+          requires: [build-binary]
+      - orb-tools/pack:
+          name: pack-orb
+          source_dir: orb/src
+          requires: [regenerate-orb]
+      - orb-tools/review:
+          name: review-orb
+          source_dir: orb/src
+          requires: [pack-orb]
