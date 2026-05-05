@@ -1,8 +1,14 @@
+FROM rust:1-slim-bookworm AS builder
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates pkg-config libssl-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && cargo install gen-orb-mcp
+
 FROM debian:12-slim
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl git \
+    && apt-get install -y --no-install-recommends ca-certificates git \
     && rm -rf /var/lib/apt/lists/* \
-    && curl -L --proto '=https' --tlsv1.2 -sSf \
-       https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash \
-    && cargo-binstall --no-confirm gen-orb-mcp \
-    && rm -rf /root/.cargo/registry /root/.cargo/git
+    && useradd -ms /bin/bash circleci
+COPY --from=builder /usr/local/cargo/bin/gen-orb-mcp /usr/local/bin/gen-orb-mcp
+USER circleci
+WORKDIR /home/circleci/project

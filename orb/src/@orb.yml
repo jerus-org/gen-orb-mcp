@@ -1,3 +1,6 @@
 version: 2.1
 description: >
   Generate MCP servers from CircleCI orb definitions
+display:
+  home_url: "https://github.com/jerus-org/gen-orb-mcp"
+  source_url: "https://github.com/jerus-org/gen-orb-mcp"
