@@ -25,10 +25,19 @@ use clap::{Parser, Subcommand};
 use generator::CodeGenerator;
 use parser::OrbParser;
 
-/// Generate MCP servers from CircleCI orb definitions
+/// Generate MCP servers from CircleCI orb definitions.
 #[derive(Debug, Parser)]
 #[command(name = "gen-orb-mcp")]
-#[command(author, version, about, long_about = None)]
+#[command(
+    author,
+    version,
+    about,
+    long_about = "Generate MCP servers from CircleCI orb definitions, \
+        exposing commands, jobs, and executors as AI-accessible resources. \
+        Supports migration tooling, prior-version snapshots, and diff-based \
+        conformance rules to help consumers keep their CI config in sync with \
+        orb updates."
+)]
 pub struct Cli {
     #[command(subcommand)]
     command: Commands,

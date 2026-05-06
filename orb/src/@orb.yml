@@ -1,6 +1,6 @@
 version: 2.1
 description: >
-  Generate MCP servers from CircleCI orb definitions
+  Generate MCP servers from CircleCI orb definitions, exposing commands, jobs, and executors as AI-accessible resources. Supports migration tooling, prior-version snapshots, and diff-based conformance rules to help consumers keep their CI config in sync with orb updates.
 display:
   home_url: "https://github.com/jerus-org/gen-orb-mcp"
   source_url: "https://github.com/jerus-org/gen-orb-mcp"
