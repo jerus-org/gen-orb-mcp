@@ -14,7 +14,7 @@ parameters:
     enum:
     - binary
     - source
-  name:
+  generate_name:
     type: string
     description: Name for the generated orb server (defaults to filename)
     default: ''

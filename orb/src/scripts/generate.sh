@@ -2,7 +2,7 @@ gen-orb-mcp generate \
   --orb-path "<< parameters.orb_path >>" \
   <<# parameters.output >>--output "<< parameters.output >>"<</ parameters.output >> \
   <<# parameters.format >>--format "<< parameters.format >>"<</ parameters.format >> \
-  <<# parameters.name >>--name "<< parameters.name >>"<</ parameters.name >> \
+  <<# parameters.generate_name >>--name "<< parameters.generate_name >>"<</ parameters.generate_name >> \
   <<# parameters.version >>--version "<< parameters.version >>"<</ parameters.version >> \
   <<# parameters.force >>--force<</ parameters.force >> \
   <<# parameters.migrations >>--migrations "<< parameters.migrations >>"<</ parameters.migrations >> \
