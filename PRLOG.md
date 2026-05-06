@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- test-add compilation test for generated MCP server(pr [#114])
+
 ### Fixed
 
 - deps: update rust crate semver to 1.0.28(pr [#104])
@@ -280,6 +284,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#103]: https://github.com/jerus-org/gen-orb-mcp/pull/103
 [#105]: https://github.com/jerus-org/gen-orb-mcp/pull/105
 [#107]: https://github.com/jerus-org/gen-orb-mcp/pull/107
+[#114]: https://github.com/jerus-org/gen-orb-mcp/pull/114
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.10...HEAD
 [0.1.10]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.8...v0.1.9
