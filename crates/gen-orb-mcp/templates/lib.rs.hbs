@@ -199,11 +199,7 @@ impl ServerHandler for OrbServer {
         _ctx: RequestContext<RoleServer>,
     ) -> impl std::future::Future<Output = Result<ListToolsResult, McpError>> + Send + '_ {
         async move {
-{{#if has_tools}}
             let mut tools: Vec<Tool> = vec![
-{{else}}
-            let tools: Vec<Tool> = vec![
-{{/if}}
                 Tool {
                     name: "get_version".into(),
                     title: None,
