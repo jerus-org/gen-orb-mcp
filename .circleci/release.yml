@@ -13,6 +13,8 @@ parameters:
 orbs:
   toolkit: jerus-org/circleci-toolkit@6.2.0
 
+  orb-tools: circleci/orb-tools@12.3.3
+  docker: circleci/docker@3.2.0
 jobs:
   tools:
     executor: toolkit/rust_env_rolling
@@ -26,6 +28,46 @@ jobs:
             cargo release --version
             rsign --version
 
+  build-binary-release:
+    docker:
+      - image: rust:latest
+    steps:
+      - checkout
+      - run:
+          name: Build release binary
+          command: cargo build --release -p gen-orb-mcp
+      - persist_to_workspace:
+          root: target/release
+          paths: [gen-orb-mcp]
+  ensure-orb-registered-jerus-org:
+    executor: orb-tools/default
+    steps:
+      - run:
+          name: Ensure orb is registered
+          command: |
+            circleci setup --token "${CIRCLE_TOKEN}" --host https://circleci.com --no-prompt
+            circleci orb info jerus-org/gen-orb-mcp > /dev/null 2>&1 || \
+              circleci orb create jerus-org/gen-orb-mcp --no-prompt
+  build-container:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - setup_remote_docker
+      - attach_workspace:
+          at: /tmp/release-versions
+      - attach_workspace:
+          at: /tmp/bin
+      - run:
+          name: Build and push Docker image
+          command: |
+            source /tmp/release-versions/versions.env
+            VERSION=${CRATE_VERSION_GEN_ORB_MCP}
+            cp /tmp/bin/gen-orb-mcp orb/gen-orb-mcp
+            docker build -t jerusdp/gen-orb-mcp:${VERSION} -t jerusdp/gen-orb-mcp:latest orb
+            echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+            docker push jerusdp/gen-orb-mcp:${VERSION}
+            docker push jerusdp/gen-orb-mcp:latest
 workflows:
   release:
     jobs:
@@ -44,7 +86,7 @@ workflows:
 
       - toolkit/release_crate:
           name: release-gen-orb-mcp
-          requires: [approve-release]
+          requires: [publish-orb-jerus-org]
           package: gen-orb-mcp
           crate_tag_prefix: gen-orb-mcp-v
           build_binary: true
@@ -60,3 +102,30 @@ workflows:
             - release
             - bot-check
             - pcu-app
+      - build-binary-release:
+          requires: [release-gen-orb-mcp]
+      - orb-tools/pack:
+          name: pack-orb-release
+          source_dir: orb/src
+          requires: [release-gen-orb-mcp]
+      - build-container:
+          requires: [build-binary-release]
+          context: [docker-credentials]
+      - ensure-orb-registered-jerus-org:
+          requires: [release-gen-orb-mcp]
+          context: [orb-publishing]
+      - orb-tools/publish:
+          name: publish-orb-jerus-org
+          pre-steps:
+            - attach_workspace:
+                at: /tmp/release-versions
+            - run:
+                name: Export orb version as CIRCLE_TAG
+                command: |
+                  source /tmp/release-versions/versions.env
+                  echo "export CIRCLE_TAG=v${CRATE_VERSION_GEN_ORB_MCP}" >> "$BASH_ENV"
+          orb_name: jerus-org/gen-orb-mcp
+          pub_type: production
+          vcs_type: github
+          requires: [build-container, pack-orb-release, ensure-orb-registered-jerus-org]
+          context: [orb-publishing]
