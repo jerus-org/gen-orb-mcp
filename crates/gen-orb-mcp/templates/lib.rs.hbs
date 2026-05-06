@@ -27,12 +27,10 @@
 use rmcp::{
     ServerHandler,
     model::{
-        AnnotateAble, ErrorData as McpError, Implementation, ListResourcesResult,
-        PaginatedRequestParams, ProtocolVersion, RawResource, ReadResourceRequestParams,
-        ReadResourceResult, ResourceContents, ServerCapabilities, ServerInfo,
-{{#if has_tools}}
-        CallToolRequestParams, CallToolResult, Content, ListToolsResult, Tool,
-{{/if}}
+        AnnotateAble, CallToolRequestParams, CallToolResult, Content, ErrorData as McpError,
+        Implementation, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
+        ProtocolVersion, RawResource, ReadResourceRequestParams, ReadResourceResult,
+        ResourceContents, ServerCapabilities, ServerInfo, Tool,
     },
     service::RequestContext,
     RoleServer,
@@ -89,9 +87,7 @@ impl ServerHandler for OrbServer {
             protocol_version: ProtocolVersion::LATEST,
             capabilities: ServerCapabilities::builder()
                 .enable_resources()
-{{#if has_tools}}
                 .enable_tools()
-{{/if}}
                 .build(),
             server_info: Implementation {
                 name: "{{orb_name}}-mcp".into(),
@@ -203,7 +199,11 @@ impl ServerHandler for OrbServer {
         _ctx: RequestContext<RoleServer>,
     ) -> impl std::future::Future<Output = Result<ListToolsResult, McpError>> + Send + '_ {
         async move {
-            let mut tools = vec![
+{{#if has_tools}}
+            let mut tools: Vec<Tool> = vec![
+{{else}}
+            let tools: Vec<Tool> = vec![
+{{/if}}
                 Tool {
                     name: "get_version".into(),
                     title: None,
@@ -306,7 +306,11 @@ impl ServerHandler for OrbServer {
         _ctx: RequestContext<RoleServer>,
     ) -> impl std::future::Future<Output = Result<CallToolResult, McpError>> + Send + '_ {
         async move {
+{{#if has_tools}}
             let args = request.arguments.unwrap_or_default();
+{{else}}
+            let _ = request.arguments;
+{{/if}}
             match request.name.as_ref() {
                 "get_version" => Ok(CallToolResult::success(vec![Content::text(
                     serde_json::json!({
