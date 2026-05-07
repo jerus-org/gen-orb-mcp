@@ -1,0 +1,44 @@
+description: Generate an MCP server from an orb definition
+parameters:
+  orb_path:
+    type: string
+    description: Path to the orb YAML file (e.g., src/@orb.yml)
+  output:
+    type: string
+    description: Output directory for generated server
+    default: ./dist
+  format:
+    type: enum
+    description: Output format
+    default: source
+    enum:
+    - binary
+    - source
+  generate_name:
+    type: string
+    description: Name for the generated orb server (defaults to filename)
+    default: ''
+  version:
+    type: string
+    description: Version for the generated MCP server crate (e.g., "1.0.0")  Required when regenerating an existing output directory. For CI workflows, this should match the orb release version.
+    default: ''
+  force:
+    type: boolean
+    description: Overwrite existing files without confirmation  Required for non-interactive CI environments when output exists.
+    default: false
+  migrations:
+    type: string
+    description: Directory containing conformance rule JSON files to embed in the server  All *.json files in this directory are merged and embedded as migration tooling in the generated server. When provided, the server gains plan_migration and apply_migration MCP Tools in addition to Resources.
+    default: ''
+  prior_versions:
+    type: string
+    description: Directory of prior orb version YAML snapshots to embed in the server  Each file should be named `<version>.yml` (e.g., `4.7.1.yml`). The generated server will expose version-specific resources for each prior version alongside the current version.
+    default: ''
+  tag_prefix:
+    type: string
+    description: Tag prefix used to discover the orb version from git tags  The git repository is derived automatically from --orb-path. Defaults to "v" (matches tags like v6.0.0).
+    default: v
+steps:
+- run:
+    name: generate
+    command: <<include(scripts/generate.sh)>>

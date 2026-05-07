@@ -1,0 +1,24 @@
+description: Run migrate command in a dedicated job.
+executor: default
+parameters:
+  ci_dir:
+    type: string
+    description: Path to the consumer's .circleci/ directory
+    default: .circleci
+  orb:
+    type: string
+    description: 'The orb alias as used in the consumer''s orbs: section (e.g. "toolkit")'
+  rules:
+    type: string
+    description: Path to the conformance rules JSON file (produced by `diff`)
+  dry_run:
+    type: boolean
+    description: Show planned changes without modifying files
+    default: false
+steps:
+- checkout
+- migrate:
+    ci_dir: << parameters.ci_dir >>
+    orb: << parameters.orb >>
+    rules: << parameters.rules >>
+    dry_run: << parameters.dry_run >>

@@ -1,0 +1,10 @@
+description: Run validate command in a dedicated job.
+executor: default
+parameters:
+  orb_path:
+    type: string
+    description: Path to the orb YAML file
+steps:
+- checkout
+- validate:
+    orb_path: << parameters.orb_path >>

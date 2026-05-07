@@ -1,0 +1,19 @@
+description: Compute conformance rules by diffing two orb versions  Compares the current orb against a previous version (read from a file) and emits a JSON array of ConformanceRule values. These rules can be passed to `generate --migrations` to embed migration tooling in the generated MCP server.
+parameters:
+  current:
+    type: string
+    description: Path to the current orb YAML (the new version)
+  previous:
+    type: string
+    description: Path to the previous orb YAML (the old version to diff against)
+  since_version:
+    type: string
+    description: The version string to embed in emitted rules (e.g. "5.0.0")
+  output:
+    type: string
+    description: 'Optional output file for the JSON rules (default: stdout)'
+    default: ''
+steps:
+- run:
+    name: diff
+    command: <<include(scripts/diff.sh)>>
