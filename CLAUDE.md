@@ -52,11 +52,12 @@ gen-orb-mcp/
 │       │       ├── context.rs # Template context types
 │       │       └── error.rs   # Generator error types
 │       └── tests/
-├── docs/                      # Design documentation
-│   ├── ARCHITECTURE.md        # Technical design and data structures
-│   ├── IMPLEMENTATION_PLAN.md # Task breakdown and timeline
-│   ├── FINALIZED_PLAN.md      # Project decisions and scope
-│   └── QUICKSTART.md          # Development setup guide
+├── docs/                      # Documentation
+│   ├── QUICKSTART.md          # Usage scenarios and pipeline integration guide
+│   ├── CI_INTEGRATION_GUIDE.md # CircleCI orb integration reference
+│   ├── ORB_AUTHOR_RENAME_GUIDE.md # Guide for orb authors on job renames
+│   ├── NEXT_PHASE_PLAN.md     # Active development phase plan
+│   └── archive/               # Historical planning and design documents
 └── AI_DILIGENCE.md            # AI assistance transparency statement
 ```
 
