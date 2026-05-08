@@ -138,6 +138,70 @@ gen-orb-mcp migrate \
   --rules ./migrations/4.9.6.json
 ```
 
+## CircleCI Orb
+
+gen-orb-mcp is published as a CircleCI orb at `jerus-org/gen-orb-mcp`. The orb exposes each
+subcommand as a reusable job running inside the pre-built Docker image with gen-orb-mcp
+pre-installed — no manual installation required.
+
+### Add to your config
+
+```yaml
+orbs:
+  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.11
+```
+
+### Available jobs
+
+| Job | Required parameters | Description |
+|-----|---------------------|-------------|
+| `generate` | `orb_path` | Generate an MCP server from an orb YAML file |
+| `validate` | `orb_path` | Validate an orb definition |
+| `diff` | `current`, `previous`, `since_version` | Compute conformance rules between two orb versions |
+| `migrate` | `orb`, `rules` | Apply migration rules to a consumer CI directory |
+| `prime` | — | Populate `prior-versions/` and `migrations/` from git history |
+
+### Example: generate an MCP server from your orb in CI
+
+```yaml
+orbs:
+  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.11
+
+workflows:
+  build:
+    jobs:
+      - gen-orb-mcp/generate:
+          orb_path: src/@orb.yml
+          output: ./mcp-server
+          version: "1.0.0"
+```
+
+### Example: full prime → generate pipeline
+
+```yaml
+orbs:
+  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.11
+
+workflows:
+  build:
+    jobs:
+      - gen-orb-mcp/prime:
+          orb_path: src/@orb.yml
+          earliest_version: "4.1.0"
+          ephemeral: true
+      - gen-orb-mcp/generate:
+          orb_path: src/@orb.yml
+          output: ./mcp-server
+          version: "6.0.0"
+          migrations: /tmp/gen-orb-mcp-prime/migrations
+          prior_versions: /tmp/gen-orb-mcp-prime/prior-versions
+          requires: [gen-orb-mcp/prime]
+```
+
+The orb source is regenerated automatically on every build by
+[gen-circleci-orb](https://github.com/jerus-org/gen-circleci-orb), which introspects
+gen-orb-mcp's `--help` output and keeps the orb in sync whenever the CLI changes.
+
 ## CLI Reference
 
 ### `generate` — Generate an MCP server
