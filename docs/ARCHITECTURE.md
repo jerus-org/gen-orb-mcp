@@ -2,47 +2,105 @@
 
 ## Overview
 
-gen-orb-mcp transforms CircleCI orb definitions into MCP (Model Context Protocol) servers.
-The tool also provides tooling for orb authors to compute migration rules, apply them to
-consumer CI configurations, and prime a version history from git tags.
+gen-orb-mcp is a CLI tool that transforms CircleCI orb definitions into MCP (Model Context
+Protocol) servers, and provides the full supporting toolchain for orb authors to manage
+version history, compute migration rules, and help consumers migrate to new orb versions.
 
-```
-Orb YAML ──► OrbParser ──► OrbDefinition ──► CodeGenerator ──► GeneratedServer (Rust source)
-```
-
-A generated server exposes orb commands, jobs, and executors as MCP Resources. When
-migration data is provided, it additionally exposes prior-version resources and
-`plan_migration` / `apply_migration` MCP Tools.
+The CLI is the primary artifact. It can be used directly in any CI system, scripted
+locally, or invoked from shell steps in a pipeline. The CircleCI orb (`jerus-org/gen-orb-mcp`)
+is a convenience layer that wraps each CLI subcommand as a job for CircleCI users — it does
+not add new capabilities.
 
 ---
 
-## Workspace Structure
+## CLI Tool
+
+### Subcommands
+
+| Subcommand | Purpose |
+|------------|---------|
+| `generate` | Parse an orb YAML and emit a complete MCP server as Rust source |
+| `validate` | Validate an orb definition without generating |
+| `diff` | Compute conformance rules between two orb versions → JSON |
+| `migrate` | Apply conformance rules to a consumer's `.circleci/` directory |
+| `prime` | Populate `prior-versions/` and `migrations/` from git tag history |
+
+### How the Subcommands Relate
+
+The subcommands are designed to be composed in a pipeline. In the most complete workflow:
 
 ```
-gen-orb-mcp/
-├── Cargo.toml                     # Workspace manifest
-├── crates/
-│   └── gen-orb-mcp/
-│       ├── src/
-│       │   ├── main.rs            # Entry point: tracing setup, dispatch to Commands
-│       │   ├── lib.rs             # Cli struct and Commands enum
-│       │   ├── conformance_rule.rs
-│       │   ├── consumer_parser/
-│       │   ├── differ/
-│       │   ├── generator/
-│       │   ├── migrator/
-│       │   ├── parser/
-│       │   └── primer/
-│       └── tests/
-│           └── cmd/               # trycmd integration tests
-└── docs/
+git tags
+    │
+    ▼  prime
+prior-versions/   migrations/
+    │                  │
+    └────────┬──────────┘
+             │
+             ▼  generate (--prior-versions, --migrations)
+         MCP server source
+             │
+             ▼  cargo build --release
+         MCP server binary
+```
+
+A minimal workflow uses only `generate` (no version history, no migration tools). The
+full workflow adds `prime` first to build the history, and `diff` to produce migration
+rules for individual version transitions.
+
+`migrate` is an independent consumer-side tool: it applies conformance rules from `diff`
+directly to a consumer's CI configuration without needing the MCP server.
+
+`validate` is a standalone check that can be wired into any CI pipeline to catch orb
+YAML errors early.
+
+### Usage Without CircleCI
+
+Users on GitHub Actions, GitLab CI, Jenkins, or any other CI platform call the CLI binary
+directly. Install via `cargo install gen-orb-mcp` or `cargo binstall gen-orb-mcp`, then
+invoke the subcommands as shell steps:
+
+```bash
+# Populate version history
+gen-orb-mcp prime \
+  --orb-path src/@orb.yml \
+  --output-dir /tmp/prime-output \
+  --earliest-version 1.0.0
+
+# Generate MCP server source
+gen-orb-mcp generate \
+  --orb-path src/@orb.yml \
+  --output ./mcp-server \
+  --version "${RELEASE_VERSION}" \
+  --migrations /tmp/prime-output/migrations \
+  --prior-versions /tmp/prime-output/prior-versions
+
+# Compile
+cd mcp-server && cargo build --release
 ```
 
 ---
 
-## Module Reference
+## Internal Architecture
 
-### `parser` — Orb YAML ingestion
+### Source Structure
+
+```
+crates/gen-orb-mcp/src/
+├── main.rs                # Entry point: tracing setup, dispatch to Commands
+├── lib.rs                 # Cli struct and Commands enum
+├── conformance_rule.rs    # ConformanceRule enum — shared across diff, generate, migrate
+├── parser/                # OrbParser: YAML → OrbDefinition
+├── generator/             # CodeGenerator: OrbDefinition → Rust source
+├── differ/                # OrbDiffer: two OrbDefinitions → Vec<ConformanceRule>
+├── consumer_parser/       # ConsumerParser: consumer .circleci/*.yml → job graph
+├── migrator/              # Migrator: conformance rules + consumer config → edits
+└── primer/                # prime(): git tags → version snapshots + migration files
+```
+
+### Module Reference
+
+#### `parser` — Orb YAML ingestion
 
 | Type | Description |
 |------|-------------|
@@ -57,7 +115,7 @@ gen-orb-mcp/
 
 Error type: `parser::ParseError` (wraps serde_yaml errors with file context).
 
-### `generator` — MCP server code generation
+#### `generator` — MCP server code generation
 
 | Type | Description |
 |------|-------------|
@@ -73,7 +131,7 @@ Template engine: Handlebars (`handlebars` 6.x). Templates are embedded via `incl
 at compile time (`generator/templates.rs`). Context types for template rendering live in
 `generator/context.rs`.
 
-### `conformance_rule` — Rule types shared across diff and migration
+#### `conformance_rule` — Rule types shared across diff and migration
 
 | Variant | Meaning |
 |---------|---------|
@@ -88,7 +146,7 @@ at compile time (`generator/templates.rs`). Context types for template rendering
 Rules are serialised as JSON. A `Vec<ConformanceRule>` from `diff` is consumed by `generate`
 (`--migrations`) and `migrate`.
 
-### `differ` — Semantic diff between two orb versions
+#### `differ` — Semantic diff between two orb versions
 
 | Symbol | Description |
 |--------|-------------|
@@ -99,7 +157,7 @@ Rules are serialised as JSON. A `Vec<ConformanceRule>` from `diff` is consumed b
 The differ compares job names, parameter names, parameter types, and enum values. It emits
 one rule per discrete change.
 
-### `consumer_parser` — Consumer CI config analysis
+#### `consumer_parser` — Consumer CI config analysis
 
 | Type | Description |
 |------|-------------|
@@ -113,7 +171,7 @@ Key operations:
 - `find_absorbed_candidates(rule)` — identifies jobs that may match a `JobAbsorbed` rule
 - `transitively_requires(job, target)` — tests whether `job` depends on `target`
 
-### `migrator` — Apply conformance rules to consumer configs
+#### `migrator` — Apply conformance rules to consumer configs
 
 | Type | Description |
 |------|-------------|
@@ -128,7 +186,7 @@ Sub-modules:
 - `migrator::reporter` — formats human-readable or JSON output
 - `migrator::types` — shared types (`ChangeType`, `PlannedChange`, etc.)
 
-### `primer` — Populate version history from git tags
+#### `primer` — Populate version history from git tags
 
 | Type | Description |
 |------|-------------|
@@ -144,11 +202,9 @@ Key functions:
 - `compute_diff(current, previous, version)` — runs the differ for a tag pair
 - `serialize_orb(definition)` — serialises an `OrbDefinition` back to YAML for storage
 
----
+### Data Flows
 
-## Data Flows
-
-### Generation pipeline
+#### Generation pipeline
 
 ```
 orb YAML file
@@ -177,7 +233,7 @@ CodeGenerator::generate()
            └── ...
 ```
 
-### Migration pipeline
+#### Migration pipeline
 
 ```
 current orb YAML ──┐
@@ -196,7 +252,7 @@ orb alias                  ┘
                               (comments and formatting preserved)
 ```
 
-### Prime pipeline
+#### Prime pipeline
 
 ```
 git repository
@@ -214,9 +270,7 @@ checkout_and_parse()  ──► OrbDefinition snapshot
     └──► compute_diff(prev)   ──► migrations/<version>.json
 ```
 
----
-
-## Key Dependencies
+### Key Dependencies
 
 | Crate | Version | Purpose |
 |-------|---------|---------|
@@ -230,9 +284,7 @@ checkout_and_parse()  ──► OrbDefinition snapshot
 | `chrono` | 0.4.44 | Timestamp parsing on git tags (prime) |
 | `semver` | 1.0.28 | Version ordering and comparison (prime, differ) |
 
----
-
-## Output Format
+### Generated MCP Server Output
 
 The `generate` subcommand produces a self-contained Rust crate at `<output>/`:
 
@@ -247,4 +299,53 @@ The `generate` subcommand produces a self-contained Rust crate at `<output>/`:
 
 The crate compiles to a standalone binary. Orb content (commands, jobs, executors,
 prior-version snapshots, conformance rules) is embedded at compile time via `include_str!`
-— the running binary has no external file dependencies.
+— the running binary has no external file dependencies at runtime.
+
+---
+
+## CircleCI Orb
+
+The orb (`jerus-org/gen-orb-mcp`) is a convenience layer for CircleCI users. It provides
+a pre-built Docker executor with gen-orb-mcp installed, and exposes each CLI subcommand as
+a CircleCI job so consumers do not need to write shell steps manually.
+
+The orb is generated automatically from the CLI binary by
+[gen-circleci-orb](https://github.com/jerus-org/gen-circleci-orb), which introspects
+`gen-orb-mcp --help` and produces one command file and one job file per subcommand. The
+orb's job structure is directly determined by the CLI's subcommand structure — it adds no
+logic of its own.
+
+### Orb Structure
+
+```
+orb/src/
+├── @orb.yml              # Metadata (description, display URLs)
+├── executors/
+│   └── default.yml       # Docker image jerusdp/gen-orb-mcp:<< parameters.tag >>
+├── commands/             # One file per CLI subcommand (generate, validate, diff, migrate, prime)
+├── jobs/                 # One file per CLI subcommand — wraps checkout + command
+├── scripts/              # Supporting shell scripts
+└── examples/             # Usage examples
+```
+
+Each job follows the same pattern:
+1. `checkout` — check out the repository
+2. Invoke the corresponding orb command, forwarding all parameters
+
+### Executor
+
+The orb executor uses the `jerusdp/gen-orb-mcp` Docker image, which has gen-orb-mcp
+pre-installed. The `tag` parameter (default `latest`) allows consumers to pin to a
+specific version of the tool.
+
+### Relationship to the CLI
+
+A CircleCI consumer using the orb is invoking exactly the same CLI subcommands that any
+other CI platform would use in shell steps. The orb provides:
+- A pre-built environment (no install step needed)
+- Declarative job invocation (parameters map directly to CLI flags)
+- Integration with CircleCI workspace and context mechanisms
+
+Non-CircleCI consumers replicate the same behaviour by running the CLI binary directly
+in their own CI environment, using the equivalent shell flags documented in
+`docs/QUICKSTART.md` and `docs/CI_INTEGRATION_GUIDE.md`.
