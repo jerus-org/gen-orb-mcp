@@ -1,3 +1,5 @@
+> **Archive notice**: This is a historical planning document retained for reference. The project is live on crates.io and GitHub.
+
 # gen-orb-mcp: Open Source Release Plan
 
 ## Overview

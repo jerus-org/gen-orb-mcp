@@ -1,212 +1,228 @@
 # CI Integration Guide
 
-Integrate gen-orb-mcp into a CI/CD pipeline to generate MCP server binaries on each orb release.
+Integrate gen-orb-mcp into a CircleCI pipeline to run MCP server generation as part of your orb's build and release workflow.
 
 ## Overview
 
-gen-orb-mcp generates a companion MCP server binary when a CircleCI orb is released and attaches it to the GitHub release. AI coding assistants can then download the binary to access orb documentation and tooling.
+gen-orb-mcp is available as a **CircleCI orb** (`jerus-org/gen-orb-mcp`) that exposes each subcommand as a reusable job. The orb handles tool installation and execution; you choose how the outputs are built, stored, and distributed.
 
-Three components are involved:
+The orb is a set of building blocks, not a prescribed workflow. This guide shows how to assemble them.
 
-1. **CI container** - Docker image with gen-orb-mcp pre-installed
-2. **CI pipeline** - Job that generates the binary and uploads it to the release
-3. **Release assets** - Binary attached to the GitHub release for download
+## The gen-orb-mcp Orb
 
-## CI Tool Installation
-
-Two approaches to making gen-orb-mcp available in CI:
-
-### Pre-installed in container (recommended)
-
-Install gen-orb-mcp in the CI Docker image at build time. This avoids tool installation overhead on every run.
-
-```dockerfile
-ENV GEN_ORB_MCP_VERSION=0.1.0
-
-RUN cargo binstall gen-orb-mcp --version "${GEN_ORB_MCP_VERSION}" --no-confirm
-```
-
-**Advantages:**
-- No install overhead at CI runtime
-- Reproducible builds with exact version pinned in image
-
-**Trade-off:**
-- Container rebuild required for version updates
-
-`cargo binstall` downloads pre-built binaries when available and falls back to compiling from source otherwise. Either way, the tool is baked into the image and available at CI runtime.
-
-**Tip:** Dependency update tools can automate version bumps. For example, [Renovate](https://docs.renovatebot.com/) detects and updates crate versions with a comment above the `ENV` line:
-
-```dockerfile
-# renovate: datasource=crate depName=gen-orb-mcp packageName=gen-orb-mcp versioning=semver-coerced
-ENV GEN_ORB_MCP_VERSION=0.1.0
-```
-
-### Runtime installation
-
-Install gen-orb-mcp as a CI step. Simpler to set up but adds time to every run.
+### Add to your config
 
 ```yaml
-steps:
-  - run:
-      name: Install gen-orb-mcp
-      command: cargo binstall gen-orb-mcp --no-confirm
+orbs:
+  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1
 ```
 
-**Advantages:**
-- No custom Docker image required
-- Always gets the latest version
+### Available jobs
 
-**Trade-off:**
-- Adds install time to every CI run
-- Source compilation can take several minutes if no pre-built binary is available
+| Job | Required parameters | Description |
+|-----|---------------------|-------------|
+| `generate` | `orb_path` | Generate MCP server source from an orb YAML |
+| `validate` | `orb_path` | Validate an orb definition |
+| `diff` | `current`, `previous`, `since_version` | Compute conformance rules between two orb versions |
+| `migrate` | `orb`, `rules` | Apply migration rules to a consumer `.circleci/` directory |
+| `prime` | — | Populate `prior-versions/` and `migrations/` from git history |
 
-### Future: Public CircleCI orb
+Each job runs inside the pre-built Docker image with gen-orb-mcp pre-installed — no manual installation required.
 
-A public CircleCI orb providing gen-orb-mcp as a reusable job is planned. This would let any orb project add MCP server generation by using the orb directly, without managing tool installation.
+## Approach 1: Orb jobs as drop-in building blocks
 
-## CircleCI Pipeline Configuration
+The orb jobs produce output in the workspace. What you do with that output — compile it, archive it, upload it to a release, commit it back — is your choice.
 
-### Reusable Commands
+### Regenerate on every build (validate only)
 
-#### generate_mcp_server
-
-Wraps `gen-orb-mcp generate` to produce an MCP server from an orb definition.
+The simplest use is running `generate` on every build to confirm the generated orb source is consistent and passes `orb-tools/validate`:
 
 ```yaml
-generate_mcp_server:
-  description: >
-    Generate an MCP server binary from a CircleCI orb definition.
-  parameters:
-    orb_path:
-      type: string
-      default: "src/@orb.yml"
-    output_dir:
-      type: string
-      default: "/tmp/mcp-build"
-    orb_name:
-      type: string
-      description: "Name of the orb"
-    version:
-      type: string
-      description: "Version of the orb"
-    format:
-      type: enum
-      enum: ["binary", "source"]
-      default: "binary"
-  steps:
-    - run:
-        name: Generate MCP server (<< parameters.format >>)
-        no_output_timeout: 15m
-        command: |
-          gen-orb-mcp generate \
-            --orb-path "<< parameters.orb_path >>" \
-            --output "<< parameters.output_dir >>" \
-            --format "<< parameters.format >>" \
-            --name "<< parameters.orb_name >>" \
-            --version "<< parameters.version >>"
+orbs:
+  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1
+  orb-tools: circleci/orb-tools@12
+
+workflows:
+  build:
+    jobs:
+      - gen-orb-mcp/generate:
+          orb_path: src/@orb.yml
+          output: /tmp/mcp-build
+          version: "0.0.0"
 ```
 
-Set `no_output_timeout: 15m` because binary compilation can take several minutes without producing output.
+No build step, no upload — just confirm generation succeeds.
 
-#### upload_release_asset
+### Generate source and compile to binary
 
-Uploads a file to the GitHub release matching the current tag. Requires `GITHUB_TOKEN` in the environment.
+To compile the generated source to a binary, add a build step after `generate`:
 
 ```yaml
-upload_release_asset:
-  description: >
-    Upload a binary asset to a GitHub release.
-  parameters:
-    asset_path:
-      type: string
-      description: "Path to the asset file to upload"
-    asset_name:
-      type: string
-      default: ""
-      description: "Name for the asset (defaults to filename)"
-    github_token_var:
-      type: env_var_name
-      default: GITHUB_TOKEN
-  steps:
-    - run:
-        name: Upload asset to GitHub release
-        command: |
-          ASSET_PATH="<< parameters.asset_path >>"
-          ASSET_NAME="<< parameters.asset_name >>"
-          TOKEN="${<< parameters.github_token_var >>}"
+workflows:
+  build:
+    jobs:
+      - gen-orb-mcp/generate:
+          orb_path: src/@orb.yml
+          output: /tmp/mcp-build
+          version: "${CIRCLE_TAG#v}"
 
-          if [[ -z "${ASSET_NAME}" ]]; then
-            ASSET_NAME="$(basename "${ASSET_PATH}")"
-          fi
-
-          REPO_SLUG="${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}"
-
-          RELEASE_RESPONSE=$(curl -s -w "\n%{http_code}" \
-            -H "Authorization: Bearer ${TOKEN}" \
-            "https://api.github.com/repos/${REPO_SLUG}/releases/tags/${CIRCLE_TAG}")
-
-          HTTP_CODE=$(echo "${RELEASE_RESPONSE}" | tail -1)
-          RELEASE_BODY=$(echo "${RELEASE_RESPONSE}" | sed '$d')
-
-          if [[ "${HTTP_CODE}" != "200" ]]; then
-            echo "ERROR: GitHub API returned HTTP ${HTTP_CODE}" >&2
-            echo "${RELEASE_BODY}" | jq -r '.message // .' >&2
-            exit 1
-          fi
-
-          RELEASE_ID=$(echo "${RELEASE_BODY}" | jq -r '.id')
-
-          curl -s -w "\n%{http_code}" -X POST \
-            -H "Authorization: Bearer ${TOKEN}" \
-            -H "Content-Type: application/octet-stream" \
-            "https://uploads.github.com/repos/${REPO_SLUG}/releases/${RELEASE_ID}/assets?name=${ASSET_NAME}" \
-            --data-binary "@${ASSET_PATH}"
+      - compile-mcp-server:
+          requires: [gen-orb-mcp/generate]
+          steps:
+            - attach_workspace:
+                at: /tmp/mcp-build
+            - run:
+                name: Compile MCP server
+                no_output_timeout: 15m
+                command: |
+                  cd /tmp/mcp-build
+                  cargo build --release
 ```
 
-Uses `curl` and `jq` to interact with the GitHub Releases API. Capture HTTP status codes explicitly rather than using `curl -sf`, which suppresses error details and makes failures difficult to diagnose.
+`no_output_timeout: 15m` prevents CircleCI from killing a silent Rust compilation.
 
-### Complete Job Example
+### Use `prime` before `generate` to embed history
+
+`prime` discovers prior orb versions from git tags and writes snapshot files. Pass those files to `generate`:
+
+```yaml
+workflows:
+  release:
+    jobs:
+      - gen-orb-mcp/prime:
+          orb_path: src/@orb.yml
+          earliest_version: "4.1.0"
+          ephemeral: true
+
+      - gen-orb-mcp/generate:
+          orb_path: src/@orb.yml
+          output: /tmp/mcp-build
+          version: "${CIRCLE_TAG#v}"
+          migrations: /tmp/gen-orb-mcp-prime/migrations
+          prior_versions: /tmp/gen-orb-mcp-prime/prior-versions
+          requires: [gen-orb-mcp/prime]
+```
+
+When `ephemeral: true`, `prime` writes to `/tmp/gen-orb-mcp-prime-<pid>/` and prints the
+`PRIME_PV_DIR` and `PRIME_MIG_DIR` env vars to `$BASH_ENV` for use in subsequent jobs.
+
+## Approach 2: Runtime installation without the orb
+
+If you prefer not to use the orb, install gen-orb-mcp at runtime:
 
 ```yaml
 jobs:
-  generate-mcp-server:
-    executor: your-rust-executor
+  generate-mcp:
+    docker:
+      - image: cimg/rust:1.85
     steps:
       - checkout
       - run:
-          name: Extract version from tag
-          command: |
-            ORB_VERSION="${CIRCLE_TAG#v}"
-            echo "export ORB_VERSION=${ORB_VERSION}" >> "$BASH_ENV"
-      - generate_mcp_server:
-          orb_name: my-orb
-          version: "${ORB_VERSION}"
+          name: Install gen-orb-mcp
+          command: cargo binstall gen-orb-mcp --no-confirm
       - run:
-          name: Prepare artifact
+          name: Generate MCP server source
           command: |
-            mkdir -p /tmp/artifacts
-            cp /tmp/mcp-build/target/release/my_orb_mcp \
-              /tmp/artifacts/my-orb-mcp-linux-x86_64
-      - store_artifacts:
-          path: /tmp/artifacts
-          destination: mcp-server
-      - upload_release_asset:
-          asset_path: /tmp/artifacts/my-orb-mcp-linux-x86_64
+            gen-orb-mcp generate \
+              --orb-path src/@orb.yml \
+              --output /tmp/mcp-build \
+              --version "${CIRCLE_TAG#v}"
 ```
 
-### Workflow Integration
+**Trade-off**: Adds install time to every run. `cargo binstall` downloads a pre-built binary when available; falls back to source compilation (3-5 minutes) otherwise.
 
-This follows the standard CircleCI orb template pattern used by `circleci-toolkit` and `circleci/orb-tools`: the `test-deploy.yml` pipeline runs tests on all branches and tags, but release jobs run only on semver tags.
+## Approach 3: Pre-installed in a custom container
 
-The MCP generation job should:
+Install gen-orb-mcp in your CI Docker image at build time:
 
-- **Run only on release tags** - Filter to semver tags (e.g., `v1.2.3`)
-- **Require all test jobs** - Do not generate from untested code
-- **Run in parallel with publishing** - Independent of the orb publish step
-- **Not block publishing** - Orb release succeeds even if MCP generation fails
+```dockerfile
+# renovate: datasource=crate depName=gen-orb-mcp versioning=semver-coerced
+ENV GEN_ORB_MCP_VERSION=0.1.0
+RUN cargo binstall gen-orb-mcp --version "${GEN_ORB_MCP_VERSION}" --no-confirm
+```
+
+The `renovate:` comment lets Renovate track the version automatically.
+
+**Advantage:** no install overhead at runtime, exact version pinned in image.
+**Trade-off:** container rebuild required for version updates.
+
+## Storing and Distributing the Generated Binary
+
+Where the binary ends up is entirely your choice. Common options:
+
+### CircleCI artifacts (build-time inspection)
 
 ```yaml
+- store_artifacts:
+    path: /tmp/mcp-build/target/release/my_orb_mcp
+    destination: mcp-server/my-orb-mcp-linux-x86_64
+```
+
+The binary is accessible in the CircleCI UI. Useful for inspection and manual download.
+
+### GitHub release asset
+
+Upload to the GitHub release using the Releases API. `curl` and `jq` are available in most CircleCI convenience images:
+
+```bash
+ASSET_PATH="/tmp/mcp-build/target/release/my_orb_mcp"
+ASSET_NAME="my-orb-mcp-linux-x86_64"
+REPO_SLUG="${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}"
+TOKEN="${GITHUB_TOKEN}"
+
+# Get the release ID for this tag
+RELEASE_ID=$(curl -sf \
+  -H "Authorization: Bearer ${TOKEN}" \
+  "https://api.github.com/repos/${REPO_SLUG}/releases/tags/${CIRCLE_TAG}" \
+  | jq -r '.id')
+
+# Upload the asset
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/octet-stream" \
+  "https://uploads.github.com/repos/${REPO_SLUG}/releases/${RELEASE_ID}/assets?name=${ASSET_NAME}" \
+  --data-binary "@${ASSET_PATH}")
+
+echo "Upload HTTP status: ${HTTP_CODE}"
+[ "${HTTP_CODE}" = "201" ] || exit 1
+```
+
+This requires a CircleCI context providing `GITHUB_TOKEN` with `contents: write` permission. The GitHub release must exist before the upload runs.
+
+### Committed back to the repository
+
+If you want the generated source committed back (so it is version-controlled alongside the orb):
+
+```yaml
+- run:
+    name: Commit generated MCP server source
+    command: |
+      git config user.email "ci@example.com"
+      git config user.name "CI"
+      git add mcp-server/
+      git diff --cached --quiet || git commit -m "chore: regenerate MCP server source"
+      git push origin main
+```
+
+This requires a deploy key or token with push access.
+
+### Persist as workspace artifact for a downstream job
+
+```yaml
+- persist_to_workspace:
+    root: /tmp
+    paths:
+      - mcp-build/target/release/my_orb_mcp
+```
+
+## Complete Example: Release workflow
+
+This example generates the MCP server source and uploads a compiled binary to the GitHub release. It uses the orb for generation and standard `curl` for the upload — no `gh` CLI required.
+
+```yaml
+orbs:
+  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1
+
 release-filters: &release-filters
   branches:
     ignore: /.*/
@@ -214,72 +230,82 @@ release-filters: &release-filters
     only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
 
 workflows:
-  test-deploy:
+  release:
     jobs:
-      # ... test jobs run on all branches and tags ...
-
-      - generate-mcp-server:
+      - gen-orb-mcp/prime:
           filters: *release-filters
-          requires:
-            - all-test-jobs
-          context:
-            - your-github-context  # must provide GITHUB_TOKEN with write access
+          orb_path: src/@orb.yml
+          earliest_version: "1.0.0"
+          ephemeral: true
 
-      - orb-tools/publish:
-          # Does NOT require generate-mcp-server
+      - gen-orb-mcp/generate:
           filters: *release-filters
-          requires:
-            - orb-tools/pack
-            - all-test-jobs
-          context:
-            - orb-publishing
+          requires: [gen-orb-mcp/prime]
+          orb_path: src/@orb.yml
+          output: /tmp/mcp-build
+          version: "${CIRCLE_TAG#v}"
+          migrations: /tmp/gen-orb-mcp-prime/migrations
+          prior_versions: /tmp/gen-orb-mcp-prime/prior-versions
+
+      - compile-and-upload:
+          filters: *release-filters
+          requires: [gen-orb-mcp/generate]
+          context: github-release
+          docker:
+            - image: cimg/rust:1.85
+          steps:
+            - attach_workspace:
+                at: /tmp/mcp-build
+            - run:
+                name: Compile
+                no_output_timeout: 15m
+                command: cd /tmp/mcp-build && cargo build --release
+            - run:
+                name: Upload to GitHub release
+                command: |
+                  ASSET_PATH="/tmp/mcp-build/target/release/my_orb_mcp"
+                  ASSET_NAME="my-orb-mcp-linux-x86_64"
+                  REPO_SLUG="${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}"
+                  TOKEN="${GITHUB_TOKEN}"
+
+                  RELEASE_ID=$(curl -sf \
+                    -H "Authorization: Bearer ${TOKEN}" \
+                    "https://api.github.com/repos/${REPO_SLUG}/releases/tags/${CIRCLE_TAG}" \
+                    | jq -r '.id')
+
+                  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+                    -H "Authorization: Bearer ${TOKEN}" \
+                    -H "Content-Type: application/octet-stream" \
+                    "https://uploads.github.com/repos/${REPO_SLUG}/releases/${RELEASE_ID}/assets?name=${ASSET_NAME}" \
+                    --data-binary "@${ASSET_PATH}")
+
+                  echo "Upload HTTP status: ${HTTP_CODE}"
+                  [ "${HTTP_CODE}" = "201" ] || exit 1
 ```
 
 ## Binary Naming Convention
 
-Generated binaries use platform-suffixed names:
+The Rust compiler converts hyphens to underscores in binary names. For example, an orb named `my-orb` produces a binary named `my_orb_mcp`. Rename it before uploading if you want the hyphenated name:
 
+```bash
+mv /tmp/mcp-build/target/release/my_orb_mcp \
+   /tmp/artifacts/my-orb-mcp-linux-x86_64
 ```
-<orb-name>-mcp-<platform>-<arch>
-```
-
-Example: `circleci-toolkit-mcp-linux-x86_64`
-
-Currently only Linux x86_64 is supported (the standard CircleCI executor architecture).
-
-## Prerequisites
-
-- **GitHub token** - A `GITHUB_TOKEN` with write access to the GitHub release, provided via a CircleCI context. The upload step creates release assets, which requires `contents: write` permission.
-- **GitHub release** - Must exist before the upload step runs
-- **jq** - Required for parsing GitHub API responses in the upload command
-- **gen-orb-mcp** - Must be available in the executor
 
 ## Troubleshooting
 
 ### Binary compilation timeout
 
-The generated MCP server compiles a Rust project (3-5 minutes). Set `no_output_timeout: 15m` on the generation step to prevent CircleCI from killing the job.
+Rust compilation can take 3-5 minutes without producing output. Set `no_output_timeout: 15m` on any step that compiles.
 
 ### GitHub release not found
 
-The upload command looks up the release by `CIRCLE_TAG`. Check that:
-- The job runs on a tag-triggered pipeline
-- The GitHub release exists for that tag
-- `CIRCLE_TAG` is set (not available on branch builds)
+The upload command looks up the release by `CIRCLE_TAG`. The job must run on a tag-triggered pipeline, and the GitHub release must exist for that tag before the upload step runs.
 
-### Upload fails with HTTP 401 or empty token
+### Upload fails with HTTP 401 or 403
 
-The upload step requires a `GITHUB_TOKEN` with write access to the release. Verify that:
-- The CircleCI context attached to the job provides `GITHUB_TOKEN`
-- The token has `contents: write` permission on the repository
-- The correct context name is listed in the workflow entry
+The `GITHUB_TOKEN` must have `contents: write` permission on the repository. Verify that the correct CircleCI context is attached to the job and that the token has the required scope.
 
-If the token is missing or lacks write access, the GitHub API returns `401 Unauthorized` or `403 Forbidden`. The upload command logs the HTTP status code and error message to help diagnose the issue.
+### prime writes to a temporary directory that is not shared
 
-### cargo binstall falls back to source compilation
-
-This means pre-built binaries are not yet published for that version of gen-orb-mcp. This only affects Docker image build time, not CI pipeline execution (the tool is pre-installed in the image).
-
-### Binary name mismatch
-
-The generated binary name converts hyphens to underscores (Rust convention). For example, `circleci-toolkit` produces `circleci_toolkit_mcp`. The rename to the platform-suffixed name happens in the "Prepare artifact" step.
+When using `ephemeral: true`, the path written to `$BASH_ENV` by `prime` is only available within the same job. Pass the path explicitly as `migrations` and `prior_versions` parameters to `generate` or use workspace persistence between jobs.

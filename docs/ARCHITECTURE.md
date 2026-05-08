@@ -244,7 +244,7 @@ pub struct GeneratedServer {
 
 ```rust
 // templates/server.rs.hbs
-use pmcp::*;
+use rmcp::*;
 
 pub struct {{orb_name}}McpServer {
     orb_name: String,
@@ -532,7 +532,7 @@ Return MigrationPlan to user
 ```toml
 [dependencies]
 # MCP Protocol
-pmcp = "1.8"                    # MCP SDK
+rmcp = "0.1"                    # MCP SDK
 
 # YAML Processing
 serde = { version = "1.0", features = ["derive"] }

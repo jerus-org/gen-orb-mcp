@@ -121,28 +121,67 @@ gen-orb-mcp migrate \
 
 ## Integrating into a release pipeline
 
-In your orb's CircleCI release workflow, add a step after the orb is published:
+### Option A: Using the gen-orb-mcp CircleCI orb
+
+The `jerus-org/gen-orb-mcp` orb exposes each subcommand as a reusable job with gen-orb-mcp pre-installed. Add it to your workflow and combine with whatever build or upload steps fit your deployment:
 
 ```yaml
-- run:
-    name: Generate migration rules
-    command: |
-      gen-orb-mcp diff \
-        --current src/@orb.yml \
-        --previous "$(cat previous-version.yml)" \
-        --since-version "$ORB_VERSION" \
-        --output migrations/"$ORB_VERSION".json
+orbs:
+  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1
 
-- run:
-    name: Generate MCP server
-    command: |
-      gen-orb-mcp generate \
-        --orb-path src/@orb.yml \
-        --output dist/mcp \
-        --version "$ORB_VERSION" \
-        --migrations migrations/ \
-        --prior-versions prior-versions/ \
-        --force
+workflows:
+  release:
+    jobs:
+      - gen-orb-mcp/prime:
+          orb_path: src/@orb.yml
+          earliest_version: "4.1.0"
+          ephemeral: true
+
+      - gen-orb-mcp/generate:
+          orb_path: src/@orb.yml
+          output: /tmp/mcp-build
+          version: "${CIRCLE_TAG#v}"
+          migrations: /tmp/gen-orb-mcp-prime/migrations
+          prior_versions: /tmp/gen-orb-mcp-prime/prior-versions
+          requires: [gen-orb-mcp/prime]
+```
+
+What to do with the generated source (compile it, store it, upload it) is left to you. See `CI_INTEGRATION_GUIDE.md` for storage and upload options.
+
+### Option B: Run commands directly in a job
+
+Install gen-orb-mcp in a custom executor and run the commands as run steps:
+
+```yaml
+jobs:
+  generate-mcp:
+    docker:
+      - image: cimg/rust:1.85
+    steps:
+      - checkout
+      - run:
+          name: Install gen-orb-mcp
+          command: cargo binstall gen-orb-mcp --no-confirm
+      - run:
+          name: Populate prior-version history
+          command: |
+            eval "$(gen-orb-mcp prime \
+              --orb-path src/@orb.yml \
+              --earliest-version "${EARLIEST_VERSION}" \
+              --ephemeral)"
+      - run:
+          name: Generate MCP server source
+          command: |
+            gen-orb-mcp generate \
+              --orb-path src/@orb.yml \
+              --output /tmp/mcp-build \
+              --version "${CIRCLE_TAG#v}" \
+              --migrations "${PRIME_MIG_DIR}" \
+              --prior-versions "${PRIME_PV_DIR}"
+      - run:
+          name: Compile
+          no_output_timeout: 15m
+          command: cd /tmp/mcp-build && cargo build --release
 ```
 
 ---

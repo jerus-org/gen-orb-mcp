@@ -1,3 +1,5 @@
+> **Archive notice**: This is a historical planning document. CI integration is now active — see `CI_INTEGRATION_GUIDE.md` for current guidance.
+
 # CircleCI-Toolkit Integration Plan
 
 ## Overview

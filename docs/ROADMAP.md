@@ -1,3 +1,5 @@
+> **Archive notice**: This is a historical planning document retained for reference. Current project state is in the codebase and PRLOG.md.
+
 # gen-orb-mcp: Project Roadmap
 
 ## Executive Summary

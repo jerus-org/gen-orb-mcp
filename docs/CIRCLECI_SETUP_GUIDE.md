@@ -1,3 +1,5 @@
+> **Archive notice**: This is a historical setup document. Current CI configuration is in `.circleci/`.
+
 # CircleCI Setup Guide for gen-orb-mcp
 
 ## Overview
