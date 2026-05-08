@@ -121,9 +121,10 @@ Options:
 | `CIRCLE_PROJECT_REPONAME` | Repository name |
 | `CIRCLE_TAG` | Release tag (overridden by `--tag`) |
 
-**Implementation:** Uses `reqwest` with `rustls` (no native TLS), matching the approach
-used in `pcu` (`reqwest = { version = "0.13.2", default-features = false, features = ["rustls"] }`).
-No dependency on the `gh` CLI or any external tool.
+**Implementation:** Uses **`octocrate`** for the GitHub REST API, matching the approach
+used in `pcu`. `octocrate` provides typed request/response structs for GitHub API
+endpoints, including `repos::upload_release_asset`. No dependency on raw HTTP calls or
+the `gh` CLI.
 
 **What it does:**
 
@@ -247,11 +248,14 @@ verify no regressions.
 ### Phase B — `publish` subcommand
 
 1. Add `Publish` variant to `Commands` enum
-2. Add `reqwest` to workspace `Cargo.toml` following pcu's pattern:
-   `reqwest = { version = "0.13.2", default-features = false, features = ["rustls"] }`
+2. Add `octocrate` to workspace `Cargo.toml` following pcu's configuration:
+   ```toml
+   octocrate = { version = "2.2.0", default-features = false, features = [
+       "repos", "file-body", "rustls-tls",
+   ] }
+   ```
 3. Create `crates/gen-orb-mcp/src/commands/publish.rs`
-4. Create `crates/gen-orb-mcp/src/github/mod.rs` for GitHub Releases API client
-5. RED: write unit tests for:
+4. RED: write unit tests for:
    - `--dry-run` prints upload parameters without calling the API
    - Missing `GITHUB_TOKEN` returns a clear error before any API call
    - Release not found returns a diagnostic with the tag and repo slug
@@ -294,10 +298,14 @@ verify no regressions.
 **New workspace dependency:**
 
 ```toml
-reqwest = { version = "0.13.2", default-features = false, features = ["rustls"] }
+octocrate = { version = "2.2.0", default-features = false, features = [
+    "repos", "file-body", "rustls-tls",
+] }
 ```
 
-Matches pcu's configuration exactly. No native TLS; uses `rustls`.
+Matches pcu's approach: `octocrate` provides typed GitHub API access including
+`repos::upload_release_asset`. `rustls-tls` for TLS; no native TLS. The `file-body`
+feature is required for binary upload.
 
 No other new external crates expected.
 
