@@ -161,11 +161,19 @@ Options:
 **Idempotency:** If the working tree is clean after staging the specified paths, the
 subcommand exits successfully without creating an empty commit.
 
-**Implementation:** Uses the same git and GitHub API approach as the `pcu` library to
-ensure consistent authentication, branch protection bypass authority, and push behaviour
-across the jerus-org toolchain. A dedicated git-focused CLI built on the pcu library
-would be a cleaner long-term solution and keep git operations out of gen-orb-mcp's scope;
-that is a future direction (requires a new crate in pcu) and is not part of this phase.
+**Implementation:** Uses the same underlying crates as `pcu`:
+- `git2` + `git2_credentials` for staging, committing, and credential handling
+- `octocrate` for the GitHub API push (branch protection bypass via GitHub App token)
+
+`pcu` is published on crates.io and exports `GitOps`, `MakeRelease`, and `Client`, but
+`Client::new_with` is coupled to pcu's own internal configuration structure (pcu-specific
+config keys, `command`, `username`, `reponame`, etc.) and is not designed as a stable
+external API. Depending on it directly would be fragile. Using the same underlying crates
+gives equivalent behaviour without that coupling.
+
+The clean long-term solution — a dedicated library crate extracted from pcu that provides
+a stable external API for git and GitHub operations — requires a new crate in pcu and is
+a future direction, not part of this phase.
 
 **`[skip ci]`** in the default commit message prevents CI from re-triggering on the
 artifact commit.
@@ -267,8 +275,7 @@ verify no regressions.
 ### Phase C — `save` subcommand
 
 1. Add `Save` variant to `Commands` enum
-2. Assess which pcu library functions are available for reuse (git staging, commit,
-   GitHub App push); extract or depend on as appropriate
+2. Add `git2` and `git2_credentials` to workspace `Cargo.toml`, matching pcu's versions
 3. Create `crates/gen-orb-mcp/src/commands/save.rs`
 4. RED: write unit tests for:
    - Clean working tree after staging exits 0 without creating a commit
@@ -295,19 +302,23 @@ verify no regressions.
 
 ## Dependencies
 
-**New workspace dependency:**
+**New workspace dependencies** (all matching the versions used by pcu):
 
 ```toml
+# GitHub REST API — typed access to repos::upload_release_asset and release lookup
 octocrate = { version = "2.2.0", default-features = false, features = [
     "repos", "file-body", "rustls-tls",
 ] }
+
+# Git operations — staging, committing, pushing for the save subcommand
+git2 = "0.20.4"
+git2_credentials = "0.15.0"
 ```
 
-Matches pcu's approach: `octocrate` provides typed GitHub API access including
-`repos::upload_release_asset`. `rustls-tls` for TLS; no native TLS. The `file-body`
-feature is required for binary upload.
-
-No other new external crates expected.
+`octocrate` provides typed GitHub API access; `rustls-tls` for TLS, no native TLS.
+`file-body` is required for binary upload. `git2` + `git2_credentials` replace a
+dependency on pcu's internal `Client` struct, which is not designed as a stable external
+API despite pcu being published on crates.io.
 
 ---
 
