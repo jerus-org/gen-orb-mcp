@@ -61,13 +61,31 @@ steps:
 - Adds install time to every CI run
 - Source compilation can take several minutes if no pre-built binary is available
 
-### Future: Public CircleCI orb
+### gen-orb-mcp orb (recommended)
 
-A public CircleCI orb providing gen-orb-mcp as a reusable job is planned. This would let any orb project add MCP server generation by using the orb directly, without managing tool installation.
+The `jerus-org/gen-orb-mcp` orb exposes every subcommand as a ready-to-use job. This is the
+preferred approach — no tool installation, no custom scripts.
+
+```yaml
+orbs:
+  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.11
+```
+
+Available jobs: `generate`, `validate`, `diff`, `migrate`, `prime`, `build`, `publish`, `save`.
+See the [README](../crates/gen-orb-mcp/README.md) for the full job reference.
 
 ## CircleCI Pipeline Configuration
 
-### Reusable Commands
+### Using the orb (recommended)
+
+The `jerus-org/gen-orb-mcp` orb provides ready-made jobs. See the
+[QUICKSTART.md](QUICKSTART.md#integrating-into-a-release-pipeline) for the complete
+5-job workflow (`prime → generate → build → publish → save`).
+
+### Manual approach (without the orb)
+
+If you cannot use the orb (e.g. not using CircleCI, or need custom behaviour), the sections
+below show how to wire the equivalent steps manually using reusable commands.
 
 #### generate_mcp_server
 
@@ -249,10 +267,16 @@ Currently only Linux x86_64 is supported (the standard CircleCI executor archite
 
 ## Prerequisites
 
-- **GitHub token** - A `GITHUB_TOKEN` with write access to the GitHub release, provided via a CircleCI context. The upload step creates release assets, which requires `contents: write` permission.
-- **GitHub release** - Must exist before the upload step runs
-- **jq** - Required for parsing GitHub API responses in the upload command
-- **gen-orb-mcp** - Must be available in the executor
+- **GitHub token** — A `GITHUB_TOKEN` with `contents: write` permission, provided via a
+  CircleCI context. Required by both the manual upload command and the `publish` orb job.
+- **GitHub release** — Must exist before the `publish` step runs. `publish` only uploads
+  assets to an existing release; it does not create the release. Create it earlier in your
+  workflow (e.g. via `pcu` or `gh release create`).
+- **gen-orb-mcp** — Must be available in the executor (pre-installed in the container or
+  via runtime `cargo binstall`). Not required when using the orb — the orb executor has it
+  pre-installed.
+- **jq** — Required for parsing GitHub API responses in the manual `upload_release_asset`
+  command only. Not required when using the `publish` orb job.
 
 ## Troubleshooting
 

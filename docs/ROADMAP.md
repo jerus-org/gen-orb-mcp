@@ -11,6 +11,9 @@
 | `diff` | Compute conformance rules between two orb versions → JSON |
 | `migrate` | Apply conformance rules to a consumer's `.circleci/` directory |
 | `prime` | Populate `prior-versions/` and `migrations/` from git tag history |
+| `build` | Compile generated MCP server source to a native binary |
+| `publish` | Upload a compiled binary to an existing GitHub release |
+| `save` | Stage, commit, and push generated artifacts back to the repository |
 
 ### CircleCI Orb (`jerus-org/gen-orb-mcp`)
 
@@ -26,109 +29,6 @@ a job. Consumers wire these jobs into their release workflow to automate the ful
 | `plan_migration` Tool | ✅ (with `--migrations`) |
 | `apply_migration` Tool | ✅ (with `--migrations`) |
 | Compile to native binary | ✅ |
-
----
-
-## Tier 2: Build, Publish, Save (Planned)
-
-### Objective
-
-A consumer should be able to wire a complete, automated pipeline that:
-1. Populates version history (`prime`)
-2. Generates MCP server source with history embedded (`generate`)
-3. Compiles the generated source to a native binary (`build`)
-4. Uploads the binary to an existing GitHub release (`publish`)
-5. Commits the generated artifacts back to the repo (`save`)
-
-Steps 3–5 are the tier 2 additions. Full design: `docs/NEXT_PHASE_PLAN.md`.
-
-### `build` subcommand
-
-Compiles generated MCP server source to a native binary.
-
-```
-gen-orb-mcp build --input <DIR> [--output <DIR>] [--name <NAME>] [--target <TRIPLE>] [--dry-run]
-```
-
-- Verifies `<input>/Cargo.toml` exists, then runs `cargo build --release`
-- Reports binary path on success
-- Orb job: `build` — generated automatically by `gen-circleci-orb`
-
-### `publish` subcommand
-
-Uploads a compiled binary to an existing GitHub release as a release asset.
-
-```
-gen-orb-mcp publish --binary <PATH> --asset-name <NAME> [--tag <TAG>] [--dry-run]
-```
-
-- **Prerequisite**: the GitHub release must already exist; `publish` only uploads assets
-- Resolves the release ID for the tag via the GitHub Releases API
-- Uploads via `octocrate::repos::upload_release_asset` (typed GitHub API client)
-- Environment variables: `GITHUB_TOKEN`, `CIRCLE_PROJECT_USERNAME`,
-  `CIRCLE_PROJECT_REPONAME`, `CIRCLE_TAG`
-- Orb job: `publish` — generated automatically by `gen-circleci-orb`
-
-### `save` subcommand
-
-Stages, commits, and pushes generated artifacts back to the repository.
-
-```
-gen-orb-mcp save [OPTIONS] <PATHS>...
-```
-
-- Idempotent: exits 0 without creating a commit if the working tree is clean after staging
-- Default commit message includes `[skip ci]` to prevent CI re-triggering
-- Implementation: `git2` + `git2_credentials` (same underlying crates as `pcu`)
-- Orb job: `save` — generated automatically by `gen-circleci-orb`
-
-### New Dependencies
-
-```toml
-octocrate = { version = "2.2.0", default-features = false, features = [
-    "repos", "file-body", "rustls-tls",
-] }
-git2 = "0.20.4"
-git2_credentials = "0.15.0"
-```
-
-### Complete Tier 2 Workflow
-
-```yaml
-orbs:
-  gen-orb-mcp: jerus-org/gen-orb-mcp@<version>
-
-workflows:
-  release:
-    jobs:
-      - gen-orb-mcp/prime:
-          orb_path: src/@orb.yml
-          earliest_version: "1.0.0"
-          ephemeral: true
-
-      - gen-orb-mcp/generate:
-          requires: [gen-orb-mcp/prime]
-          orb_path: src/@orb.yml
-          output: /tmp/mcp-build
-          version: "${CIRCLE_TAG#v}"
-          migrations: /tmp/gen-orb-mcp-prime/migrations
-          prior_versions: /tmp/gen-orb-mcp-prime/prior-versions
-
-      - gen-orb-mcp/build:
-          requires: [gen-orb-mcp/generate]
-          input: /tmp/mcp-build
-
-      - gen-orb-mcp/publish:
-          requires: [gen-orb-mcp/build]
-          binary: /tmp/mcp-build/target/release/my_orb_mcp
-          asset_name: my-orb-mcp-linux-x86_64
-          context: github-release
-
-      - gen-orb-mcp/save:
-          requires: [gen-orb-mcp/generate]
-          paths: prior-versions migrations orb/src
-          context: github-push
-```
 
 ---
 
@@ -157,6 +57,25 @@ Examples of tier 3 composed jobs:
 ---
 
 ## Completed Milestones
+
+### Tier 2 — Build, Publish, Save (2026-05)
+
+Completed the automated end-to-end pipeline from orb YAML to a compiled binary attached to a
+GitHub release:
+
+- `build` subcommand: compiles generated MCP server source via `cargo build --release`;
+  reads crate name from `Cargo.toml` when `--name` is omitted; supports `--target` for
+  cross-compilation
+- `publish` subcommand: uploads a compiled binary to an existing GitHub release using
+  `octocrate`; resolves release ID by tag; reads credentials from `GITHUB_TOKEN`,
+  `CIRCLE_PROJECT_USERNAME`, `CIRCLE_PROJECT_REPONAME`, `CIRCLE_TAG`
+- `save` subcommand: stages, commits, and pushes specified paths via `git2` +
+  `git2_credentials`; idempotent (exits 0 if working tree is clean after staging);
+  default commit message includes `[skip ci]`
+- All three subcommands support `--dry-run`
+- Orb updated: `build`, `publish`, `save` jobs generated automatically by `gen-circleci-orb`
+- Full 5-job pipeline achievable with the orb alone: `prime → generate → build → publish`
+  (with `save` running in parallel from `generate`)
 
 ### v0.1.0 — Phase 1 MVP (2024)
 
