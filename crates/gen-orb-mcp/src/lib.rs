@@ -763,8 +763,34 @@ fn run_save(paths: &[std::path::PathBuf], message: &str, push: bool, dry_run: bo
     let repo = Repository::discover(".")
         .map_err(|e| anyhow::anyhow!("Not inside a git repository: {}", e))?;
 
-    // Stage the requested paths
     let mut index = repo.index()?;
+    save_stage_paths(&mut index, paths)?;
+
+    let head_commit = repo.head().ok().and_then(|h| h.peel_to_commit().ok());
+    let diff = save_compute_diff(&repo, &mut index, head_commit.as_ref())?;
+
+    if diff.deltas().count() == 0 {
+        println!("Nothing to commit — working tree clean after staging.");
+        return Ok(());
+    }
+
+    if dry_run {
+        save_print_dry_run(&diff, message, push);
+        return Ok(());
+    }
+
+    let oid = save_create_commit(&repo, &mut index, message, head_commit.as_ref())?;
+    tracing::info!(commit = %oid, "Created commit");
+    println!("Created commit {oid}: {message}");
+
+    if push {
+        save_git_push(&repo)?;
+    }
+
+    Ok(())
+}
+
+fn save_stage_paths(index: &mut git2::Index, paths: &[std::path::PathBuf]) -> Result<()> {
     let mut staged_any = false;
     for path in paths {
         if path.exists() {
@@ -777,87 +803,80 @@ fn run_save(paths: &[std::path::PathBuf], message: &str, push: bool, dry_run: bo
     if staged_any {
         index.write()?;
     }
+    Ok(())
+}
 
-    // Check if the tree is clean after staging
-    let head_commit = repo.head().ok().and_then(|h| h.peel_to_commit().ok());
-    let diff = if let Some(ref commit) = head_commit {
-        let head_tree = commit.tree()?;
-        let new_tree_oid = index.write_tree()?;
-        let new_tree = repo.find_tree(new_tree_oid)?;
-        repo.diff_tree_to_tree(Some(&head_tree), Some(&new_tree), None)?
-    } else {
-        let new_tree_oid = index.write_tree()?;
-        let new_tree = repo.find_tree(new_tree_oid)?;
-        repo.diff_tree_to_tree(None, Some(&new_tree), None)?
-    };
+fn save_compute_diff<'repo>(
+    repo: &'repo git2::Repository,
+    index: &mut git2::Index,
+    head_commit: Option<&git2::Commit<'_>>,
+) -> Result<git2::Diff<'repo>> {
+    let new_tree_oid = index.write_tree()?;
+    let new_tree = repo.find_tree(new_tree_oid)?;
+    let head_tree = head_commit.map(|c| c.tree()).transpose()?;
+    Ok(repo.diff_tree_to_tree(head_tree.as_ref(), Some(&new_tree), None)?)
+}
 
-    if diff.deltas().count() == 0 {
-        println!("Nothing to commit — working tree clean after staging.");
-        return Ok(());
+fn save_print_dry_run(diff: &git2::Diff<'_>, message: &str, push: bool) {
+    println!("Would commit the following changes:");
+    for delta in diff.deltas() {
+        let path = delta
+            .new_file()
+            .path()
+            .and_then(|p| p.to_str())
+            .unwrap_or("(unknown)");
+        println!("  {path}");
     }
-
-    if dry_run {
-        println!("Would commit the following changes:");
-        for delta in diff.deltas() {
-            let path = delta
-                .new_file()
-                .path()
-                .and_then(|p| p.to_str())
-                .unwrap_or("(unknown)");
-            println!("  {path}");
-        }
-        println!("Commit message: {message}");
-        if push {
-            println!("Would push after committing.");
-        }
-        return Ok(());
+    println!("Commit message: {message}");
+    if push {
+        println!("Would push after committing.");
     }
+}
 
-    // Create the commit
+fn save_create_commit(
+    repo: &git2::Repository,
+    index: &mut git2::Index,
+    message: &str,
+    head_commit: Option<&git2::Commit<'_>>,
+) -> Result<git2::Oid> {
     let sig = repo.signature()?;
     let new_tree_oid = index.write_tree()?;
     let new_tree = repo.find_tree(new_tree_oid)?;
+    let parents: Vec<&git2::Commit> = head_commit.into_iter().collect();
+    Ok(repo.commit(Some("HEAD"), &sig, &sig, message, &new_tree, &parents)?)
+}
 
-    let parent_commits: Vec<git2::Commit> = head_commit.into_iter().collect();
-    let parent_refs: Vec<&git2::Commit> = parent_commits.iter().collect();
+fn save_git_push(repo: &git2::Repository) -> Result<()> {
+    let remote_name = repo
+        .remotes()?
+        .iter()
+        .flatten()
+        .next()
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "origin".to_string());
 
-    let oid = repo.commit(Some("HEAD"), &sig, &sig, message, &new_tree, &parent_refs)?;
-    tracing::info!(commit = %oid, "Created commit");
-    println!("Created commit {oid}: {message}");
+    let mut callbacks = git2::RemoteCallbacks::new();
+    let git_config = repo.config()?;
+    let mut cred_handler = git2_credentials::CredentialHandler::new(git_config);
+    callbacks.credentials(move |url, username, allowed| {
+        cred_handler.try_next_credential(url, username, allowed)
+    });
 
-    if push {
-        let remote_name = repo
-            .remotes()?
-            .iter()
-            .flatten()
-            .next()
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| "origin".to_string());
+    let mut push_opts = git2::PushOptions::new();
+    push_opts.remote_callbacks(callbacks);
 
-        let mut callbacks = git2::RemoteCallbacks::new();
-        let git_config = repo.config()?;
-        let mut cred_handler = git2_credentials::CredentialHandler::new(git_config);
-        callbacks.credentials(move |url, username, allowed| {
-            cred_handler.try_next_credential(url, username, allowed)
-        });
+    let head_ref = repo.head()?;
+    let branch_name = head_ref
+        .shorthand()
+        .ok_or_else(|| anyhow::anyhow!("HEAD has no branch name"))?;
+    let refspec = format!("refs/heads/{branch_name}:refs/heads/{branch_name}");
 
-        let mut push_opts = git2::PushOptions::new();
-        push_opts.remote_callbacks(callbacks);
+    let mut remote = repo.find_remote(&remote_name)?;
+    remote
+        .push(&[refspec.as_str()], Some(&mut push_opts))
+        .map_err(|e| anyhow::anyhow!("Push failed: {}", e))?;
 
-        let head_ref = repo.head()?;
-        let branch_name = head_ref
-            .shorthand()
-            .ok_or_else(|| anyhow::anyhow!("HEAD has no branch name"))?;
-        let refspec = format!("refs/heads/{branch_name}:refs/heads/{branch_name}");
-
-        let mut remote = repo.find_remote(&remote_name)?;
-        remote
-            .push(&[refspec.as_str()], Some(&mut push_opts))
-            .map_err(|e| anyhow::anyhow!("Push failed: {}", e))?;
-
-        println!("Pushed to {remote_name}/{branch_name}");
-    }
-
+    println!("Pushed to {remote_name}/{branch_name}");
     Ok(())
 }
 
