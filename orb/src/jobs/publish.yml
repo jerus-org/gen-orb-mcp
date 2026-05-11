@@ -1,0 +1,24 @@
+description: Run publish command in a dedicated job.
+executor: default
+parameters:
+  binary:
+    type: string
+    description: Path to the binary file to upload
+  asset_name:
+    type: string
+    description: Name for the release asset (e.g. my-orb-mcp-linux-x86_64)
+  tag:
+    type: string
+    description: 'Release tag to publish to (default: $CIRCLE_TAG)'
+    default: ''
+  dry_run:
+    type: boolean
+    description: Describe the upload without performing it
+    default: false
+steps:
+- checkout
+- publish:
+    binary: << parameters.binary >>
+    asset_name: << parameters.asset_name >>
+    tag: << parameters.tag >>
+    dry_run: << parameters.dry_run >>

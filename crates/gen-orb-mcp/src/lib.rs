@@ -215,7 +215,7 @@ enum Commands {
     /// The default commit message includes [skip ci] to prevent CI re-triggering.
     Save {
         /// Paths to stage and commit (relative to repository root)
-        #[arg(required = true)]
+        #[arg(long, required = true)]
         paths: Vec<std::path::PathBuf>,
 
         /// Commit message
@@ -1775,8 +1775,15 @@ mod tests {
 
     #[test]
     fn test_cli_parse_save_required_paths() {
-        let cli = Cli::try_parse_from(["gen-orb-mcp", "save", "prior-versions", "migrations"]);
-        assert!(cli.is_ok(), "save with paths should parse");
+        let cli = Cli::try_parse_from([
+            "gen-orb-mcp",
+            "save",
+            "--paths",
+            "prior-versions",
+            "--paths",
+            "migrations",
+        ]);
+        assert!(cli.is_ok(), "save with --paths should parse");
     }
 
     #[test]
@@ -1784,6 +1791,7 @@ mod tests {
         let cli = Cli::try_parse_from([
             "gen-orb-mcp",
             "save",
+            "--paths",
             "prior-versions",
             "--message",
             "custom message",

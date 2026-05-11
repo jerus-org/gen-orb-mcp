@@ -1,4 +1,4 @@
-gen-orb-mcp migrate \
+./target/release/gen-orb-mcp migrate \
   <<# parameters.ci_dir >>--ci-dir "<< parameters.ci_dir >>"<</ parameters.ci_dir >> \
   --orb "<< parameters.orb >>" \
   --rules "<< parameters.rules >>" \
