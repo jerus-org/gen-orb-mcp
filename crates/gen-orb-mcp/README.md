@@ -160,6 +160,9 @@ orbs:
 | `diff` | `current`, `previous`, `since_version` | Compute conformance rules between two orb versions |
 | `migrate` | `orb`, `rules` | Apply migration rules to a consumer CI directory |
 | `prime` | — | Populate `prior-versions/` and `migrations/` from git history |
+| `build` | `input` | Compile generated MCP server source to a native binary |
+| `publish` | `binary`, `asset_name` | Upload compiled binary to an existing GitHub release |
+| `save` | `paths` | Stage, commit, and push generated artifacts back to the repo |
 
 ### Example: generate an MCP server from your orb in CI
 
@@ -176,27 +179,48 @@ workflows:
           version: "1.0.0"
 ```
 
-### Example: full prime → generate pipeline
+### Example: complete release pipeline
+
+Generate, compile, upload, and save in one automated workflow:
 
 ```yaml
 orbs:
   gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.11
 
 workflows:
-  build:
+  release:
     jobs:
       - gen-orb-mcp/prime:
           orb_path: src/@orb.yml
-          earliest_version: "4.1.0"
+          earliest_version: "1.0.0"
           ephemeral: true
+
       - gen-orb-mcp/generate:
+          requires: [gen-orb-mcp/prime]
           orb_path: src/@orb.yml
-          output: ./mcp-server
-          version: "6.0.0"
+          output: /tmp/mcp-build
+          version: "${CIRCLE_TAG#v}"
           migrations: /tmp/gen-orb-mcp-prime/migrations
           prior_versions: /tmp/gen-orb-mcp-prime/prior-versions
-          requires: [gen-orb-mcp/prime]
+
+      - gen-orb-mcp/build:
+          requires: [gen-orb-mcp/generate]
+          input: /tmp/mcp-build
+
+      - gen-orb-mcp/publish:
+          requires: [gen-orb-mcp/build]
+          binary: /tmp/mcp-build/target/release/my_orb_mcp
+          asset_name: my-orb-mcp-linux-x86_64
+          context: github-release  # must provide GITHUB_TOKEN
+
+      - gen-orb-mcp/save:
+          requires: [gen-orb-mcp/generate]
+          paths: prior-versions migrations
+          context: github-push     # must provide push credentials
 ```
+
+`save` runs in parallel with `build` (both require `generate`), so the artifact commit
+does not block the binary upload.
 
 The orb source is regenerated automatically on every build by
 [gen-circleci-orb](https://github.com/jerus-org/gen-circleci-orb), which introspects
@@ -276,6 +300,62 @@ Options:
       --rules <FILE>    Path to conformance rules JSON (produced by diff)
       --dry-run         Show planned changes without modifying files
 ```
+
+### `build` — Compile generated MCP server source
+
+```
+gen-orb-mcp build [OPTIONS] --input <DIR>
+
+Options:
+  -i, --input <DIR>     Directory containing generated Cargo.toml (required)
+  -n, --name <NAME>     Binary name (default: read from Cargo.toml [package] name)
+      --target <TRIPLE> Cargo target triple for cross-compilation (optional)
+      --dry-run         Print what would run without executing cargo build
+```
+
+Runs `cargo build --release` inside `<input>`. On success, prints the path to the compiled binary.
+The release does not need a pre-existing Rust toolchain beyond what is available in the CI executor.
+
+### `publish` — Upload a binary to a GitHub release
+
+```
+gen-orb-mcp publish [OPTIONS] --binary <PATH> --asset-name <NAME>
+
+Options:
+  -b, --binary <PATH>       Path to the compiled binary file (required)
+  -a, --asset-name <NAME>   Name of the release asset as it appears on GitHub (required)
+      --tag <TAG>            Git tag identifying the release [default: $CIRCLE_TAG]
+      --dry-run              Print what would be uploaded without calling the API
+```
+
+**Prerequisite**: the GitHub release must already exist. `publish` only adds an asset — it does
+not create the release. Environment variables read at runtime:
+
+| Variable | Purpose |
+|---|---|
+| `GITHUB_TOKEN` | Personal access token with `contents: write` |
+| `CIRCLE_PROJECT_USERNAME` | Repository owner |
+| `CIRCLE_PROJECT_REPONAME` | Repository name |
+| `CIRCLE_TAG` | Tag used to locate the release (overridden by `--tag`) |
+
+### `save` — Stage, commit, and push generated artifacts
+
+```
+gen-orb-mcp save [OPTIONS] <PATHS>...
+
+Arguments:
+  <PATHS>...   Paths to stage (files or directories)
+
+Options:
+  -m, --message <MSG>   Commit message [default: "chore: update generated MCP server artifacts [skip ci]"]
+      --push            Push to origin after committing [default: true]
+      --no-push         Skip the push step
+      --dry-run         Stage and diff without creating a commit
+```
+
+Idempotent: if the working tree is clean after staging all paths (no changes), `save` exits 0
+without creating a commit. The default commit message includes `[skip ci]` to prevent CI
+from triggering a new pipeline on the generated artifact commit.
 
 ## How Generated MCP Servers Work
 

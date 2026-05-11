@@ -1,4 +1,4 @@
-gen-orb-mcp generate \
+./target/release/gen-orb-mcp generate \
   --orb-path "<< parameters.orb_path >>" \
   <<# parameters.output >>--output "<< parameters.output >>"<</ parameters.output >> \
   <<# parameters.format >>--format "<< parameters.format >>"<</ parameters.format >> \

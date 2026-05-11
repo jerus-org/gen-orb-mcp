@@ -1,2 +1,2 @@
-gen-orb-mcp validate \
+./target/release/gen-orb-mcp validate \
   --orb-path "<< parameters.orb_path >>"

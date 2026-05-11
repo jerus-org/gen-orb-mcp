@@ -1,0 +1,33 @@
+description: Run save command in a dedicated job.
+executor: default
+parameters:
+  paths:
+    type: string
+    description: Paths to stage and commit (relative to repository root)
+  message:
+    type: string
+    description: Commit message
+    default: "chore: update generated MCP server artifacts [skip ci]"
+  push:
+    type: enum
+    description: 'Push after committing (default: true)'
+    default: 'true'
+    enum:
+    - 'true'
+    - 'false'
+  no_push:
+    type: boolean
+    description: Stage and commit only, do not push
+    default: false
+  dry_run:
+    type: boolean
+    description: Show what would be committed without writing anything
+    default: false
+steps:
+- checkout
+- save:
+    paths: << parameters.paths >>
+    message: << parameters.message >>
+    push: << parameters.push >>
+    no_push: << parameters.no_push >>
+    dry_run: << parameters.dry_run >>

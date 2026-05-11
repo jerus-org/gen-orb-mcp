@@ -1,4 +1,4 @@
-gen-orb-mcp prime \
+./target/release/gen-orb-mcp prime \
   <<# parameters.orb_path >>--orb-path "<< parameters.orb_path >>"<</ parameters.orb_path >> \
   <<# parameters.git_repo >>--git-repo "<< parameters.git_repo >>"<</ parameters.git_repo >> \
   <<# parameters.tag_prefix >>--tag-prefix "<< parameters.tag_prefix >>"<</ parameters.tag_prefix >> \
