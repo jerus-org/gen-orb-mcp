@@ -1064,18 +1064,20 @@ fn parse_package_name(toml: &str) -> Option<String> {
         } else if trimmed.starts_with('[') {
             in_package = false;
         } else if in_package {
-            if let Some(rest) = trimmed.strip_prefix("name") {
-                let rest = rest.trim();
-                if let Some(rest) = rest.strip_prefix('=') {
-                    let name = rest.trim().trim_matches('"').trim_matches('\'').to_string();
-                    if !name.is_empty() {
-                        return Some(name);
-                    }
-                }
+            if let Some(name) = parse_name_assignment(trimmed) {
+                return Some(name);
             }
         }
     }
     None
+}
+
+/// Parse a `name = "value"` assignment line, returning the unquoted value.
+fn parse_name_assignment(line: &str) -> Option<String> {
+    let rest = line.strip_prefix("name")?;
+    let rest = rest.trim().strip_prefix('=')?;
+    let name = rest.trim().trim_matches('"').trim_matches('\'').to_string();
+    (!name.is_empty()).then_some(name)
 }
 
 /// Walk up from `start` looking for a `.git` directory.
