@@ -208,6 +208,24 @@ enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Compile generated MCP server source to a native binary
+    Build {
+        /// Directory containing generated MCP server source
+        #[arg(short = 'i', long)]
+        input: std::path::PathBuf,
+
+        /// Override the binary name (default: derived from Cargo.toml)
+        #[arg(short = 'n', long)]
+        name: Option<String>,
+
+        /// Rust target triple (default: host)
+        #[arg(long)]
+        target: Option<String>,
+
+        /// Print the cargo command without running it
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 /// Output format for generated MCP server
@@ -289,6 +307,12 @@ impl Cli {
                 *ephemeral,
                 *dry_run,
             ),
+            Commands::Build {
+                input,
+                name,
+                target,
+                dry_run,
+            } => run_build(input, name.as_deref(), target.as_deref(), *dry_run),
         }
     }
 }
@@ -666,6 +690,95 @@ fn run_prime(
     );
 
     Ok(())
+}
+
+fn run_build(
+    input: &std::path::Path,
+    name: Option<&str>,
+    target: Option<&str>,
+    dry_run: bool,
+) -> Result<()> {
+    let cargo_toml = input.join("Cargo.toml");
+    if !cargo_toml.exists() {
+        anyhow::bail!(
+            "No Cargo.toml found in input directory: {}",
+            input.display()
+        );
+    }
+
+    let binary_name = match name {
+        Some(n) => n.to_string(),
+        None => read_crate_name(input)?,
+    };
+
+    let mut cargo_args = vec!["build", "--release"];
+    if let Some(t) = target {
+        cargo_args.extend(["--target", t]);
+    }
+
+    let binary_dir = match target {
+        Some(t) => input.join("target").join(t).join("release"),
+        None => input.join("target").join("release"),
+    };
+    let binary_path = binary_dir.join(&binary_name);
+
+    if dry_run {
+        println!("Would run: cargo {}", cargo_args.join(" "));
+        println!("  Input:  {}", input.display());
+        println!("  Binary: {}", binary_path.display());
+        return Ok(());
+    }
+
+    tracing::info!(input = %input.display(), binary = %binary_path.display(), "Compiling MCP server");
+    println!("Compiling MCP server...");
+    let status = std::process::Command::new("cargo")
+        .args(&cargo_args)
+        .current_dir(input)
+        .status()
+        .map_err(|e| anyhow::anyhow!("Failed to run cargo: {}", e))?;
+
+    if !status.success() {
+        anyhow::bail!(
+            "cargo build failed. Source code is available at: {}",
+            input.display()
+        );
+    }
+
+    println!("Successfully compiled MCP server:");
+    println!("  Binary: {}", binary_path.display());
+
+    Ok(())
+}
+
+fn read_crate_name(input: &std::path::Path) -> Result<String> {
+    let content = std::fs::read_to_string(input.join("Cargo.toml"))
+        .map_err(|e| anyhow::anyhow!("Failed to read Cargo.toml: {}", e))?;
+    parse_package_name(&content)
+        .ok_or_else(|| anyhow::anyhow!("Could not find [package] name in Cargo.toml"))
+}
+
+/// Extract the `name` field from the `[package]` section of a Cargo.toml string.
+fn parse_package_name(toml: &str) -> Option<String> {
+    let mut in_package = false;
+    for line in toml.lines() {
+        let trimmed = line.trim();
+        if trimmed == "[package]" {
+            in_package = true;
+        } else if trimmed.starts_with('[') {
+            in_package = false;
+        } else if in_package {
+            if let Some(rest) = trimmed.strip_prefix("name") {
+                let rest = rest.trim();
+                if let Some(rest) = rest.strip_prefix('=') {
+                    let name = rest.trim().trim_matches('"').trim_matches('\'').to_string();
+                    if !name.is_empty() {
+                        return Some(name);
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Walk up from `start` looking for a `.git` directory.
@@ -1243,6 +1356,124 @@ mod tests {
             assert_eq!(tag_prefix, "v");
         } else {
             panic!("expected Generate variant");
+        }
+    }
+
+    // --- build subcommand tests ---
+
+    fn write_cargo_toml(dir: &std::path::Path, name: &str) {
+        std::fs::write(
+            dir.join("Cargo.toml"),
+            format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn test_build_missing_cargo_toml_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let result = run_build(dir.path(), None, None, false);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("Cargo.toml"),
+            "error should mention Cargo.toml, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_build_dry_run_does_not_invoke_cargo() {
+        let dir = TempDir::new().unwrap();
+        write_cargo_toml(dir.path(), "my-server");
+        // Not a valid Rust project — cargo would fail if invoked.
+        // With dry_run=true the function must succeed without running cargo.
+        let result = run_build(dir.path(), None, None, true);
+        assert!(
+            result.is_ok(),
+            "dry_run should succeed without invoking cargo: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_build_name_override_accepted_in_dry_run() {
+        let dir = TempDir::new().unwrap();
+        write_cargo_toml(dir.path(), "my-server");
+        let result = run_build(dir.path(), Some("custom-name"), None, true);
+        assert!(result.is_ok(), "name override + dry_run should succeed: {result:?}");
+    }
+
+    #[test]
+    fn test_build_target_triple_accepted_in_dry_run() {
+        let dir = TempDir::new().unwrap();
+        write_cargo_toml(dir.path(), "my-server");
+        let result = run_build(dir.path(), None, Some("x86_64-unknown-linux-musl"), true);
+        assert!(result.is_ok(), "target + dry_run should succeed: {result:?}");
+    }
+
+    #[test]
+    fn test_parse_package_name_extracts_name() {
+        let toml = "[package]\nname = \"my-orb-mcp\"\nversion = \"0.1.0\"\n";
+        assert_eq!(
+            parse_package_name(toml),
+            Some("my-orb-mcp".to_string()),
+            "should extract package name"
+        );
+    }
+
+    #[test]
+    fn test_parse_package_name_stops_at_next_section() {
+        let toml = "[package]\nname = \"my-orb-mcp\"\n[dependencies]\nname = \"ignored\"\n";
+        assert_eq!(parse_package_name(toml), Some("my-orb-mcp".to_string()));
+    }
+
+    #[test]
+    fn test_parse_package_name_returns_none_when_absent() {
+        let toml = "[dependencies]\nanyhow = \"1\"\n";
+        assert_eq!(parse_package_name(toml), None);
+    }
+
+    #[test]
+    fn test_read_crate_name_from_file() {
+        let dir = TempDir::new().unwrap();
+        write_cargo_toml(dir.path(), "test-crate");
+        let result = read_crate_name(dir.path());
+        assert!(result.is_ok(), "read_crate_name should succeed: {result:?}");
+        assert_eq!(result.unwrap(), "test-crate");
+    }
+
+    #[test]
+    fn test_cli_parse_build_required_input() {
+        let cli = Cli::try_parse_from(["gen-orb-mcp", "build", "--input", "/tmp/my-server"]);
+        assert!(cli.is_ok(), "build --input should parse");
+    }
+
+    #[test]
+    fn test_cli_parse_build_all_flags() {
+        let cli = Cli::try_parse_from([
+            "gen-orb-mcp",
+            "build",
+            "--input",
+            "/tmp/my-server",
+            "--name",
+            "my_server",
+            "--target",
+            "x86_64-unknown-linux-musl",
+            "--dry-run",
+        ]);
+        assert!(cli.is_ok(), "build with all flags should parse");
+        if let Commands::Build {
+            input,
+            name,
+            target,
+            dry_run,
+        } = cli.unwrap().command
+        {
+            assert_eq!(input.to_str().unwrap(), "/tmp/my-server");
+            assert_eq!(name.as_deref(), Some("my_server"));
+            assert_eq!(target.as_deref(), Some("x86_64-unknown-linux-musl"));
+            assert!(dry_run);
+        } else {
+            panic!("expected Build variant");
         }
     }
 }
