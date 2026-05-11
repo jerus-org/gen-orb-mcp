@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - test-add compilation test for generated MCP server(pr [#114])
 - docs-add CircleCI orb section to README(pr [#115])
 - docs-add next phase plan for tier 2 CLI completion(pr [#117])
+- docs-update docs and orb for tier 2 (build/publish/save)(pr [#120])
 
 ### Fixed
 
@@ -296,6 +297,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#115]: https://github.com/jerus-org/gen-orb-mcp/pull/115
 [#117]: https://github.com/jerus-org/gen-orb-mcp/pull/117
 [#119]: https://github.com/jerus-org/gen-orb-mcp/pull/119
+[#120]: https://github.com/jerus-org/gen-orb-mcp/pull/120
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.10...HEAD
 [0.1.10]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.8...v0.1.9
