@@ -43,6 +43,17 @@ chrono = { version = "0.4.44", features = ["std"], default-features = false }
 # Semantic versioning — for --earliest-version comparison and version sorting
 semver = "1.0.28"
 
+# GitHub REST API — typed access for publish subcommand
+octocrate = { version = "2.2.0", default-features = false, features = [
+    "repos",
+    "file-body",
+    "rustls-tls",
+] }
+
+# Git operations — staging, committing, pushing for the save subcommand
+git2 = "0.20.4"
+git2_credentials = "0.15.0"
+
 # Testing
 tempfile = "3.27.0"
 trycmd = "1.2.0"
