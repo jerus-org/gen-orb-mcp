@@ -208,6 +208,58 @@ enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Stage, commit, and push generated artifacts back to the repository
+    ///
+    /// Idempotent: if the working tree is clean after staging the specified
+    /// paths, exits successfully without creating an empty commit.
+    /// The default commit message includes [skip ci] to prevent CI re-triggering.
+    Save {
+        /// Paths to stage and commit (relative to repository root)
+        #[arg(required = true)]
+        paths: Vec<std::path::PathBuf>,
+
+        /// Commit message
+        #[arg(
+            short = 'm',
+            long,
+            default_value = "chore: update generated MCP server artifacts [skip ci]"
+        )]
+        message: String,
+
+        /// Push after committing (default: true)
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+        push: bool,
+
+        /// Stage and commit only, do not push
+        #[arg(long, conflicts_with = "push")]
+        no_push: bool,
+
+        /// Show what would be committed without writing anything
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Upload a compiled binary to an existing GitHub release as a release asset
+    ///
+    /// The GitHub release must already exist before this command is run.
+    /// Set GITHUB_TOKEN, CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME,
+    /// and CIRCLE_TAG (or use --tag) in the environment.
+    Publish {
+        /// Path to the binary file to upload
+        #[arg(short = 'b', long)]
+        binary: std::path::PathBuf,
+
+        /// Name for the release asset (e.g. my-orb-mcp-linux-x86_64)
+        #[arg(short = 'a', long)]
+        asset_name: String,
+
+        /// Release tag to publish to (default: $CIRCLE_TAG)
+        #[arg(long)]
+        tag: Option<String>,
+
+        /// Describe the upload without performing it
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Compile generated MCP server source to a native binary
     Build {
         /// Directory containing generated MCP server source
@@ -307,6 +359,19 @@ impl Cli {
                 *ephemeral,
                 *dry_run,
             ),
+            Commands::Save {
+                paths,
+                message,
+                push,
+                no_push,
+                dry_run,
+            } => run_save(paths, message, *push && !*no_push, *dry_run),
+            Commands::Publish {
+                binary,
+                asset_name,
+                tag,
+                dry_run,
+            } => run_publish(binary, asset_name, tag.as_deref(), *dry_run),
             Commands::Build {
                 input,
                 name,
@@ -688,6 +753,219 @@ fn run_prime(
         result.migrations_added,
         result.migrations_removed,
     );
+
+    Ok(())
+}
+
+fn run_save(paths: &[std::path::PathBuf], message: &str, push: bool, dry_run: bool) -> Result<()> {
+    use git2::Repository;
+
+    let repo = Repository::discover(".")
+        .map_err(|e| anyhow::anyhow!("Not inside a git repository: {}", e))?;
+
+    // Stage the requested paths
+    let mut index = repo.index()?;
+    let mut staged_any = false;
+    for path in paths {
+        if path.exists() {
+            index.add_path(path)?;
+            staged_any = true;
+        } else {
+            tracing::warn!(path = %path.display(), "Path does not exist, skipping");
+        }
+    }
+    if staged_any {
+        index.write()?;
+    }
+
+    // Check if the tree is clean after staging
+    let head_commit = repo.head().ok().and_then(|h| h.peel_to_commit().ok());
+    let diff = if let Some(ref commit) = head_commit {
+        let head_tree = commit.tree()?;
+        let new_tree_oid = index.write_tree()?;
+        let new_tree = repo.find_tree(new_tree_oid)?;
+        repo.diff_tree_to_tree(Some(&head_tree), Some(&new_tree), None)?
+    } else {
+        let new_tree_oid = index.write_tree()?;
+        let new_tree = repo.find_tree(new_tree_oid)?;
+        repo.diff_tree_to_tree(None, Some(&new_tree), None)?
+    };
+
+    if diff.deltas().count() == 0 {
+        println!("Nothing to commit — working tree clean after staging.");
+        return Ok(());
+    }
+
+    if dry_run {
+        println!("Would commit the following changes:");
+        for delta in diff.deltas() {
+            let path = delta
+                .new_file()
+                .path()
+                .and_then(|p| p.to_str())
+                .unwrap_or("(unknown)");
+            println!("  {path}");
+        }
+        println!("Commit message: {message}");
+        if push {
+            println!("Would push after committing.");
+        }
+        return Ok(());
+    }
+
+    // Create the commit
+    let sig = repo.signature()?;
+    let new_tree_oid = index.write_tree()?;
+    let new_tree = repo.find_tree(new_tree_oid)?;
+
+    let parent_commits: Vec<git2::Commit> = head_commit.into_iter().collect();
+    let parent_refs: Vec<&git2::Commit> = parent_commits.iter().collect();
+
+    let oid = repo.commit(Some("HEAD"), &sig, &sig, message, &new_tree, &parent_refs)?;
+    tracing::info!(commit = %oid, "Created commit");
+    println!("Created commit {oid}: {message}");
+
+    if push {
+        let remote_name = repo
+            .remotes()?
+            .iter()
+            .flatten()
+            .next()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "origin".to_string());
+
+        let mut callbacks = git2::RemoteCallbacks::new();
+        let git_config = repo.config()?;
+        let mut cred_handler = git2_credentials::CredentialHandler::new(git_config);
+        callbacks.credentials(move |url, username, allowed| {
+            cred_handler.try_next_credential(url, username, allowed)
+        });
+
+        let mut push_opts = git2::PushOptions::new();
+        push_opts.remote_callbacks(callbacks);
+
+        let head_ref = repo.head()?;
+        let branch_name = head_ref
+            .shorthand()
+            .ok_or_else(|| anyhow::anyhow!("HEAD has no branch name"))?;
+        let refspec = format!("refs/heads/{branch_name}:refs/heads/{branch_name}");
+
+        let mut remote = repo.find_remote(&remote_name)?;
+        remote
+            .push(&[refspec.as_str()], Some(&mut push_opts))
+            .map_err(|e| anyhow::anyhow!("Push failed: {}", e))?;
+
+        println!("Pushed to {remote_name}/{branch_name}");
+    }
+
+    Ok(())
+}
+
+fn run_publish(
+    binary: &std::path::Path,
+    asset_name: &str,
+    tag: Option<&str>,
+    dry_run: bool,
+) -> Result<()> {
+    if !binary.exists() {
+        anyhow::bail!("Binary not found: {}", binary.display());
+    }
+
+    let token = std::env::var("GITHUB_TOKEN")
+        .map_err(|_| anyhow::anyhow!("GITHUB_TOKEN environment variable is not set"))?;
+
+    let resolved_tag = match tag {
+        Some(t) => t.to_string(),
+        None => std::env::var("CIRCLE_TAG").map_err(|_| {
+            anyhow::anyhow!("No release tag provided. Set CIRCLE_TAG or use --tag <TAG>")
+        })?,
+    };
+
+    let owner = std::env::var("CIRCLE_PROJECT_USERNAME").unwrap_or_default();
+    let repo = std::env::var("CIRCLE_PROJECT_REPONAME").unwrap_or_default();
+
+    if dry_run {
+        println!("Would upload release asset (dry run):");
+        println!("  Binary:     {}", binary.display());
+        println!("  Asset name: {asset_name}");
+        println!("  Tag:        {resolved_tag}");
+        if !owner.is_empty() && !repo.is_empty() {
+            println!("  Repo:       {owner}/{repo}");
+        }
+        return Ok(());
+    }
+
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?
+        .block_on(upload_release_asset(
+            &token,
+            &owner,
+            &repo,
+            &resolved_tag,
+            binary,
+            asset_name,
+        ))
+}
+
+async fn upload_release_asset(
+    token: &str,
+    owner: &str,
+    repo: &str,
+    tag: &str,
+    binary: &std::path::Path,
+    asset_name: &str,
+) -> Result<()> {
+    use octocrate::repos;
+    use octocrate::{APIConfig, GitHubAPI, PersonalAccessToken};
+
+    let pat = PersonalAccessToken::new(token);
+    let config = APIConfig::with_token(pat).shared();
+    let api = GitHubAPI::new(&config);
+
+    tracing::info!(owner, repo, tag, "Looking up GitHub release");
+    let release = api
+        .repos
+        .get_release_by_tag(owner, repo, tag)
+        .send()
+        .await
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Release not found for tag '{}' in {}/{}: {}",
+                tag,
+                owner,
+                repo,
+                e
+            )
+        })?;
+
+    tracing::info!(release_id = release.id, "Found release");
+
+    let file = tokio::fs::File::open(binary)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to open binary '{}': {}", binary.display(), e))?;
+    let file_size = file.metadata().await?.len();
+
+    let query = repos::upload_release_asset::Query::builder()
+        .name(asset_name)
+        .build();
+
+    tracing::info!(asset_name, bytes = file_size, "Uploading asset");
+
+    let result = api
+        .repos
+        .upload_release_asset(owner, repo, release.id)
+        .query(&query)
+        .header("Content-Type", "application/octet-stream")
+        .header("Content-Length", file_size.to_string())
+        .file(file)
+        .send()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to upload asset '{}': {}", asset_name, e))?;
+
+    println!("Successfully uploaded release asset:");
+    println!("  Asset: {}", result.name);
+    println!("  URL:   {}", result.browser_download_url);
 
     Ok(())
 }
@@ -1359,6 +1637,270 @@ mod tests {
         }
     }
 
+    // --- save subcommand tests ---
+
+    fn init_git_repo(dir: &std::path::Path) {
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(dir)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.email", "test@test.com"])
+            .current_dir(dir)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.name", "Test"])
+            .current_dir(dir)
+            .output()
+            .unwrap();
+        // Initial commit so HEAD exists
+        std::fs::write(dir.join("README.md"), "test").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(dir)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(dir)
+            .output()
+            .unwrap();
+    }
+
+    #[test]
+    fn test_save_clean_tree_exits_without_commit() {
+        let dir = TempDir::new().unwrap();
+        init_git_repo(dir.path());
+        let _cwd_guard = CWD_LOCK.lock().unwrap();
+        let original = std::env::current_dir().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+        // Stage the path we already committed — tree is clean after staging
+        let result = run_save(
+            &[std::path::PathBuf::from("README.md")],
+            "chore: test",
+            false,
+            false,
+        );
+        std::env::set_current_dir(&original).unwrap();
+        assert!(
+            result.is_ok(),
+            "clean tree should exit 0 without creating a commit: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_save_changed_path_creates_commit() {
+        let dir = TempDir::new().unwrap();
+        init_git_repo(dir.path());
+        std::fs::write(dir.path().join("new-file.txt"), "hello").unwrap();
+        let _cwd_guard = CWD_LOCK.lock().unwrap();
+        let original = std::env::current_dir().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+        let result = run_save(
+            &[std::path::PathBuf::from("new-file.txt")],
+            "chore: add generated file",
+            false,
+            false,
+        );
+        std::env::set_current_dir(&original).unwrap();
+        assert!(
+            result.is_ok(),
+            "changed path should commit successfully: {result:?}"
+        );
+        // Verify a commit was created beyond the initial one
+        let log = std::process::Command::new("git")
+            .args(["log", "--oneline"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+        let log_str = String::from_utf8_lossy(&log.stdout);
+        assert!(
+            log_str.lines().count() >= 2,
+            "expected at least 2 commits, got: {log_str}"
+        );
+    }
+
+    #[test]
+    fn test_save_dry_run_does_not_commit() {
+        let dir = TempDir::new().unwrap();
+        init_git_repo(dir.path());
+        std::fs::write(dir.path().join("artifact.txt"), "generated").unwrap();
+        let _cwd_guard = CWD_LOCK.lock().unwrap();
+        let original = std::env::current_dir().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+        let result = run_save(
+            &[std::path::PathBuf::from("artifact.txt")],
+            "chore: generated",
+            false,
+            true,
+        );
+        std::env::set_current_dir(&original).unwrap();
+        assert!(result.is_ok(), "dry_run should succeed: {result:?}");
+        // Only the initial commit should exist
+        let log = std::process::Command::new("git")
+            .args(["log", "--oneline"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+        let log_str = String::from_utf8_lossy(&log.stdout);
+        assert_eq!(
+            log_str.lines().count(),
+            1,
+            "dry_run must not create a commit, got: {log_str}"
+        );
+    }
+
+    #[test]
+    fn test_cli_parse_save_required_paths() {
+        let cli = Cli::try_parse_from(["gen-orb-mcp", "save", "prior-versions", "migrations"]);
+        assert!(cli.is_ok(), "save with paths should parse");
+    }
+
+    #[test]
+    fn test_cli_parse_save_all_flags() {
+        let cli = Cli::try_parse_from([
+            "gen-orb-mcp",
+            "save",
+            "prior-versions",
+            "--message",
+            "custom message",
+            "--no-push",
+            "--dry-run",
+        ]);
+        assert!(cli.is_ok(), "save with all flags should parse");
+        if let Commands::Save {
+            paths,
+            message,
+            no_push,
+            dry_run,
+            ..
+        } = cli.unwrap().command
+        {
+            assert_eq!(paths, vec![std::path::PathBuf::from("prior-versions")]);
+            assert_eq!(message, "custom message");
+            assert!(no_push);
+            assert!(dry_run);
+        } else {
+            panic!("expected Save variant");
+        }
+    }
+
+    // --- publish subcommand tests ---
+
+    #[test]
+    fn test_publish_missing_binary_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let result = run_publish(
+            &dir.path().join("missing-binary"),
+            "asset.tar.gz",
+            None,
+            false,
+        );
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("Binary not found"),
+            "error should mention missing binary, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_publish_dry_run_with_missing_token_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let binary = dir.path().join("my-binary");
+        std::fs::write(&binary, b"fake binary").unwrap();
+        // dry_run without GITHUB_TOKEN should fail before attempting any API call
+        std::env::remove_var("GITHUB_TOKEN");
+        let result = run_publish(&binary, "my-asset", Some("v1.0.0"), true);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("GITHUB_TOKEN"),
+            "error should mention GITHUB_TOKEN, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_publish_dry_run_missing_tag_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let binary = dir.path().join("my-binary");
+        std::fs::write(&binary, b"fake binary").unwrap();
+        std::env::set_var("GITHUB_TOKEN", "fake-token");
+        std::env::remove_var("CIRCLE_TAG");
+        // no --tag and no CIRCLE_TAG — should fail with a clear message
+        let result = run_publish(&binary, "my-asset", None, true);
+        std::env::remove_var("GITHUB_TOKEN");
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("tag") || msg.contains("CIRCLE_TAG"),
+            "error should mention tag or CIRCLE_TAG, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_publish_dry_run_prints_parameters() {
+        let dir = TempDir::new().unwrap();
+        let binary = dir.path().join("my-binary");
+        std::fs::write(&binary, b"fake binary").unwrap();
+        std::env::set_var("GITHUB_TOKEN", "fake-token");
+        std::env::set_var("CIRCLE_PROJECT_USERNAME", "jerus-org");
+        std::env::set_var("CIRCLE_PROJECT_REPONAME", "my-orb");
+        let result = run_publish(&binary, "my-asset-linux-x86_64", Some("v1.0.0"), true);
+        std::env::remove_var("GITHUB_TOKEN");
+        std::env::remove_var("CIRCLE_PROJECT_USERNAME");
+        std::env::remove_var("CIRCLE_PROJECT_REPONAME");
+        assert!(
+            result.is_ok(),
+            "dry_run with all params should succeed: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_cli_parse_publish_required_args() {
+        let cli = Cli::try_parse_from([
+            "gen-orb-mcp",
+            "publish",
+            "--binary",
+            "/tmp/my-binary",
+            "--asset-name",
+            "my-binary-linux-x86_64",
+        ]);
+        assert!(cli.is_ok(), "publish with required args should parse");
+    }
+
+    #[test]
+    fn test_cli_parse_publish_all_flags() {
+        let cli = Cli::try_parse_from([
+            "gen-orb-mcp",
+            "publish",
+            "--binary",
+            "/tmp/my-binary",
+            "--asset-name",
+            "my-binary-linux-x86_64",
+            "--tag",
+            "v2.0.0",
+            "--dry-run",
+        ]);
+        assert!(cli.is_ok(), "publish with all flags should parse");
+        if let Commands::Publish {
+            binary,
+            asset_name,
+            tag,
+            dry_run,
+        } = cli.unwrap().command
+        {
+            assert_eq!(binary.to_str().unwrap(), "/tmp/my-binary");
+            assert_eq!(asset_name, "my-binary-linux-x86_64");
+            assert_eq!(tag.as_deref(), Some("v2.0.0"));
+            assert!(dry_run);
+        } else {
+            panic!("expected Publish variant");
+        }
+    }
+
     // --- build subcommand tests ---
 
     fn write_cargo_toml(dir: &std::path::Path, name: &str) {
@@ -1399,7 +1941,10 @@ mod tests {
         let dir = TempDir::new().unwrap();
         write_cargo_toml(dir.path(), "my-server");
         let result = run_build(dir.path(), Some("custom-name"), None, true);
-        assert!(result.is_ok(), "name override + dry_run should succeed: {result:?}");
+        assert!(
+            result.is_ok(),
+            "name override + dry_run should succeed: {result:?}"
+        );
     }
 
     #[test]
@@ -1407,7 +1952,10 @@ mod tests {
         let dir = TempDir::new().unwrap();
         write_cargo_toml(dir.path(), "my-server");
         let result = run_build(dir.path(), None, Some("x86_64-unknown-linux-musl"), true);
-        assert!(result.is_ok(), "target + dry_run should succeed: {result:?}");
+        assert!(
+            result.is_ok(),
+            "target + dry_run should succeed: {result:?}"
+        );
     }
 
     #[test]

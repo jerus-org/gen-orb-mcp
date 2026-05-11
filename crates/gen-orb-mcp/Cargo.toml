@@ -41,6 +41,13 @@ tracing-subscriber.workspace = true
 chrono.workspace = true
 semver.workspace = true
 
+# GitHub REST API (for publish subcommand)
+octocrate.workspace = true
+
+# Git operations (for save subcommand)
+git2.workspace = true
+git2_credentials.workspace = true
+
 [dev-dependencies]
 tempfile.workspace = true
 trycmd.workspace = true
