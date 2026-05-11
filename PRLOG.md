@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - wire orb generation via gen-circleci-orb init v0.0.10(pr [#113])
+- add build, publish, and save subcommands (tier 2)(pr [#119])
 
 ### Changed
 
@@ -294,6 +295,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#113]: https://github.com/jerus-org/gen-orb-mcp/pull/113
 [#115]: https://github.com/jerus-org/gen-orb-mcp/pull/115
 [#117]: https://github.com/jerus-org/gen-orb-mcp/pull/117
+[#119]: https://github.com/jerus-org/gen-orb-mcp/pull/119
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.10...HEAD
 [0.1.10]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.8...v0.1.9
