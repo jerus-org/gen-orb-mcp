@@ -85,7 +85,7 @@ workflows:
 
       - toolkit/release_crate:
           name: release-gen-orb-mcp
-          requires: [publish-orb-jerus-org]
+          requires: [approve-release]
           package: gen-orb-mcp
           crate_tag_prefix: gen-orb-mcp-v
           build_binary: true
