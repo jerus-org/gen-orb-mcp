@@ -1,10 +1,10 @@
 description: >
-  Example usage of the ./target/release/gen-orb-mcp orb.
+  Example usage of the gen-orb-mcp orb.
 usage:
   version: 2.1
   orbs:
-    ./target/release/gen-orb-mcp: jerus-org/./target/release/gen-orb-mcp@1.0
+    gen-orb-mcp: jerus-org/gen-orb-mcp@1.0
   workflows:
     use-my-orb:
       jobs:
-        - ./target/release/gen-orb-mcp/generate
+        - gen-orb-mcp/generate

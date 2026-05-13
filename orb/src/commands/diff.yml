@@ -17,3 +17,8 @@ steps:
 - run:
     name: diff
     command: <<include(scripts/diff.sh)>>
+    environment:
+      CURRENT: << parameters.current >>
+      PREVIOUS: << parameters.previous >>
+      SINCE_VERSION: << parameters.since_version >>
+      OUTPUT: << parameters.output >>

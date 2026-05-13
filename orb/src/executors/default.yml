@@ -1,6 +1,6 @@
-description: Execution environment with ./target/release/gen-orb-mcp pre-installed.
+description: Execution environment with gen-orb-mcp pre-installed.
 docker:
-- image: jerusdp/./target/release/gen-orb-mcp:<< parameters.tag >>
+- image: jerusdp/gen-orb-mcp:<< parameters.tag >>
 parameters:
   tag:
     type: string

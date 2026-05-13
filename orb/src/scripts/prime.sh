@@ -1,11 +1,12 @@
-./target/release/gen-orb-mcp prime \
-  <<# parameters.orb_path >>--orb-path "<< parameters.orb_path >>"<</ parameters.orb_path >> \
-  <<# parameters.git_repo >>--git-repo "<< parameters.git_repo >>"<</ parameters.git_repo >> \
-  <<# parameters.tag_prefix >>--tag-prefix "<< parameters.tag_prefix >>"<</ parameters.tag_prefix >> \
-  <<# parameters.earliest_version >>--earliest-version "<< parameters.earliest_version >>"<</ parameters.earliest_version >> \
-  <<# parameters.since >>--since "<< parameters.since >>"<</ parameters.since >> \
-  <<# parameters.prior_versions_dir >>--prior-versions-dir "<< parameters.prior_versions_dir >>"<</ parameters.prior_versions_dir >> \
-  <<# parameters.migrations_dir >>--migrations-dir "<< parameters.migrations_dir >>"<</ parameters.migrations_dir >> \
-  <<# parameters.ephemeral >>--ephemeral<</ parameters.ephemeral >> \
-  <<# parameters.rename_map >>--rename-map "<< parameters.rename_map >>"<</ parameters.rename_map >> \
-  <<# parameters.dry_run >>--dry-run<</ parameters.dry_run >>
+set -- gen-orb-mcp prime
+[ -n "${ORB_PATH:-}" ] && set -- "$@" --orb-path "${ORB_PATH}"
+[ -n "${GIT_REPO:-}" ] && set -- "$@" --git-repo "${GIT_REPO}"
+[ -n "${TAG_PREFIX:-}" ] && set -- "$@" --tag-prefix "${TAG_PREFIX}"
+[ -n "${EARLIEST_VERSION:-}" ] && set -- "$@" --earliest-version "${EARLIEST_VERSION}"
+[ -n "${SINCE:-}" ] && set -- "$@" --since "${SINCE}"
+[ -n "${PRIOR_VERSIONS_DIR:-}" ] && set -- "$@" --prior-versions-dir "${PRIOR_VERSIONS_DIR}"
+[ -n "${MIGRATIONS_DIR:-}" ] && set -- "$@" --migrations-dir "${MIGRATIONS_DIR}"
+[ "${EPHEMERAL:-false}" = "true" ] && set -- "$@" --ephemeral
+[ -n "${RENAME_MAP:-}" ] && set -- "$@" --rename-map "${RENAME_MAP}"
+[ "${DRY_RUN:-false}" = "true" ] && set -- "$@" --dry-run
+"$@"

@@ -18,3 +18,8 @@ steps:
 - run:
     name: migrate
     command: <<include(scripts/migrate.sh)>>
+    environment:
+      CI_DIR: << parameters.ci_dir >>
+      ORB: << parameters.orb >>
+      RULES: << parameters.rules >>
+      DRY_RUN: << parameters.dry_run >>

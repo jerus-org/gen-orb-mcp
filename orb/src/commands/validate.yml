@@ -7,3 +7,5 @@ steps:
 - run:
     name: validate
     command: <<include(scripts/validate.sh)>>
+    environment:
+      ORB_PATH: << parameters.orb_path >>

@@ -14,6 +14,7 @@ orbs:
   toolkit: jerus-org/circleci-toolkit@6.2.0
 
   orb-tools: circleci/orb-tools@12.3.3
+  docker: circleci/docker@3.2.0
 jobs:
   tools:
     executor: toolkit/rust_env_rolling
@@ -45,8 +46,15 @@ jobs:
           name: Ensure orb is registered
           command: |
             circleci setup --token "${CIRCLE_TOKEN}" --host https://circleci.com --no-prompt
-            circleci orb info jerus-org/gen-orb-mcp > /dev/null 2>&1 || \
-              circleci orb create jerus-org/gen-orb-mcp --no-prompt
+            if ! circleci orb info jerus-org/gen-orb-mcp > /dev/null 2>&1; then
+              create_output=$(circleci orb create jerus-org/gen-orb-mcp --no-prompt 2>&1)
+              create_exit=$?
+              echo "${create_output}"
+              if [ "${create_exit}" -ne 0 ] && ! echo "${create_output}" | grep -q "already exists"; then
+                exit "${create_exit}"
+              fi
+            fi
+            echo "Orb is registered."
   build-container:
     docker:
       - image: cimg/base:stable
@@ -109,7 +117,7 @@ workflows:
           requires: [release-gen-orb-mcp]
       - build-container:
           requires: [build-binary-release]
-          context: [docker-credentials]
+          context: [docker]
       - ensure-orb-registered-jerus-org:
           requires: [release-gen-orb-mcp]
           context: [orb-publishing]

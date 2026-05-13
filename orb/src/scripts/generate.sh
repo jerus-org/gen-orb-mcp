@@ -1,10 +1,11 @@
-./target/release/gen-orb-mcp generate \
-  --orb-path "<< parameters.orb_path >>" \
-  <<# parameters.output >>--output "<< parameters.output >>"<</ parameters.output >> \
-  <<# parameters.format >>--format "<< parameters.format >>"<</ parameters.format >> \
-  <<# parameters.generate_name >>--name "<< parameters.generate_name >>"<</ parameters.generate_name >> \
-  <<# parameters.version >>--version "<< parameters.version >>"<</ parameters.version >> \
-  <<# parameters.force >>--force<</ parameters.force >> \
-  <<# parameters.migrations >>--migrations "<< parameters.migrations >>"<</ parameters.migrations >> \
-  <<# parameters.prior_versions >>--prior-versions "<< parameters.prior_versions >>"<</ parameters.prior_versions >> \
-  <<# parameters.tag_prefix >>--tag-prefix "<< parameters.tag_prefix >>"<</ parameters.tag_prefix >>
+set -- gen-orb-mcp generate
+set -- "$@" --orb-path "${ORB_PATH}"
+[ -n "${OUTPUT:-}" ] && set -- "$@" --output "${OUTPUT}"
+[ -n "${FORMAT:-}" ] && set -- "$@" --format "${FORMAT}"
+[ -n "${GENERATE_NAME:-}" ] && set -- "$@" --name "${GENERATE_NAME}"
+[ -n "${VERSION:-}" ] && set -- "$@" --version "${VERSION}"
+[ "${FORCE:-false}" = "true" ] && set -- "$@" --force
+[ -n "${MIGRATIONS:-}" ] && set -- "$@" --migrations "${MIGRATIONS}"
+[ -n "${PRIOR_VERSIONS:-}" ] && set -- "$@" --prior-versions "${PRIOR_VERSIONS}"
+[ -n "${TAG_PREFIX:-}" ] && set -- "$@" --tag-prefix "${TAG_PREFIX}"
+"$@"

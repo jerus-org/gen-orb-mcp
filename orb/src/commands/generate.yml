@@ -42,3 +42,13 @@ steps:
 - run:
     name: generate
     command: <<include(scripts/generate.sh)>>
+    environment:
+      ORB_PATH: << parameters.orb_path >>
+      OUTPUT: << parameters.output >>
+      FORMAT: << parameters.format >>
+      GENERATE_NAME: << parameters.generate_name >>
+      VERSION: << parameters.version >>
+      FORCE: << parameters.force >>
+      MIGRATIONS: << parameters.migrations >>
+      PRIOR_VERSIONS: << parameters.prior_versions >>
+      TAG_PREFIX: << parameters.tag_prefix >>
