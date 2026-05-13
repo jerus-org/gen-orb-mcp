@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- accept exit 255 from circleci orb info as registered(pr [#129])
+
 ## [0.1.16] - 2026-05-13
 
 ### Fixed
@@ -339,6 +345,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#126]: https://github.com/jerus-org/gen-orb-mcp/pull/126
 [#127]: https://github.com/jerus-org/gen-orb-mcp/pull/127
 [#128]: https://github.com/jerus-org/gen-orb-mcp/pull/128
+[#129]: https://github.com/jerus-org/gen-orb-mcp/pull/129
+[Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.16...HEAD
 [0.1.16]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.15...v0.1.16
 [0.1.15]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.14...v0.1.15
 [0.1.14]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.13...v0.1.14
