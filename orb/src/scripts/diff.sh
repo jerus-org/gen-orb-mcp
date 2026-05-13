@@ -1,5 +1,6 @@
-./target/release/gen-orb-mcp diff \
-  --current "<< parameters.current >>" \
-  --previous "<< parameters.previous >>" \
-  --since-version "<< parameters.since_version >>" \
-  <<# parameters.output >>--output "<< parameters.output >>"<</ parameters.output >>
+set -- gen-orb-mcp diff
+set -- "$@" --current "${CURRENT}"
+set -- "$@" --previous "${PREVIOUS}"
+set -- "$@" --since-version "${SINCE_VERSION}"
+[ -n "${OUTPUT:-}" ] && set -- "$@" --output "${OUTPUT}"
+"$@"

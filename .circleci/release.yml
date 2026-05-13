@@ -14,6 +14,7 @@ orbs:
   toolkit: jerus-org/circleci-toolkit@6.2.0
 
   orb-tools: circleci/orb-tools@12.3.3
+  docker: circleci/docker@3.2.0
 jobs:
   tools:
     executor: toolkit/rust_env_rolling
@@ -116,7 +117,7 @@ workflows:
           requires: [release-gen-orb-mcp]
       - build-container:
           requires: [build-binary-release]
-          context: [docker-credentials]
+          context: [docker]
       - ensure-orb-registered-jerus-org:
           requires: [release-gen-orb-mcp]
           context: [orb-publishing]

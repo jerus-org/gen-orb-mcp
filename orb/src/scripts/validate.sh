@@ -1,2 +1,3 @@
-./target/release/gen-orb-mcp validate \
-  --orb-path "<< parameters.orb_path >>"
+set -- gen-orb-mcp validate
+set -- "$@" --orb-path "${ORB_PATH}"
+"$@"
