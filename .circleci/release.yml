@@ -53,9 +53,16 @@ jobs:
               echo "circleci setup failed with exit ${setup_exit}" >&2
               exit "${setup_exit}"
             fi
-            if ! circleci orb info jerus-org/gen-orb-mcp > /dev/null 2>&1; then
+            set +e
+            circleci orb info jerus-org/gen-orb-mcp
+            orb_info_exit=$?
+            set -e
+            echo "orb info exit: ${orb_info_exit}"
+            if [ "${orb_info_exit}" -ne 0 ] && [ "${orb_info_exit}" -ne 255 ]; then
+              set +e
               create_output=$(circleci orb create jerus-org/gen-orb-mcp --no-prompt 2>&1)
               create_exit=$?
+              set -e
               echo "${create_output}"
               if [ "${create_exit}" -ne 0 ] && ! echo "${create_output}" | grep -q "already exists"; then
                 exit "${create_exit}"
