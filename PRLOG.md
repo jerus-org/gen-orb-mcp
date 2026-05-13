@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - correct docker context and regenerate orb via init(pr [#125])
+- correct docker orb version to registry-available 3.0.1(pr [#126])
 
 ## [0.1.13] - 2026-05-13
 
@@ -323,6 +324,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#123]: https://github.com/jerus-org/gen-orb-mcp/pull/123
 [#124]: https://github.com/jerus-org/gen-orb-mcp/pull/124
 [#125]: https://github.com/jerus-org/gen-orb-mcp/pull/125
+[#126]: https://github.com/jerus-org/gen-orb-mcp/pull/126
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.13...HEAD
 [0.1.13]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.12...v0.1.13
 [0.1.12]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.11...v0.1.12
