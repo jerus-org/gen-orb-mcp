@@ -1,4 +1,4 @@
-./target/release/gen-orb-mcp save \
+gen-orb-mcp save \
   --paths "<< parameters.paths >>" \
   <<# parameters.message >>--message "<< parameters.message >>"<</ parameters.message >> \
   <<# parameters.push >>--push "<< parameters.push >>"<</ parameters.push >> \
