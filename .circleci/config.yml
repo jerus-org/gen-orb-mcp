@@ -37,10 +37,20 @@ jobs:
             cat orb/src/executors/default.yml
       - run:
           name: Pack orb
-          command: circleci orb pack orb/src > orb.yml
+          command: |
+            mkdir -p dist
+            circleci orb pack --skip-update-check orb/src > dist/orb.yml
+      - run:
+          name: Create workspace tarball
+          command: |
+            TMP=$(mktemp -d)
+            tar -czf "${TMP}/orb_source.tar.gz" -C dist .
+            rm -rf dist
+            mkdir -p dist
+            mv "${TMP}/orb_source.tar.gz" dist/orb_source.tar.gz
       - persist_to_workspace:
           root: .
-          paths: [orb.yml]
+          paths: [dist/orb_source.tar.gz]
 
   orb-release-container:
     docker:
