@@ -180,6 +180,7 @@ workflows:
           name: orb-release-pack
           checkout: false
           source_dir: orb/src
+          enable_pr_comment: false
           pre-steps:
             - checkout
             - run:
@@ -224,6 +225,7 @@ workflows:
           orb_name: jerus-org/gen-orb-mcp
           pub_type: production
           vcs_type: github
+          enable_pr_comment: false
           requires: [orb-release-container, orb-release-pack, orb-release-ensure-registered]
           context: [orb-publishing]
           filters:
