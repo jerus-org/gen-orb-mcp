@@ -23,25 +23,6 @@ jobs:
           root: target/release
           paths: [gen-orb-mcp]
 
-  orb-release-pack:
-    executor: orb-tools/default
-    steps:
-      - checkout
-      - run:
-          name: Inject release version into executor default tag
-          command: |
-            VERSION=${CIRCLE_TAG#gen-orb-mcp-v}
-            echo "Injecting version: ${VERSION}"
-            sed -i "s/default: latest/default: ${VERSION}/" orb/src/executors/default.yml
-            echo "Updated executor:"
-            cat orb/src/executors/default.yml
-      - run:
-          name: Pack orb
-          command: circleci orb pack orb/src > orb.yml
-      - persist_to_workspace:
-          root: .
-          paths: [orb.yml]
-
   orb-release-container:
     docker:
       - image: cimg/base:stable
@@ -195,7 +176,20 @@ workflows:
             branches:
               ignore: /.*/
 
-      - orb-release-pack:
+      - orb-tools/pack:
+          name: orb-release-pack
+          checkout: false
+          source_dir: orb/src
+          pre-steps:
+            - checkout
+            - run:
+                name: Inject release version into executor default tag
+                command: |
+                  VERSION=${CIRCLE_TAG#gen-orb-mcp-v}
+                  echo "Injecting version: ${VERSION}"
+                  sed -i "s/default: latest/default: ${VERSION}/" orb/src/executors/default.yml
+                  echo "Updated executor:"
+                  cat orb/src/executors/default.yml
           filters:
             tags:
               only: /^gen-orb-mcp-v.*/
