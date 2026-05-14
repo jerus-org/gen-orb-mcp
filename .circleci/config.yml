@@ -23,35 +23,6 @@ jobs:
           root: target/release
           paths: [gen-orb-mcp]
 
-  orb-release-pack:
-    executor: orb-tools/default
-    steps:
-      - checkout
-      - run:
-          name: Inject release version into executor default tag
-          command: |
-            VERSION=${CIRCLE_TAG#gen-orb-mcp-v}
-            echo "Injecting version: ${VERSION}"
-            sed -i "s/default: latest/default: ${VERSION}/" orb/src/executors/default.yml
-            echo "Updated executor:"
-            cat orb/src/executors/default.yml
-      - run:
-          name: Pack orb
-          command: |
-            mkdir -p dist
-            circleci orb pack --skip-update-check orb/src > dist/orb.yml
-      - run:
-          name: Create workspace tarball
-          command: |
-            TMP=$(mktemp -d)
-            tar -czf "${TMP}/orb_source.tar.gz" -C dist .
-            rm -rf dist
-            mkdir -p dist
-            mv "${TMP}/orb_source.tar.gz" dist/orb_source.tar.gz
-      - persist_to_workspace:
-          root: .
-          paths: [dist/orb_source.tar.gz]
-
   orb-release-container:
     docker:
       - image: cimg/base:stable
@@ -205,7 +176,20 @@ workflows:
             branches:
               ignore: /.*/
 
-      - orb-release-pack:
+      - orb-tools/pack:
+          name: orb-release-pack
+          checkout: false
+          source_dir: orb/src
+          pre-steps:
+            - checkout
+            - run:
+                name: Inject release version into executor default tag
+                command: |
+                  VERSION=${CIRCLE_TAG#gen-orb-mcp-v}
+                  echo "Injecting version: ${VERSION}"
+                  sed -i "s/default: latest/default: ${VERSION}/" orb/src/executors/default.yml
+                  echo "Updated executor:"
+                  cat orb/src/executors/default.yml
           filters:
             tags:
               only: /^gen-orb-mcp-v.*/
