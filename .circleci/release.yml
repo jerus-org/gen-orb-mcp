@@ -87,6 +87,7 @@ jobs:
             if [ "${VERSION}" = "none" ] || [ -z "${VERSION}" ]; then
               echo "No crate version calculated. Skipping container build."
               circleci-agent step halt
+              exit 0
             fi
             cp /tmp/bin/gen-orb-mcp orb/gen-orb-mcp
             docker build -t jerusdp/gen-orb-mcp:${VERSION} -t jerusdp/gen-orb-mcp:latest orb
@@ -151,6 +152,7 @@ workflows:
                   if [ "${CRATE_VERSION_GEN_ORB_MCP}" = "none" ] || [ -z "${CRATE_VERSION_GEN_ORB_MCP}" ]; then
                     echo "No crate version calculated. Skipping orb publish."
                     circleci-agent step halt
+                    exit 0
                   fi
                   echo "export CIRCLE_TAG=v${CRATE_VERSION_GEN_ORB_MCP}" >> "$BASH_ENV"
           orb_name: jerus-org/gen-orb-mcp
