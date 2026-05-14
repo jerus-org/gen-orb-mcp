@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - ci-disable enable_pr_comment on orb-release pack and publish(pr [#135])
 
+### Fixed
+
+- orb: use gen-orb-mcp from PATH in scripts(pr [#136])
+
 ## [0.1.21] - 2026-05-14
 
 ### Fixed
@@ -381,6 +385,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#133]: https://github.com/jerus-org/gen-orb-mcp/pull/133
 [#134]: https://github.com/jerus-org/gen-orb-mcp/pull/134
 [#135]: https://github.com/jerus-org/gen-orb-mcp/pull/135
+[#136]: https://github.com/jerus-org/gen-orb-mcp/pull/136
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.21...HEAD
 [0.1.21]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.20...v0.1.21
 [0.1.20]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.19...v0.1.20
