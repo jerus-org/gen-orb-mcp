@@ -180,7 +180,6 @@ workflows:
           name: orb-release-pack
           checkout: false
           source_dir: orb/src
-          enable_pr_comment: false
           pre-steps:
             - checkout
             - run:
