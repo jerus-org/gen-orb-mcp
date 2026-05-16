@@ -237,6 +237,15 @@ enum Commands {
         /// Show what would be committed without writing anything
         #[arg(long)]
         dry_run: bool,
+
+        /// Use GPG-signed commit and GitHub App token push.
+        ///
+        /// Reads: BOT_GPG_KEY (base64 GPG key), BOT_TRUST (ownertrust),
+        /// BOT_USER_NAME, BOT_USER_EMAIL, BOT_SIGN_KEY (key ID),
+        /// GITHUB_TOKEN (GitHub App installation token),
+        /// CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME, CIRCLE_BRANCH.
+        #[arg(long)]
+        sign: bool,
     },
     /// Upload a compiled binary to an existing GitHub release as a release asset
     ///
@@ -365,7 +374,8 @@ impl Cli {
                 push,
                 no_push,
                 dry_run,
-            } => run_save(paths, message, *push && !*no_push, *dry_run),
+                sign,
+            } => run_save(paths, message, *push && !*no_push, *dry_run, *sign),
             Commands::Publish {
                 binary,
                 asset_name,
@@ -757,11 +767,118 @@ fn run_prime(
     Ok(())
 }
 
-fn run_save(paths: &[std::path::PathBuf], message: &str, push: bool, dry_run: bool) -> Result<()> {
+#[derive(Debug)]
+struct SignEnv {
+    gpg_key_b64: String,
+    gpg_trust: String,
+    user_name: String,
+    user_email: String,
+    sign_key: String,
+    github_token: String,
+}
+
+fn read_sign_env() -> Result<SignEnv> {
+    Ok(SignEnv {
+        gpg_key_b64: std::env::var("BOT_GPG_KEY")
+            .map_err(|_| anyhow::anyhow!("BOT_GPG_KEY env var not set (required with --sign)"))?,
+        gpg_trust: std::env::var("BOT_TRUST")
+            .map_err(|_| anyhow::anyhow!("BOT_TRUST env var not set (required with --sign)"))?,
+        user_name: std::env::var("BOT_USER_NAME")
+            .map_err(|_| anyhow::anyhow!("BOT_USER_NAME env var not set (required with --sign)"))?,
+        user_email: std::env::var("BOT_USER_EMAIL").map_err(|_| {
+            anyhow::anyhow!("BOT_USER_EMAIL env var not set (required with --sign)")
+        })?,
+        sign_key: std::env::var("BOT_SIGN_KEY")
+            .map_err(|_| anyhow::anyhow!("BOT_SIGN_KEY env var not set (required with --sign)"))?,
+        github_token: std::env::var("GITHUB_TOKEN")
+            .map_err(|_| anyhow::anyhow!("GITHUB_TOKEN env var not set (required with --sign)"))?,
+    })
+}
+
+fn import_gpg_key(b64: &str, trust: &str) -> Result<()> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+
+    let mut cmd = Command::new("sh")
+        .args(["-c", "base64 -d | gpg --batch --import"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| anyhow::anyhow!("Failed to spawn gpg import: {}", e))?;
+    if let Some(mut stdin) = cmd.stdin.take() {
+        stdin.write_all(b64.as_bytes())?;
+    }
+    let out = cmd.wait_with_output()?;
+    if !out.status.success() {
+        anyhow::bail!(
+            "gpg key import failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    let mut trust_cmd = Command::new("gpg")
+        .args(["--import-ownertrust"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| anyhow::anyhow!("Failed to spawn gpg --import-ownertrust: {}", e))?;
+    if let Some(mut stdin) = trust_cmd.stdin.take() {
+        stdin.write_all(trust.as_bytes())?;
+    }
+    let trust_out = trust_cmd.wait_with_output()?;
+    if !trust_out.status.success() {
+        anyhow::bail!(
+            "gpg ownertrust import failed: {}",
+            String::from_utf8_lossy(&trust_out.stderr)
+        );
+    }
+
+    Ok(())
+}
+
+fn setup_git_identity(repo: &git2::Repository, sign_env: &SignEnv) -> Result<()> {
+    let mut config = repo.config()?;
+    config.set_str("user.name", &sign_env.user_name)?;
+    config.set_str("user.email", &sign_env.user_email)?;
+    config.set_str("user.signingkey", &sign_env.sign_key)?;
+    Ok(())
+}
+
+fn build_pcu_config(github_token: &str) -> Result<config::Config> {
+    let cfg = config::Config::builder()
+        .set_default("prlog", "PRLOG.md")?
+        .set_default("branch", "CIRCLE_BRANCH")?
+        .set_default("default_branch", "main")?
+        .set_default("username", "CIRCLE_PROJECT_USERNAME")?
+        .set_default("reponame", "CIRCLE_PROJECT_REPONAME")?
+        .set_override("command", "push")?
+        .set_override("pat", github_token)?
+        .build()?;
+    Ok(cfg)
+}
+
+fn run_save(
+    paths: &[std::path::PathBuf],
+    message: &str,
+    push: bool,
+    dry_run: bool,
+    sign: bool,
+) -> Result<()> {
     use git2::Repository;
 
     let repo = Repository::discover(".")
         .map_err(|e| anyhow::anyhow!("Not inside a git repository: {}", e))?;
+
+    let sign_env_opt = if sign {
+        let sign_env = read_sign_env()?;
+        import_gpg_key(&sign_env.gpg_key_b64, &sign_env.gpg_trust)?;
+        setup_git_identity(&repo, &sign_env)?;
+        Some(sign_env)
+    } else {
+        None
+    };
 
     let mut index = repo.index()?;
     save_stage_paths(&mut index, paths)?;
@@ -779,15 +896,42 @@ fn run_save(paths: &[std::path::PathBuf], message: &str, push: bool, dry_run: bo
         return Ok(());
     }
 
-    let oid = save_create_commit(&repo, &mut index, message, head_commit.as_ref())?;
-    tracing::info!(commit = %oid, "Created commit");
-    println!("Created commit {oid}: {message}");
+    if let Some(sign_env) = sign_env_opt {
+        let pcu_config = build_pcu_config(&sign_env.github_token)?;
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?
+            .block_on(async {
+                use pcu::GitOps;
+                let client = pcu::Client::new_with(&pcu_config)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Failed to create pcu client: {}", e))?;
+                let sign_config = pcu::SignConfig::new(pcu::Sign::Gpg);
+                client
+                    .commit_staged(sign_config, message, "", None)
+                    .map_err(|e| anyhow::anyhow!("Failed to sign and commit: {}", e))?;
+                println!("Created signed commit: {message}");
+                if push {
+                    let bot_name =
+                        std::env::var("BOT_USER_NAME").unwrap_or_else(|_| "bot".to_string());
+                    client
+                        .push_commit("", None, false, &bot_name)
+                        .map_err(|e| anyhow::anyhow!("Failed to push: {}", e))?;
+                    println!("Pushed to remote.");
+                }
+                Ok(())
+            })
+    } else {
+        let oid = save_create_commit(&repo, &mut index, message, head_commit.as_ref())?;
+        tracing::info!(commit = %oid, "Created commit");
+        println!("Created commit {oid}: {message}");
 
-    if push {
-        save_git_push(&repo)?;
+        if push {
+            save_git_push(&repo)?;
+        }
+
+        Ok(())
     }
-
-    Ok(())
 }
 
 fn save_stage_paths(index: &mut git2::Index, paths: &[std::path::PathBuf]) -> Result<()> {
@@ -1703,6 +1847,7 @@ mod tests {
             "chore: test",
             false,
             false,
+            false,
         );
         std::env::set_current_dir(&original).unwrap();
         assert!(
@@ -1722,6 +1867,7 @@ mod tests {
         let result = run_save(
             &[std::path::PathBuf::from("new-file.txt")],
             "chore: add generated file",
+            false,
             false,
             false,
         );
@@ -1756,6 +1902,7 @@ mod tests {
             "chore: generated",
             false,
             true,
+            false,
         );
         std::env::set_current_dir(&original).unwrap();
         assert!(result.is_ok(), "dry_run should succeed: {result:?}");
@@ -1784,6 +1931,37 @@ mod tests {
             "migrations",
         ]);
         assert!(cli.is_ok(), "save with --paths should parse");
+    }
+
+    #[test]
+    fn test_cli_parse_save_sign_flag() {
+        let cli =
+            Cli::try_parse_from(["gen-orb-mcp", "save", "--paths", "prior-versions", "--sign"]);
+        assert!(
+            cli.is_ok(),
+            "--sign flag should be accepted on save command"
+        );
+        if let Commands::Save { sign, .. } = cli.unwrap().command {
+            assert!(sign, "--sign should be true when flag is passed");
+        } else {
+            panic!("expected Save variant");
+        }
+    }
+
+    #[test]
+    fn test_read_sign_env_missing_bot_gpg_key() {
+        let prev = std::env::var("BOT_GPG_KEY").ok();
+        std::env::remove_var("BOT_GPG_KEY");
+        let result = read_sign_env();
+        if let Some(v) = prev {
+            std::env::set_var("BOT_GPG_KEY", v);
+        }
+        assert!(result.is_err(), "should fail when BOT_GPG_KEY is absent");
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("BOT_GPG_KEY"),
+            "error should mention BOT_GPG_KEY, got: {msg}"
+        );
     }
 
     #[test]
