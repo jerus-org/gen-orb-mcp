@@ -54,6 +54,10 @@ octocrate = { version = "2.2.0", default-features = false, features = [
 git2 = "0.20.4"
 git2_credentials = "0.15.0"
 
+# Signed commit and GitHub App token push (for save --sign)
+pcu = "0.6.19"
+config = { version = "0.15.22", default-features = false }
+
 # Testing
 tempfile = "3.27.0"
 trycmd = "1.2.0"

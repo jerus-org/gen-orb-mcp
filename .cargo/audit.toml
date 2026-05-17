@@ -1,0 +1,11 @@
+[advisories]
+ignore = [
+    # RUSTSEC-2023-0071: Marvin Attack timing sidechannel in rsa crate.
+    # Pulled in transitively by pcu → sigstore → openidconnect → rsa.
+    # Cannot be resolved without upstream pcu/sigstore/rsa patches.
+    "RUSTSEC-2023-0071",
+    # RUSTSEC-2024-0370: proc-macro-error is unmaintained (warning only).
+    # Pulled in transitively by pcu → sigstore → json-syntax → locspan-derive.
+    # Cannot be resolved without upstream pcu/sigstore patches.
+    "RUSTSEC-2024-0370",
+]

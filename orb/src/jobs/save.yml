@@ -23,6 +23,13 @@ parameters:
     type: boolean
     description: Show what would be committed without writing anything
     default: false
+  sign:
+    type: boolean
+    description: >
+      Use GPG-signed commit and GitHub App token push.
+      Requires BOT_GPG_KEY, BOT_TRUST, BOT_USER_NAME, BOT_USER_EMAIL,
+      BOT_SIGN_KEY, and GITHUB_TOKEN environment variables.
+    default: false
 steps:
 - checkout
 - save:
@@ -31,3 +38,4 @@ steps:
     push: << parameters.push >>
     no_push: << parameters.no_push >>
     dry_run: << parameters.dry_run >>
+    sign: << parameters.sign >>

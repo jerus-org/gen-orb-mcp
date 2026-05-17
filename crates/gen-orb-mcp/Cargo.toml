@@ -48,6 +48,10 @@ octocrate.workspace = true
 git2.workspace = true
 git2_credentials.workspace = true
 
+# Signed commit and GitHub App token push (for save --sign)
+pcu.workspace = true
+config.workspace = true
+
 [dev-dependencies]
 tempfile.workspace = true
 trycmd.workspace = true

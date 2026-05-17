@@ -1,6 +1,6 @@
 FROM rust:slim
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates git \
+    && apt-get install -y --no-install-recommends ca-certificates git gnupg \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -ms /bin/bash circleci
 COPY gen-orb-mcp /usr/local/bin/gen-orb-mcp
