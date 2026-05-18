@@ -284,6 +284,7 @@ workflows:
           context:
             - release
             - bot-check
+            - pcu-app
           filters:
             tags:
               only: /^gen-orb-mcp-v.*/
