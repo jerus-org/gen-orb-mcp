@@ -1087,7 +1087,7 @@ async fn upload_release_asset(
     use octocrate::{APIConfig, GitHubAPI, PersonalAccessToken};
 
     let pat = PersonalAccessToken::new(token);
-    let config = APIConfig::with_token(pat).shared();
+    let config = APIConfig::with_token(pat.clone()).shared();
     let api = GitHubAPI::new(&config);
 
     tracing::info!(owner, repo, tag, "Looking up GitHub release");
@@ -1119,7 +1119,12 @@ async fn upload_release_asset(
 
     tracing::info!(asset_name, bytes = file_size, "Uploading asset");
 
-    let result = api
+    // Release asset uploads must go to uploads.github.com, not api.github.com.
+    // octocrate's upload_release_asset requires a separate APIConfig for this base URL.
+    let upload_config = APIConfig::new("https://uploads.github.com", pat);
+    let upload_api = GitHubAPI::new(&upload_config);
+
+    let result = upload_api
         .repos
         .upload_release_asset(owner, repo, release.id)
         .query(&query)
