@@ -796,8 +796,13 @@ fn import_gpg_key(b64: &str, trust: &str) -> Result<()> {
     use std::io::Write;
     use std::process::{Command, Stdio};
 
+    // BOT_GPG_KEY is stored in CircleCI with literal \n escape sequences.
+    // --ignore-garbage absorbs them; --allow-secret-key-import is required for private keys.
     let mut cmd = Command::new("sh")
-        .args(["-c", "base64 -d | gpg --batch --import"])
+        .args([
+            "-c",
+            "base64 --decode --ignore-garbage | gpg --batch --allow-secret-key-import --import",
+        ])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
