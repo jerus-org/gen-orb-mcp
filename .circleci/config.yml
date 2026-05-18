@@ -44,6 +44,52 @@ jobs:
             docker push jerusdp/gen-orb-mcp:${VERSION}
             docker push jerusdp/gen-orb-mcp:latest
 
+  build-mcp-server:
+    docker:
+      - image: jerusdp/gen-orb-mcp:latest
+    steps:
+      - checkout
+      - run:
+          name: Set up git and environment
+          command: |
+            VERSION=${CIRCLE_TAG#gen-orb-mcp-v}
+            echo "export VERSION=${VERSION}" >> "$BASH_ENV"
+            echo "export CIRCLE_BRANCH=main" >> "$BASH_ENV"
+            git fetch origin main
+            git checkout -B main origin/main
+      - run:
+          name: Prime prior versions and migrations
+          command: |
+            gen-orb-mcp prime \
+              --orb-path orb/src/@orb.yml \
+              --tag-prefix v
+      - run:
+          name: Generate and compile MCP server
+          command: |
+            gen-orb-mcp generate \
+              --format binary \
+              --name gen-orb-mcp \
+              --orb-path orb/src/@orb.yml \
+              --output /tmp/mcp-server \
+              --version "${VERSION}" \
+              --force \
+              --prior-versions prior-versions \
+              --migrations migrations
+      - run:
+          name: Publish MCP server binary to GitHub release
+          command: |
+            gen-orb-mcp publish \
+              --binary /tmp/mcp-server/target/release/gen_orb_mcp_mcp \
+              --asset-name gen_orb_mcp_mcp-linux-x86_64 \
+              --tag "${CIRCLE_TAG}"
+      - run:
+          name: Commit back generated artifacts
+          command: |
+            gen-orb-mcp save \
+              --paths prior-versions \
+              --paths migrations \
+              --sign
+
   orb-release-ensure-registered:
     executor: orb-tools/default
     steps:
@@ -227,6 +273,17 @@ workflows:
           enable_pr_comment: false
           requires: [orb-release-container, orb-release-pack, orb-release-ensure-registered]
           context: [orb-publishing]
+          filters:
+            tags:
+              only: /^gen-orb-mcp-v.*/
+            branches:
+              ignore: /.*/
+
+      - build-mcp-server:
+          requires: [publish-orb]
+          context:
+            - release
+            - bot-check
           filters:
             tags:
               only: /^gen-orb-mcp-v.*/
