@@ -774,7 +774,6 @@ struct SignEnv {
     user_name: String,
     user_email: String,
     sign_key: String,
-    github_token: String,
 }
 
 fn read_sign_env() -> Result<SignEnv> {
@@ -790,8 +789,6 @@ fn read_sign_env() -> Result<SignEnv> {
         })?,
         sign_key: std::env::var("BOT_SIGN_KEY")
             .map_err(|_| anyhow::anyhow!("BOT_SIGN_KEY env var not set (required with --sign)"))?,
-        github_token: std::env::var("GITHUB_TOKEN")
-            .map_err(|_| anyhow::anyhow!("GITHUB_TOKEN env var not set (required with --sign)"))?,
     })
 }
 
@@ -846,17 +843,24 @@ fn setup_git_identity(repo: &git2::Repository, sign_env: &SignEnv) -> Result<()>
     Ok(())
 }
 
-fn build_pcu_config(github_token: &str) -> Result<config::Config> {
-    let cfg = config::Config::builder()
+fn build_pcu_config() -> Result<config::Config> {
+    // PCU_APP_ID and PCU_PRIVATE_KEY (if present via pcu-app context) are
+    // picked up automatically by the PCU_ prefix source and used for GitHub
+    // App auth, which carries branch-protection bypass authority.
+    // GITHUB_TOKEN is registered as a PAT fallback for environments without
+    // App credentials.
+    let mut builder = config::Config::builder()
         .set_default("prlog", "PRLOG.md")?
         .set_default("branch", "CIRCLE_BRANCH")?
         .set_default("default_branch", "main")?
         .set_default("username", "CIRCLE_PROJECT_USERNAME")?
         .set_default("reponame", "CIRCLE_PROJECT_REPONAME")?
         .set_override("command", "push")?
-        .set_override("pat", github_token)?
-        .build()?;
-    Ok(cfg)
+        .add_source(config::Environment::with_prefix("PCU"));
+    if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+        builder = builder.set_default("pat", token)?;
+    }
+    Ok(builder.build()?)
 }
 
 fn run_save(
@@ -896,8 +900,8 @@ fn run_save(
         return Ok(());
     }
 
-    if let Some(sign_env) = sign_env_opt {
-        let pcu_config = build_pcu_config(&sign_env.github_token)?;
+    if let Some(_sign_env) = sign_env_opt {
+        let pcu_config = build_pcu_config()?;
         tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()?
