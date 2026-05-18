@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - add --sign flag for GPG-signed commits via pcu library(pr [#139])
 
+### Fixed
+
+- save: use PCU_ App credentials for bypass push with --sign(pr [#141])
+
 ## [0.1.23] - 2026-05-15
 
 ### Fixed
@@ -400,6 +404,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#136]: https://github.com/jerus-org/gen-orb-mcp/pull/136
 [#138]: https://github.com/jerus-org/gen-orb-mcp/pull/138
 [#139]: https://github.com/jerus-org/gen-orb-mcp/pull/139
+[#141]: https://github.com/jerus-org/gen-orb-mcp/pull/141
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.23...HEAD
 [0.1.23]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.22...v0.1.23
 [0.1.22]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.21...v0.1.22
