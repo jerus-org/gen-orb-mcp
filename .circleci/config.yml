@@ -62,7 +62,7 @@ jobs:
           command: |
             gen-orb-mcp prime \
               --orb-path orb/src/@orb.yml \
-              --tag-prefix v
+              --tag-prefix gen-orb-mcp-v
       - run:
           name: Generate and compile MCP server
           command: |
