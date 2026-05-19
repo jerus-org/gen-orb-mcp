@@ -827,7 +827,9 @@ fn import_gpg_key(b64: &str, trust: &str) -> Result<()> {
         .spawn()
         .map_err(|e| anyhow::anyhow!("Failed to spawn gpg --import-ownertrust: {}", e))?;
     if let Some(mut stdin) = trust_cmd.stdin.take() {
-        stdin.write_all(trust.as_bytes())?;
+        // BOT_TRUST is stored in CircleCI with literal \n escape sequences.
+        let trust_expanded = trust.replace("\\n", "\n");
+        stdin.write_all(trust_expanded.as_bytes())?;
     }
     let trust_out = trust_cmd.wait_with_output()?;
     if !trust_out.status.success() {
