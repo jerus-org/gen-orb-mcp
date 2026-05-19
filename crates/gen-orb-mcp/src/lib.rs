@@ -819,18 +819,26 @@ fn import_gpg_key(b64: &str, trust: &str) -> Result<()> {
         );
     }
 
-    let mut trust_cmd = Command::new("gpg")
-        .args(["--import-ownertrust"])
-        .stdin(Stdio::piped())
+    // Diagnostic: log trust value metadata so CI failures are interpretable.
+    eprintln!(
+        "BOT_TRUST: len={}, has_real_newline={}, has_escape_newline={}",
+        trust.len(),
+        trust.contains('\n'),
+        trust.contains("\\n")
+    );
+
+    // Replicate toolkit behavior exactly:
+    //   echo ${BOT_TRUST} | gpg --import-ownertrust
+    // Pass the value via env var to avoid shell injection, use quoted echo so
+    // word-splitting doesn't corrupt the fingerprint, and let echo append the
+    // trailing newline that gpg's line parser requires.
+    let trust_cmd = Command::new("sh")
+        .args(["-c", "echo \"$_GPG_TRUST\" | gpg --import-ownertrust"])
+        .env("_GPG_TRUST", trust)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| anyhow::anyhow!("Failed to spawn gpg --import-ownertrust: {}", e))?;
-    if let Some(mut stdin) = trust_cmd.stdin.take() {
-        // BOT_TRUST is stored in CircleCI with literal \n escape sequences.
-        let trust_expanded = trust.replace("\\n", "\n");
-        stdin.write_all(trust_expanded.as_bytes())?;
-    }
+        .map_err(|e| anyhow::anyhow!("Failed to spawn ownertrust import: {}", e))?;
     let trust_out = trust_cmd.wait_with_output()?;
     if !trust_out.status.success() {
         anyhow::bail!(
