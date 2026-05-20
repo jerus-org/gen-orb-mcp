@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- replace hand-rolled ops with pcu library APIs(pr [#148])
+
 ## [0.1.30] - 2026-05-19
 
 ### Fixed
@@ -449,6 +455,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#145]: https://github.com/jerus-org/gen-orb-mcp/pull/145
 [#146]: https://github.com/jerus-org/gen-orb-mcp/pull/146
 [#147]: https://github.com/jerus-org/gen-orb-mcp/pull/147
+[#148]: https://github.com/jerus-org/gen-orb-mcp/pull/148
+[Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.30...HEAD
 [0.1.30]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.29...v0.1.30
 [0.1.29]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.28...v0.1.29
 [0.1.28]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.27...v0.1.28
