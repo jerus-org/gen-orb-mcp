@@ -792,64 +792,6 @@ fn read_sign_env() -> Result<SignEnv> {
     })
 }
 
-fn import_gpg_key(b64: &str, trust: &str) -> Result<()> {
-    use std::io::Write;
-    use std::process::{Command, Stdio};
-
-    // BOT_GPG_KEY is stored in CircleCI with literal \n escape sequences.
-    // --ignore-garbage absorbs them; --allow-secret-key-import is required for private keys.
-    let mut cmd = Command::new("sh")
-        .args([
-            "-c",
-            "base64 --decode --ignore-garbage | gpg --batch --allow-secret-key-import --import",
-        ])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| anyhow::anyhow!("Failed to spawn gpg import: {}", e))?;
-    if let Some(mut stdin) = cmd.stdin.take() {
-        stdin.write_all(b64.as_bytes())?;
-    }
-    let out = cmd.wait_with_output()?;
-    if !out.status.success() {
-        anyhow::bail!(
-            "gpg key import failed: {}",
-            String::from_utf8_lossy(&out.stderr)
-        );
-    }
-
-    // Diagnostic: log trust value metadata so CI failures are interpretable.
-    eprintln!(
-        "BOT_TRUST: len={}, has_real_newline={}, has_escape_newline={}",
-        trust.len(),
-        trust.contains('\n'),
-        trust.contains("\\n")
-    );
-
-    // Replicate toolkit behavior exactly:
-    //   echo ${BOT_TRUST} | gpg --import-ownertrust
-    // Pass the value via env var to avoid shell injection, use quoted echo so
-    // word-splitting doesn't corrupt the fingerprint, and let echo append the
-    // trailing newline that gpg's line parser requires.
-    let trust_cmd = Command::new("sh")
-        .args(["-c", "echo \"$_GPG_TRUST\" | gpg --import-ownertrust"])
-        .env("_GPG_TRUST", trust)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| anyhow::anyhow!("Failed to spawn ownertrust import: {}", e))?;
-    let trust_out = trust_cmd.wait_with_output()?;
-    if !trust_out.status.success() {
-        anyhow::bail!(
-            "gpg ownertrust import failed: {}",
-            String::from_utf8_lossy(&trust_out.stderr)
-        );
-    }
-
-    Ok(())
-}
-
 fn setup_git_identity(repo: &git2::Repository, sign_env: &SignEnv) -> Result<()> {
     let mut config = repo.config()?;
     config.set_str("user.name", &sign_env.user_name)?;
@@ -886,22 +828,30 @@ fn run_save(
     sign: bool,
 ) -> Result<()> {
     use git2::Repository;
-
-    let repo = Repository::discover(".")
-        .map_err(|e| anyhow::anyhow!("Not inside a git repository: {}", e))?;
+    use pcu::GitOps as _;
 
     let sign_env_opt = if sign {
         let sign_env = read_sign_env()?;
-        import_gpg_key(&sign_env.gpg_key_b64, &sign_env.gpg_trust)?;
+        pcu::import_gpg_key(&sign_env.gpg_key_b64, &sign_env.gpg_trust)
+            .map_err(|e| anyhow::anyhow!("GPG import failed: {e}"))?;
+        let repo = Repository::discover(".")
+            .map_err(|e| anyhow::anyhow!("Not inside a git repository: {}", e))?;
         setup_git_identity(&repo, &sign_env)?;
         Some(sign_env)
     } else {
         None
     };
 
-    let mut index = repo.index()?;
-    save_stage_paths(&mut index, paths)?;
+    let local_client = pcu::Client::new_local()
+        .map_err(|e| anyhow::anyhow!("Failed to open local git repo: {e}"))?;
+    let path_refs: Vec<&std::path::Path> = paths.iter().map(|p| p.as_path()).collect();
+    local_client
+        .stage_paths(&path_refs)
+        .map_err(|e| anyhow::anyhow!("Failed to stage paths: {e}"))?;
 
+    let repo = Repository::discover(".")
+        .map_err(|e| anyhow::anyhow!("Not inside a git repository: {}", e))?;
+    let mut index = repo.index()?;
     let head_commit = repo.head().ok().and_then(|h| h.peel_to_commit().ok());
     let diff = save_compute_diff(&repo, &mut index, head_commit.as_ref())?;
 
@@ -951,22 +901,6 @@ fn run_save(
 
         Ok(())
     }
-}
-
-fn save_stage_paths(index: &mut git2::Index, paths: &[std::path::PathBuf]) -> Result<()> {
-    let mut staged_any = false;
-    for path in paths {
-        if path.exists() {
-            index.add_path(path)?;
-            staged_any = true;
-        } else {
-            tracing::warn!(path = %path.display(), "Path does not exist, skipping");
-        }
-    }
-    if staged_any {
-        index.write()?;
-    }
-    Ok(())
 }
 
 fn save_compute_diff<'repo>(
@@ -1053,9 +987,6 @@ fn run_publish(
         anyhow::bail!("Binary not found: {}", binary.display());
     }
 
-    let token = std::env::var("GITHUB_TOKEN")
-        .map_err(|_| anyhow::anyhow!("GITHUB_TOKEN environment variable is not set"))?;
-
     let resolved_tag = match tag {
         Some(t) => t.to_string(),
         None => std::env::var("CIRCLE_TAG").map_err(|_| {
@@ -1063,98 +994,32 @@ fn run_publish(
         })?,
     };
 
-    let owner = std::env::var("CIRCLE_PROJECT_USERNAME").unwrap_or_default();
-    let repo = std::env::var("CIRCLE_PROJECT_REPONAME").unwrap_or_default();
-
     if dry_run {
+        let owner = std::env::var("CIRCLE_PROJECT_USERNAME").unwrap_or_default();
+        let repo_name = std::env::var("CIRCLE_PROJECT_REPONAME").unwrap_or_default();
         println!("Would upload release asset (dry run):");
         println!("  Binary:     {}", binary.display());
         println!("  Asset name: {asset_name}");
         println!("  Tag:        {resolved_tag}");
-        if !owner.is_empty() && !repo.is_empty() {
-            println!("  Repo:       {owner}/{repo}");
+        if !owner.is_empty() && !repo_name.is_empty() {
+            println!("  Repo:       {owner}/{repo_name}");
         }
         return Ok(());
     }
 
+    let pcu_config = build_pcu_config()?;
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?
-        .block_on(upload_release_asset(
-            &token,
-            &owner,
-            &repo,
-            &resolved_tag,
-            binary,
-            asset_name,
-        ))
-}
-
-async fn upload_release_asset(
-    token: &str,
-    owner: &str,
-    repo: &str,
-    tag: &str,
-    binary: &std::path::Path,
-    asset_name: &str,
-) -> Result<()> {
-    use octocrate::repos;
-    use octocrate::{APIConfig, GitHubAPI, PersonalAccessToken};
-
-    let pat = PersonalAccessToken::new(token);
-    let config = APIConfig::with_token(pat.clone()).shared();
-    let api = GitHubAPI::new(&config);
-
-    tracing::info!(owner, repo, tag, "Looking up GitHub release");
-    let release = api
-        .repos
-        .get_release_by_tag(owner, repo, tag)
-        .send()
-        .await
-        .map_err(|e| {
-            anyhow::anyhow!(
-                "Release not found for tag '{}' in {}/{}: {}",
-                tag,
-                owner,
-                repo,
-                e
-            )
-        })?;
-
-    tracing::info!(release_id = release.id, "Found release");
-
-    let file = tokio::fs::File::open(binary)
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to open binary '{}': {}", binary.display(), e))?;
-    let file_size = file.metadata().await?.len();
-
-    let query = repos::upload_release_asset::Query::builder()
-        .name(asset_name)
-        .build();
-
-    tracing::info!(asset_name, bytes = file_size, "Uploading asset");
-
-    // Release asset uploads must go to uploads.github.com, not api.github.com.
-    // octocrate's upload_release_asset requires a separate APIConfig for this base URL.
-    let upload_config = APIConfig::new("https://uploads.github.com", pat);
-    let upload_api = GitHubAPI::new(&upload_config);
-
-    let result = upload_api
-        .repos
-        .upload_release_asset(owner, repo, release.id)
-        .query(&query)
-        .header("Content-Type", "application/octet-stream")
-        .header("Content-Length", file_size.to_string())
-        .file(file)
-        .send()
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to upload asset '{}': {}", asset_name, e))?;
-
-    println!("Successfully uploaded release asset:");
-    println!("  Asset: {}", result.name);
-    println!("  URL:   {}", result.browser_download_url);
-
-    Ok(())
+        .block_on(async {
+            let client = pcu::Client::new_with(&pcu_config)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to create pcu client: {e}"))?;
+            client
+                .upload_release_asset(&resolved_tag, binary, asset_name)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to upload release asset: {e}"))
+        })
 }
 
 fn run_build(
@@ -2038,18 +1903,16 @@ mod tests {
     }
 
     #[test]
-    fn test_publish_dry_run_with_missing_token_returns_error() {
+    fn test_publish_dry_run_succeeds_without_token() {
         let dir = TempDir::new().unwrap();
         let binary = dir.path().join("my-binary");
         std::fs::write(&binary, b"fake binary").unwrap();
-        // dry_run without GITHUB_TOKEN should fail before attempting any API call
+        // dry_run must succeed without credentials — no API call is made
         std::env::remove_var("GITHUB_TOKEN");
         let result = run_publish(&binary, "my-asset", Some("v1.0.0"), true);
-        assert!(result.is_err());
-        let msg = result.unwrap_err().to_string();
         assert!(
-            msg.contains("GITHUB_TOKEN"),
-            "error should mention GITHUB_TOKEN, got: {msg}"
+            result.is_ok(),
+            "dry_run should not require credentials: {result:?}"
         );
     }
 

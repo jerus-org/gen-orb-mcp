@@ -1811,9 +1811,9 @@ dependencies = [
 
 [[package]]
 name = "gen-bsky"
-version = "0.1.21"
+version = "0.1.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bd1a38f1892edb6b6456da1131e2b2bd7dab85db26eafb7a5186f13205cd812"
+checksum = "cfab35874e68bf4a7b48b679b95d83e3b9d69550931eb75e0beafe7de6e3c255"
 dependencies = [
  "aquamarine",
  "base62",
@@ -1833,9 +1833,9 @@ dependencies = [
 
 [[package]]
 name = "gen-linkedin"
-version = "0.1.14"
+version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5bc78badb35e8d9b272cb7908709579bb1c73b69adf48945c0c9e146fc190dc6"
+checksum = "3f5373f612797d078d82d43f6c0f4e943cf8fe5cc15d3955a512bed8aa4d2125"
 dependencies = [
  "chrono",
  "log",
@@ -3657,9 +3657,9 @@ dependencies = [
 
 [[package]]
 name = "pcu"
-version = "0.6.19"
+version = "0.6.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd56573b30fd04da169c9a295b5ff15af47ec02d9832a93b1b22e63abc34d4f5"
+checksum = "0e1211349a56e76f8c2e208d97a608515b883c16d52c87ef92460b50d962d672"
 dependencies = [
  "base62",
  "base64 0.22.1",
@@ -4089,7 +4089,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "343d3bd7056eda839b03204e68deff7d1b13aba7af2b2fd16890697274262ee7"
 dependencies = [
  "heck",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "log",
  "multimap",
  "petgraph",
@@ -4108,7 +4108,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27c6023962132f4b30eb4c172c91ce92d933da334c59c23cddee82358ddafb0b"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -5668,9 +5668,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.52.1"
+version = "1.52.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b67dee974fe86fd92cc45b7a95fdd2f99a36a6d7b0d431a231178d3d670bbcc6"
+checksum = "8fc7f01b389ac15039e4dc9531aa973a135d7a4135281b12d7c1bc79fd57fffe"
 dependencies = [
  "bytes",
  "libc",
