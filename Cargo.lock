@@ -1811,9 +1811,9 @@ dependencies = [
 
 [[package]]
 name = "gen-bsky"
-version = "0.1.22"
+version = "0.1.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfab35874e68bf4a7b48b679b95d83e3b9d69550931eb75e0beafe7de6e3c255"
+checksum = "4674d6ef3f3dd96889ca1c271a56edc61fb71383c6c51aa88d6d8a128db0431c"
 dependencies = [
  "aquamarine",
  "base62",
@@ -1833,9 +1833,9 @@ dependencies = [
 
 [[package]]
 name = "gen-linkedin"
-version = "0.1.15"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f5373f612797d078d82d43f6c0f4e943cf8fe5cc15d3955a512bed8aa4d2125"
+checksum = "4ed088dddf48da6921326556c48280f780a85bbb501b652de0d3d42b53028d75"
 dependencies = [
  "chrono",
  "log",
@@ -3657,9 +3657,9 @@ dependencies = [
 
 [[package]]
 name = "pcu"
-version = "0.6.20"
+version = "0.6.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e1211349a56e76f8c2e208d97a608515b883c16d52c87ef92460b50d962d672"
+checksum = "b71dca4e37799eae44256c07379a4a7cf5ad900d39d55d781795a3a3718ed990"
 dependencies = [
  "base62",
  "base64 0.22.1",

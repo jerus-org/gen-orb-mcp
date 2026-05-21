@@ -55,7 +55,7 @@ git2 = "0.20.4"
 git2_credentials = "0.15.0"
 
 # Signed commit and GitHub App token push (for save --sign)
-pcu = "0.6.20"
+pcu = "0.6.21"
 config = { version = "0.15.22", default-features = false }
 
 # Testing
