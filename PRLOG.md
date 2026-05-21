@@ -5,7 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.33] - 2026-05-21
+
+### Fixed
+
+- save: restore client.stage_paths + fix stale container binary(pr [#151])
 
 ### Security
 
@@ -470,7 +474,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#148]: https://github.com/jerus-org/gen-orb-mcp/pull/148
 [#149]: https://github.com/jerus-org/gen-orb-mcp/pull/149
 [#150]: https://github.com/jerus-org/gen-orb-mcp/pull/150
-[Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.32...HEAD
+[#151]: https://github.com/jerus-org/gen-orb-mcp/pull/151
+[0.1.33]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.32...v0.1.33
 [0.1.32]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.31...v0.1.32
 [0.1.31]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.30...v0.1.31
 [0.1.30]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.29...v0.1.30
