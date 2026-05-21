@@ -4,6 +4,10 @@ use gen_orb_mcp::Cli;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 fn main() -> Result<()> {
+    // Bridge `log` crate records (used by pcu and git2_credentials) into the
+    // tracing subscriber so they appear when RUST_LOG is set.
+    tracing_log::LogTracer::init()?;
+
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()

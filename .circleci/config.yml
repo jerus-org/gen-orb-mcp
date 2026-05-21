@@ -98,7 +98,8 @@ jobs:
       - run:
           name: Commit back generated artifacts
           command: |
-            gen-orb-mcp save \
+            git remote -v
+            RUST_LOG=info gen-orb-mcp save \
               --paths prior-versions \
               --paths migrations \
               --sign
