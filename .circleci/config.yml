@@ -49,9 +49,16 @@ jobs:
       - image: jerusdp/gen-orb-mcp:latest
     steps:
       - checkout
+      - attach_workspace:
+          at: /tmp/bin
       - run:
           name: Set up git and environment
           command: |
+            # Use the freshly built binary from this pipeline's orb-release-binary
+            # job. The Docker image provides system deps (git, gnupg, openssh) but
+            # may have a cached older binary — always prefer the workspace artifact.
+            chmod +x /tmp/bin/gen-orb-mcp
+            echo 'export PATH=/tmp/bin:$PATH' >> "$BASH_ENV"
             VERSION=${CIRCLE_TAG#gen-orb-mcp-v}
             echo "export VERSION=${VERSION}" >> "$BASH_ENV"
             echo "export CIRCLE_BRANCH=main" >> "$BASH_ENV"

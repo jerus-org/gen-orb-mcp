@@ -841,55 +841,77 @@ fn run_save(
         None
     };
 
-    // Use add_all (not add_path) so directory paths like "prior-versions/" are
-    // staged recursively — git2::Index::add_path cannot handle directories.
-    let repo = Repository::discover(".")
-        .map_err(|e| anyhow::anyhow!("Not inside a git repository: {}", e))?;
-    let mut index = repo.index()?;
-    let path_strs: Vec<&str> = paths.iter().filter_map(|p| p.to_str()).collect();
-    index
-        .add_all(path_strs.iter(), git2::IndexAddOption::DEFAULT, None)
-        .map_err(|e| anyhow::anyhow!("Failed to stage paths: {e}"))?;
-    index.write()?;
-    let head_commit = repo.head().ok().and_then(|h| h.peel_to_commit().ok());
-    let diff = save_compute_diff(&repo, &mut index, head_commit.as_ref())?;
-
-    if diff.deltas().count() == 0 {
-        println!("Nothing to commit — working tree clean after staging.");
-        return Ok(());
-    }
-
-    if dry_run {
-        save_print_dry_run(&diff, message, push);
-        return Ok(());
-    }
-
     if let Some(_sign_env) = sign_env_opt {
+        // Signing path: use pcu library for staging, commit, and push.
+        // pcu::Client::new_with is async; everything else is synchronous.
         let pcu_config = build_pcu_config()?;
-        tokio::runtime::Builder::new_current_thread()
+        let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
-            .build()?
-            .block_on(async {
-                use pcu::GitOps;
-                let client = pcu::Client::new_with(&pcu_config)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Failed to create pcu client: {}", e))?;
-                let sign_config = pcu::SignConfig::new(pcu::Sign::Gpg);
-                client
-                    .commit_staged(sign_config, message, "", None)
-                    .map_err(|e| anyhow::anyhow!("Failed to sign and commit: {}", e))?;
-                println!("Created signed commit: {message}");
-                if push {
-                    let bot_name =
-                        std::env::var("BOT_USER_NAME").unwrap_or_else(|_| "bot".to_string());
-                    client
-                        .push_commit("", None, false, &bot_name)
-                        .map_err(|e| anyhow::anyhow!("Failed to push: {}", e))?;
-                    println!("Pushed to remote.");
-                }
-                Ok(())
-            })
+            .build()?;
+        let client = rt
+            .block_on(pcu::Client::new_with(&pcu_config))
+            .map_err(|e| anyhow::anyhow!("Failed to create pcu client: {}", e))?;
+
+        use pcu::GitOps;
+        let path_refs: Vec<&std::path::Path> = paths.iter().map(|p| p.as_path()).collect();
+        client
+            .stage_paths(&path_refs)
+            .map_err(|e| anyhow::anyhow!("Failed to stage paths: {e}"))?;
+
+        // Open a fresh repo handle after staging so the index reflects the
+        // changes written to disk by client.stage_paths().
+        let repo = Repository::discover(".")
+            .map_err(|e| anyhow::anyhow!("Not inside a git repository: {}", e))?;
+        let mut index = repo.index()?;
+        let head_commit = repo.head().ok().and_then(|h| h.peel_to_commit().ok());
+        let diff = save_compute_diff(&repo, &mut index, head_commit.as_ref())?;
+
+        if diff.deltas().count() == 0 {
+            println!("Nothing to commit — working tree clean after staging.");
+            return Ok(());
+        }
+
+        if dry_run {
+            save_print_dry_run(&diff, message, push);
+            return Ok(());
+        }
+
+        let sign_config = pcu::SignConfig::new(pcu::Sign::Gpg);
+        client
+            .commit_staged(sign_config, message, "", None)
+            .map_err(|e| anyhow::anyhow!("Failed to sign and commit: {}", e))?;
+        println!("Created signed commit: {message}");
+        if push {
+            let bot_name = std::env::var("BOT_USER_NAME").unwrap_or_else(|_| "bot".to_string());
+            client
+                .push_commit("", None, false, &bot_name)
+                .map_err(|e| anyhow::anyhow!("Failed to push: {}", e))?;
+            println!("Pushed to remote.");
+        }
+        Ok(())
     } else {
+        // Non-signing path: use git2 directly for staging, commit, and push.
+        let repo = Repository::discover(".")
+            .map_err(|e| anyhow::anyhow!("Not inside a git repository: {}", e))?;
+        let mut index = repo.index()?;
+        let path_strs: Vec<&str> = paths.iter().filter_map(|p| p.to_str()).collect();
+        index
+            .add_all(path_strs.iter(), git2::IndexAddOption::DEFAULT, None)
+            .map_err(|e| anyhow::anyhow!("Failed to stage paths: {e}"))?;
+        index.write()?;
+        let head_commit = repo.head().ok().and_then(|h| h.peel_to_commit().ok());
+        let diff = save_compute_diff(&repo, &mut index, head_commit.as_ref())?;
+
+        if diff.deltas().count() == 0 {
+            println!("Nothing to commit — working tree clean after staging.");
+            return Ok(());
+        }
+
+        if dry_run {
+            save_print_dry_run(&diff, message, push);
+            return Ok(());
+        }
+
         let oid = save_create_commit(&repo, &mut index, message, head_commit.as_ref())?;
         tracing::info!(commit = %oid, "Created commit");
         println!("Created commit {oid}: {message}");
