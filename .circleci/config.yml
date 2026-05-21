@@ -98,7 +98,7 @@ jobs:
       - run:
           name: Commit back generated artifacts
           command: |
-            echo "Remote URL: $(git remote get-url origin)"
+            git remote -v
             RUST_LOG=info gen-orb-mcp save \
               --paths prior-versions \
               --paths migrations \
