@@ -883,12 +883,10 @@ fn run_save_signed(
         .map_err(|e| anyhow::anyhow!("Failed to sign and commit: {}", e))?;
     println!("Created signed commit: {message}");
     if push {
-        // Use GITHUB_TOKEN via HTTPS rather than pcu's push_commit, which
-        // falls back to CredentialHandler / SSH agent when USER_PASS_PLAINTEXT
-        // is not offered — picking up the read-only CircleCI deploy key.
-        let repo = git2::Repository::discover(".")
-            .map_err(|e| anyhow::anyhow!("Not inside a git repository: {}", e))?;
-        save_push_with_github_token(&repo)?;
+        let bot_name = std::env::var("BOT_USER_NAME").unwrap_or_else(|_| "bot".to_string());
+        client
+            .push_commit("", None, false, &bot_name)
+            .map_err(|e| anyhow::anyhow!("Failed to push: {}", e))?;
         println!("Pushed to remote.");
     }
     Ok(())
@@ -967,36 +965,6 @@ fn save_create_commit(
     let new_tree = repo.find_tree(new_tree_oid)?;
     let parents: Vec<&git2::Commit> = head_commit.into_iter().collect();
     Ok(repo.commit(Some("HEAD"), &sig, &sig, message, &new_tree, &parents)?)
-}
-
-/// Push the current branch to `origin` using `GITHUB_TOKEN` for HTTPS auth.
-/// Refuses SSH credential types so a read-only deploy key can never be used
-/// as a fallback.
-fn save_push_with_github_token(repo: &git2::Repository) -> Result<()> {
-    let token = std::env::var("GITHUB_TOKEN")
-        .map_err(|_| anyhow::anyhow!("GITHUB_TOKEN not set (required for --sign push)"))?;
-    let head_ref = repo.head()?;
-    let branch_name = head_ref
-        .shorthand()
-        .ok_or_else(|| anyhow::anyhow!("HEAD has no branch name"))?;
-    let refspec = format!("refs/heads/{branch_name}:refs/heads/{branch_name}");
-    let mut remote = repo.find_remote("origin")?;
-    let mut callbacks = git2::RemoteCallbacks::new();
-    callbacks.credentials(move |_url, _username, allowed| {
-        if allowed.contains(git2::CredentialType::USER_PASS_PLAINTEXT) {
-            git2::Cred::userpass_plaintext("x-access-token", &token)
-        } else {
-            Err(git2::Error::from_str(
-                "remote requires SSH auth; ensure remote URL uses HTTPS",
-            ))
-        }
-    });
-    let mut push_opts = git2::PushOptions::new();
-    push_opts.remote_callbacks(callbacks);
-    remote
-        .push(&[refspec.as_str()], Some(&mut push_opts))
-        .map_err(|e| anyhow::anyhow!("Push failed: {e}"))?;
-    Ok(())
 }
 
 fn save_git_push(repo: &git2::Repository) -> Result<()> {
@@ -1973,28 +1941,6 @@ mod tests {
         } else {
             panic!("expected Save variant");
         }
-    }
-
-    #[test]
-    fn test_save_push_with_github_token_missing_token() {
-        let dir = TempDir::new().unwrap();
-        // Initialise a repo with an origin remote (no commits needed — token
-        // check happens before any git operation).
-        let repo = git2::Repository::init(dir.path()).unwrap();
-        repo.remote("origin", "https://github.com/example/repo.git")
-            .unwrap();
-        let saved = std::env::var("GITHUB_TOKEN").ok();
-        std::env::remove_var("GITHUB_TOKEN");
-        let result = save_push_with_github_token(&repo);
-        if let Some(t) = saved {
-            std::env::set_var("GITHUB_TOKEN", t);
-        }
-        assert!(result.is_err(), "should fail when GITHUB_TOKEN is absent");
-        let msg = result.unwrap_err().to_string();
-        assert!(
-            msg.contains("GITHUB_TOKEN"),
-            "error must mention GITHUB_TOKEN: {msg}"
-        );
     }
 
     // --- publish subcommand tests ---
