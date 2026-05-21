@@ -828,7 +828,6 @@ fn run_save(
     sign: bool,
 ) -> Result<()> {
     use git2::Repository;
-    use pcu::GitOps as _;
 
     let sign_env_opt = if sign {
         let sign_env = read_sign_env()?;
@@ -842,16 +841,16 @@ fn run_save(
         None
     };
 
-    let local_client = pcu::Client::new_local()
-        .map_err(|e| anyhow::anyhow!("Failed to open local git repo: {e}"))?;
-    let path_refs: Vec<&std::path::Path> = paths.iter().map(|p| p.as_path()).collect();
-    local_client
-        .stage_paths(&path_refs)
-        .map_err(|e| anyhow::anyhow!("Failed to stage paths: {e}"))?;
-
+    // Use add_all (not add_path) so directory paths like "prior-versions/" are
+    // staged recursively — git2::Index::add_path cannot handle directories.
     let repo = Repository::discover(".")
         .map_err(|e| anyhow::anyhow!("Not inside a git repository: {}", e))?;
     let mut index = repo.index()?;
+    let path_strs: Vec<&str> = paths.iter().filter_map(|p| p.to_str()).collect();
+    index
+        .add_all(path_strs.iter(), git2::IndexAddOption::DEFAULT, None)
+        .map_err(|e| anyhow::anyhow!("Failed to stage paths: {e}"))?;
+    index.write()?;
     let head_commit = repo.head().ok().and_then(|h| h.peel_to_commit().ok());
     let diff = save_compute_diff(&repo, &mut index, head_commit.as_ref())?;
 
@@ -1775,6 +1774,42 @@ mod tests {
         assert!(
             log_str.lines().count() >= 2,
             "expected at least 2 commits, got: {log_str}"
+        );
+    }
+
+    #[test]
+    fn test_save_directory_path_stages_contents() {
+        let dir = TempDir::new().unwrap();
+        init_git_repo(dir.path());
+        // Create a directory with files inside — mirrors the prior-versions/ and migrations/ case
+        let subdir = dir.path().join("generated");
+        std::fs::create_dir(&subdir).unwrap();
+        std::fs::write(subdir.join("a.json"), r#"{"v": 1}"#).unwrap();
+        std::fs::write(subdir.join("b.json"), r#"{"v": 2}"#).unwrap();
+        let _cwd_guard = CWD_LOCK.lock().unwrap();
+        let original = std::env::current_dir().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+        let result = run_save(
+            &[std::path::PathBuf::from("generated")],
+            "chore: add generated dir",
+            false,
+            false,
+            false,
+        );
+        std::env::set_current_dir(&original).unwrap();
+        assert!(
+            result.is_ok(),
+            "directory path should stage all contents and commit: {result:?}"
+        );
+        let log = std::process::Command::new("git")
+            .args(["log", "--oneline"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+        let log_str = String::from_utf8_lossy(&log.stdout);
+        assert!(
+            log_str.lines().count() >= 2,
+            "expected at least 2 commits after staging directory, got: {log_str}"
         );
     }
 
