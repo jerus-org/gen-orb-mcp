@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- save: restore client.stage_paths + fix stale container binary(pr [#151])
+
 ### Security
 
 - Dependencies: bump pcu to 0.6.21(pr [#150])
@@ -470,6 +474,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#148]: https://github.com/jerus-org/gen-orb-mcp/pull/148
 [#149]: https://github.com/jerus-org/gen-orb-mcp/pull/149
 [#150]: https://github.com/jerus-org/gen-orb-mcp/pull/150
+[#151]: https://github.com/jerus-org/gen-orb-mcp/pull/151
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.32...HEAD
 [0.1.32]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.31...v0.1.32
 [0.1.31]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.30...v0.1.31
