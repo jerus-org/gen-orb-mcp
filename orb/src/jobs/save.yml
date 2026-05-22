@@ -32,6 +32,7 @@ parameters:
     default: false
 steps:
 - checkout
+- set_https_remote
 - save:
     paths: << parameters.paths >>
     message: << parameters.message >>
