@@ -246,7 +246,7 @@ workflows:
                 - /pull\/[0-9]+/
                 - main
 
-      - verify-git-https-setup:
+      - verify-git-https-setup
 
       - gen-circleci-orb/build_rust_binary:
           name: build-binary
