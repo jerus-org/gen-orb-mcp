@@ -10,6 +10,21 @@ orbs:
   orb-tools: circleci/orb-tools@12.4.0
   gen-circleci-orb: jerus-org/gen-circleci-orb@0.0.16
 
+commands:
+  set-https-remote:
+    description: >
+      Rewrite both the fetch and push URLs for origin to HTTPS.
+      CircleCI checkout sets both to SSH; git2 (used by pcu push_commit)
+      only offers USER_PASS_PLAINTEXT for HTTPS remotes — SSH remotes
+      fall back to the read-only deploy key.
+    steps:
+      - run:
+          name: Set HTTPS remote URLs (fetch and push)
+          command: |
+            HTTPS_ORIGIN="https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
+            git remote set-url origin "${HTTPS_ORIGIN}"
+            git remote set-url --push origin "${HTTPS_ORIGIN}"
+
 jobs:
   orb-release-binary:
     docker:
@@ -64,13 +79,7 @@ jobs:
             echo "export CIRCLE_BRANCH=main" >> "$BASH_ENV"
             git fetch origin main
             git checkout -B main origin/main
-            # CircleCI checkout sets separate fetch and push URLs, both SSH.
-            # The push URL must be HTTPS so pcu's push_commit receives
-            # USER_PASS_PLAINTEXT (GitHub App token) rather than SSH_KEY
-            # credential types (which fall back to the read-only deploy key).
-            HTTPS_ORIGIN="https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
-            git remote set-url origin "${HTTPS_ORIGIN}"
-            git remote set-url --push origin "${HTTPS_ORIGIN}"
+      - set-https-remote
       - run:
           name: Prime prior versions and migrations
           command: |
@@ -112,13 +121,14 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Verify HTTPS remote setup (fetch and push)
+          name: Show remote URLs before transformation
           command: |
             echo "=== Before ==="
             git remote -v
-            HTTPS_ORIGIN="https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
-            git remote set-url origin "${HTTPS_ORIGIN}"
-            git remote set-url --push origin "${HTTPS_ORIGIN}"
+      - set-https-remote
+      - run:
+          name: Assert both remote URLs are HTTPS
+          command: |
             echo "=== After ==="
             git remote -v
             fetch_url=$(git remote get-url origin)
