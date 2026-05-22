@@ -106,6 +106,35 @@ jobs:
               --paths migrations \
               --sign
 
+  verify-git-https-setup:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - run:
+          name: Verify HTTPS remote setup (fetch and push)
+          command: |
+            echo "=== Before ==="
+            git remote -v
+            HTTPS_ORIGIN="https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
+            git remote set-url origin "${HTTPS_ORIGIN}"
+            git remote set-url --push origin "${HTTPS_ORIGIN}"
+            echo "=== After ==="
+            git remote -v
+            fetch_url=$(git remote get-url origin)
+            push_url=$(git remote get-url --push origin)
+            echo "Fetch URL: ${fetch_url}"
+            echo "Push URL:  ${push_url}"
+            if ! echo "${fetch_url}" | grep -q "^https://"; then
+              echo "FAIL: fetch URL is not HTTPS"
+              exit 1
+            fi
+            if ! echo "${push_url}" | grep -q "^https://"; then
+              echo "FAIL: push URL is not HTTPS"
+              exit 1
+            fi
+            echo "PASS: both fetch and push URLs are HTTPS"
+
   orb-release-ensure-registered:
     executor: orb-tools/default
     steps:
@@ -206,6 +235,8 @@ workflows:
               ignore:
                 - /pull\/[0-9]+/
                 - main
+
+      - verify-git-https-setup:
 
       - gen-circleci-orb/build_rust_binary:
           name: build-binary
