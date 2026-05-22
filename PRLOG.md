@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- add set_https_remote command and use in save job(pr [#156])
+
 ## [0.1.37] - 2026-05-22
 
 ### Fixed
@@ -503,6 +509,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#153]: https://github.com/jerus-org/gen-orb-mcp/pull/153
 [#154]: https://github.com/jerus-org/gen-orb-mcp/pull/154
 [#155]: https://github.com/jerus-org/gen-orb-mcp/pull/155
+[#156]: https://github.com/jerus-org/gen-orb-mcp/pull/156
+[Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.37...HEAD
 [0.1.37]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.36...v0.1.37
 [0.1.36]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.35...v0.1.36
 [0.1.35]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.34...v0.1.35
