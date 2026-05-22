@@ -21,17 +21,15 @@ commands:
       - run:
           name: Set HTTPS remote URLs (fetch and push)
           command: |
-            echo "--- insteadOf rules in effect ---"
-            git config --list --show-origin | grep -i instead || echo "(none)"
-            echo "--- local remote config ---"
-            git config --local --list | grep remote || echo "(none)"
+            # CircleCI's checkout step injects an insteadOf rule into ~/.gitconfig:
+            #   url."ssh://git@github.com".insteadOf = https://github.com
+            # This causes git (and libgit2 used by pcu) to transparently rewrite
+            # every HTTPS GitHub URL back to SSH, so git remote set-url has no
+            # observable effect on the effective URL. Remove the rule first.
+            git config --global --unset-all "url.ssh://git@github.com.insteadOf" 2>/dev/null || true
             HTTPS_ORIGIN="https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
-            echo "--- target URL: ${HTTPS_ORIGIN} ---"
             git remote set-url origin "${HTTPS_ORIGIN}"
             git remote set-url --push origin "${HTTPS_ORIGIN}"
-            echo "--- after set-url ---"
-            git remote -v
-            git config --local --list | grep remote
 
 jobs:
   orb-release-binary:
