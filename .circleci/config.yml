@@ -64,11 +64,13 @@ jobs:
             echo "export CIRCLE_BRANCH=main" >> "$BASH_ENV"
             git fetch origin main
             git checkout -B main origin/main
-            # CircleCI checkout clones via SSH (deploy key in agent is read-only).
-            # Switch to HTTPS so pcu's push_commit uses USER_PASS_PLAINTEXT and
-            # the GitHub App token rather than falling back to the SSH deploy key.
-            git remote set-url origin \
-              "https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
+            # CircleCI checkout sets separate fetch and push URLs, both SSH.
+            # The push URL must be HTTPS so pcu's push_commit receives
+            # USER_PASS_PLAINTEXT (GitHub App token) rather than SSH_KEY
+            # credential types (which fall back to the read-only deploy key).
+            HTTPS_ORIGIN="https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
+            git remote set-url origin "${HTTPS_ORIGIN}"
+            git remote set-url --push origin "${HTTPS_ORIGIN}"
       - run:
           name: Prime prior versions and migrations
           command: |
