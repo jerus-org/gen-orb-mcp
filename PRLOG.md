@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - add set_https_remote command and use in save job(pr [#156])
 
+### Changed
+
+- chore-bump gen-circleci-orb to 0.0.25, add git_push_subcommand(pr [#157])
+
 ## [0.1.37] - 2026-05-22
 
 ### Fixed
@@ -510,6 +514,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#154]: https://github.com/jerus-org/gen-orb-mcp/pull/154
 [#155]: https://github.com/jerus-org/gen-orb-mcp/pull/155
 [#156]: https://github.com/jerus-org/gen-orb-mcp/pull/156
+[#157]: https://github.com/jerus-org/gen-orb-mcp/pull/157
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.37...HEAD
 [0.1.37]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.36...v0.1.37
 [0.1.36]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.35...v0.1.36
