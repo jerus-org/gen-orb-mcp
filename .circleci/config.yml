@@ -8,7 +8,7 @@ parameters:
 orbs:
   toolkit: jerus-org/circleci-toolkit@6.2.0
   orb-tools: circleci/orb-tools@12.4.0
-  gen-circleci-orb: jerus-org/gen-circleci-orb@0.0.16
+  gen-circleci-orb: jerus-org/gen-circleci-orb@0.0.25
 
 commands:
   set-https-remote:
@@ -265,6 +265,7 @@ workflows:
           orb_namespace: jerus-org
           orb_dir: orb
           attach_workspace: true
+          git_push_subcommand: save
           requires:
             - build-binary
       - orb-tools/pack:
