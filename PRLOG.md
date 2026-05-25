@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - add set_https_remote command and use in save job(pr [#156])
+- default --orb-path to src/@orb.yml in generate and validate(pr [#167])
 
 ### Changed
 
@@ -532,6 +533,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#161]: https://github.com/jerus-org/gen-orb-mcp/pull/161
 [#162]: https://github.com/jerus-org/gen-orb-mcp/pull/162
 [#164]: https://github.com/jerus-org/gen-orb-mcp/pull/164
+[#167]: https://github.com/jerus-org/gen-orb-mcp/pull/167
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.37...HEAD
 [0.1.37]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.36...v0.1.37
 [0.1.36]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.35...v0.1.36
