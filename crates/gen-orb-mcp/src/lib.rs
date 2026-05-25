@@ -67,8 +67,8 @@ enum Commands {
         ///
         /// Required when regenerating an existing output directory.
         /// For CI workflows, this should match the orb release version.
-        #[arg(short = 'V', long)]
-        version: Option<String>,
+        #[arg(long = "crate-version")]
+        crate_version: Option<String>,
 
         /// Overwrite existing files without confirmation
         ///
@@ -314,7 +314,7 @@ impl Cli {
                 output,
                 format,
                 name,
-                version,
+                crate_version,
                 force,
                 migrations,
                 prior_versions,
@@ -324,7 +324,7 @@ impl Cli {
                 output,
                 format,
                 name,
-                version,
+                crate_version,
                 *force,
                 GenerateExtras {
                     migrations,
@@ -397,7 +397,7 @@ fn run_generate(
     output: &std::path::PathBuf,
     format: &OutputFormat,
     name: &Option<String>,
-    version: &Option<String>,
+    crate_version: &Option<String>,
     force: bool,
     extras: GenerateExtras<'_>,
 ) -> Result<()> {
@@ -418,7 +418,8 @@ fn run_generate(
         Ok(repo) => discover_latest_version(&repo, extras.tag_prefix)?,
         Err(_) => None,
     };
-    let resolved_version = resolve_version(output, version.as_deref(), force, git_hint.as_deref())?;
+    let resolved_version =
+        resolve_version(output, crate_version.as_deref(), force, git_hint.as_deref())?;
     tracing::info!(version = %resolved_version, "Using version");
 
     let conformance_rules = if let Some(migrations_dir) = extras.migrations {
@@ -1258,7 +1259,7 @@ fn resolve_version(
         format!(
             "Output directory '{}' already exists and no version could be determined.\n\
              Provide the version explicitly:\n\n\
-             \x20   gen-orb-mcp generate --orb-path <PATH> --output {} --version <VERSION> --force\n\n\
+             \x20   gen-orb-mcp generate --orb-path <PATH> --output {} --crate-version <VERSION> --force\n\n\
              Or ensure --orb-path is inside a git repository with version tags (e.g. v6.0.0).\n\
              Use --tag-prefix if your tags use a non-standard prefix.",
             output.display(),
@@ -1268,7 +1269,7 @@ fn resolve_version(
         format!(
             "No version could be determined for the generated MCP server.\n\
              Provide the version explicitly:\n\n\
-             \x20   gen-orb-mcp generate --orb-path <PATH> --output {} --version <VERSION>\n\n\
+             \x20   gen-orb-mcp generate --orb-path <PATH> --output {} --crate-version <VERSION>\n\n\
              Or ensure --orb-path is inside a git repository with version tags (e.g. v6.0.0).\n\
              Use --tag-prefix if your tags use a non-standard prefix.",
             output.display()
@@ -1297,7 +1298,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_parse_generate_with_version() {
+    fn test_cli_parse_generate_with_crate_version_legacy() {
         let cli = Cli::try_parse_from([
             "gen-orb-mcp",
             "generate",
@@ -1305,7 +1306,7 @@ mod tests {
             "test.yml",
             "--output",
             "./out",
-            "--version",
+            "--crate-version",
             "1.2.3",
         ]);
         assert!(cli.is_ok());
@@ -1320,11 +1321,44 @@ mod tests {
             "test.yml",
             "--output",
             "./out",
-            "--version",
+            "--crate-version",
             "1.2.3",
             "--force",
         ]);
         assert!(cli.is_ok());
+    }
+
+    #[test]
+    fn test_cli_parse_generate_with_crate_version() {
+        let cli = Cli::try_parse_from([
+            "gen-orb-mcp",
+            "generate",
+            "--orb-path",
+            "test.yml",
+            "--output",
+            "./out",
+            "--crate-version",
+            "1.2.3",
+        ]);
+        assert!(cli.is_ok(), "--crate-version should be accepted");
+    }
+
+    #[test]
+    fn test_cli_parse_generate_version_flag_rejected() {
+        let cli = Cli::try_parse_from([
+            "gen-orb-mcp",
+            "generate",
+            "--orb-path",
+            "test.yml",
+            "--output",
+            "./out",
+            "--version",
+            "1.2.3",
+        ]);
+        assert!(
+            cli.is_err(),
+            "--version should be rejected (conflicts with clap built-in)"
+        );
     }
 
     #[test]
@@ -1389,7 +1423,7 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("already exists"));
-        assert!(err.contains("--version"));
+        assert!(err.contains("--crate-version"));
     }
 
     #[test]

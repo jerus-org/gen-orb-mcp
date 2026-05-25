@@ -17,7 +17,7 @@ pmcp = "2.8.1"
 
 # YAML Processing
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
+serde_json = "1.0.150"
 serde_yaml = "0.9.34"
 
 # CLI
@@ -28,10 +28,10 @@ anyhow = "1.0.102"
 thiserror = "2.0.18"
 
 # Async Runtime
-tokio = { version = "1.52.1", features = ["full"] }
+tokio = { version = "1.52.3", features = ["full"] }
 
 # Template Engine
-handlebars = "6.4.0"
+handlebars = "6.4.1"
 
 # Logging
 tracing = "0.1.44"
@@ -57,7 +57,7 @@ git2_credentials = "0.15.0"
 
 # Signed commit and GitHub App token push (for save --sign)
 pcu = "0.6.21"
-config = { version = "0.15.22", default-features = false }
+config = { version = "0.15.23", default-features = false }
 
 # Testing
 tempfile = "3.27.0"
