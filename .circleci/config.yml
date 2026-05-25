@@ -101,7 +101,7 @@ jobs:
               --name gen-orb-mcp \
               --orb-path orb/src/@orb.yml \
               --output /tmp/mcp-server \
-              --version "${VERSION}" \
+              --crate-version "${VERSION}" \
               --force \
               --prior-versions prior-versions \
               --migrations migrations
