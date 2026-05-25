@@ -48,7 +48,7 @@ enum Commands {
     /// Generate an MCP server from an orb definition
     Generate {
         /// Path to the orb YAML file (e.g., src/@orb.yml)
-        #[arg(short = 'p', long)]
+        #[arg(short = 'p', long, default_value = "src/@orb.yml")]
         orb_path: std::path::PathBuf,
 
         /// Output directory for generated server
@@ -104,7 +104,7 @@ enum Commands {
     /// Validate an orb definition without generating
     Validate {
         /// Path to the orb YAML file
-        #[arg(short = 'p', long)]
+        #[arg(short = 'p', long, default_value = "src/@orb.yml")]
         orb_path: std::path::PathBuf,
     },
     /// Compute conformance rules by diffing two orb versions
@@ -1295,6 +1295,36 @@ mod tests {
             "./out",
         ]);
         assert!(cli.is_ok());
+    }
+
+    #[test]
+    fn test_cli_parse_generate_default_orb_path() {
+        let cli = Cli::try_parse_from(["gen-orb-mcp", "generate"]);
+        assert!(
+            cli.is_ok(),
+            "generate should work without --orb-path (default: src/@orb.yml)"
+        );
+        if let Ok(Cli {
+            command: Commands::Generate { orb_path, .. },
+        }) = cli
+        {
+            assert_eq!(orb_path, std::path::PathBuf::from("src/@orb.yml"));
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_validate_default_orb_path() {
+        let cli = Cli::try_parse_from(["gen-orb-mcp", "validate"]);
+        assert!(
+            cli.is_ok(),
+            "validate should work without --orb-path (default: src/@orb.yml)"
+        );
+        if let Ok(Cli {
+            command: Commands::Validate { orb_path },
+        }) = cli
+        {
+            assert_eq!(orb_path, std::path::PathBuf::from("src/@orb.yml"));
+        }
     }
 
     #[test]
