@@ -5,5 +5,12 @@
   ],
   "extends": [
     "github>jerusdp/renovate-config:default.json"
+  ],
+  "packageRules": [
+    {
+      "matchPackageNames": ["git2", "git2_credentials"],
+      "groupName": "git2 packages",
+      "description": "git2 and git2_credentials must update together: git2_credentials pins a specific git2 minor version"
+    }
   ]
 }
