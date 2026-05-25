@@ -3,6 +3,7 @@ parameters:
   orb_path:
     type: string
     description: Path to the orb YAML file (e.g., src/@orb.yml)
+    default: src/@orb.yml
   output:
     type: string
     description: Output directory for generated server

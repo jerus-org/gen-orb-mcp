@@ -3,6 +3,7 @@ parameters:
   orb_path:
     type: string
     description: Path to the orb YAML file
+    default: src/@orb.yml
 steps:
 - run:
     name: validate
