@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - rename generate --version to --crate-version(pr [#165])
+- deps: pin dependencies(pr [#158])
 
 ## [0.1.37] - 2026-05-22
 
@@ -520,6 +521,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#156]: https://github.com/jerus-org/gen-orb-mcp/pull/156
 [#157]: https://github.com/jerus-org/gen-orb-mcp/pull/157
 [#165]: https://github.com/jerus-org/gen-orb-mcp/pull/165
+[#158]: https://github.com/jerus-org/gen-orb-mcp/pull/158
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.37...HEAD
 [0.1.37]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.36...v0.1.37
 [0.1.36]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.35...v0.1.36
