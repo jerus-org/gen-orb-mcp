@@ -10,178 +10,6 @@ orbs:
   orb-tools: circleci/orb-tools@12.4.0
   gen-circleci-orb: jerus-org/gen-circleci-orb@0.0.26
 
-commands:
-  set-https-remote:
-    description: >
-      Rewrite both the fetch and push URLs for origin to HTTPS.
-      CircleCI checkout sets both to SSH; git2 (used by pcu push_commit)
-      only offers USER_PASS_PLAINTEXT for HTTPS remotes — SSH remotes
-      fall back to the read-only deploy key.
-    steps:
-      - run:
-          name: Set HTTPS remote URLs (fetch and push)
-          command: |
-            # CircleCI's checkout step injects an insteadOf rule into ~/.gitconfig:
-            #   url."ssh://git@github.com".insteadOf = https://github.com
-            # This causes git (and libgit2 used by pcu) to transparently rewrite
-            # every HTTPS GitHub URL back to SSH, so git remote set-url has no
-            # observable effect on the effective URL. Remove the rule first.
-            git config --global --unset-all "url.ssh://git@github.com.insteadOf" 2>/dev/null || true
-            HTTPS_ORIGIN="https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
-            git remote set-url origin "${HTTPS_ORIGIN}"
-            git remote set-url --push origin "${HTTPS_ORIGIN}"
-
-jobs:
-  orb-release-binary:
-    docker:
-      - image: rust:latest@sha256:0861191076afc8e2dfcf0bec6ad6c2dec8494b3a1e9249729e1989690afed5ec
-    steps:
-      - checkout
-      - run:
-          name: Build release binary
-          command: cargo build --release -p gen-orb-mcp
-      - persist_to_workspace:
-          root: target/release
-          paths: [gen-orb-mcp]
-
-  orb-release-container:
-    docker:
-      - image: cimg/base:stable
-    steps:
-      - checkout
-      - setup_remote_docker
-      - attach_workspace:
-          at: /tmp/bin
-      - run:
-          name: Build and push Docker image
-          command: |
-            VERSION=${CIRCLE_TAG#gen-orb-mcp-v}
-            cp /tmp/bin/gen-orb-mcp orb/gen-orb-mcp
-            docker build \
-              -t jerusdp/gen-orb-mcp:${VERSION} \
-              -t jerusdp/gen-orb-mcp:latest \
-              orb
-            echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
-            docker push jerusdp/gen-orb-mcp:${VERSION}
-            docker push jerusdp/gen-orb-mcp:latest
-
-  build-mcp-server:
-    docker:
-      - image: jerusdp/gen-orb-mcp:latest
-    steps:
-      - checkout
-      - attach_workspace:
-          at: /tmp/bin
-      - run:
-          name: Set up git and environment
-          command: |
-            # Use the freshly built binary from this pipeline's orb-release-binary
-            # job. The Docker image provides system deps (git, gnupg, openssh) but
-            # may have a cached older binary — always prefer the workspace artifact.
-            chmod +x /tmp/bin/gen-orb-mcp
-            echo 'export PATH=/tmp/bin:$PATH' >> "$BASH_ENV"
-            VERSION=${CIRCLE_TAG#gen-orb-mcp-v}
-            echo "export VERSION=${VERSION}" >> "$BASH_ENV"
-            echo "export CIRCLE_BRANCH=main" >> "$BASH_ENV"
-            git fetch origin main
-            git checkout -B main origin/main
-      - set-https-remote
-      - run:
-          name: Prime prior versions and migrations
-          command: |
-            gen-orb-mcp prime \
-              --orb-path orb/src/@orb.yml \
-              --tag-prefix gen-orb-mcp-v \
-              --earliest-version 0.1.11
-      - run:
-          name: Generate and compile MCP server
-          command: |
-            gen-orb-mcp generate \
-              --format binary \
-              --name gen-orb-mcp \
-              --orb-path orb/src/@orb.yml \
-              --output /tmp/mcp-server \
-              --version "${VERSION}" \
-              --force \
-              --prior-versions prior-versions \
-              --migrations migrations
-      - run:
-          name: Publish MCP server binary to GitHub release
-          command: |
-            gen-orb-mcp publish \
-              --binary /tmp/mcp-server/target/release/gen_orb_mcp_mcp \
-              --asset-name gen_orb_mcp_mcp-linux-x86_64 \
-              --tag "${CIRCLE_TAG}"
-      - run:
-          name: Commit back generated artifacts
-          command: |
-            git remote -v
-            RUST_LOG=info gen-orb-mcp save \
-              --paths prior-versions \
-              --paths migrations \
-              --sign
-
-  verify-git-https-setup:
-    docker:
-      - image: cimg/base:stable
-    steps:
-      - checkout
-      - run:
-          name: Show remote URLs before transformation
-          command: |
-            echo "=== Before ==="
-            git remote -v
-      - set-https-remote
-      - run:
-          name: Assert both remote URLs are HTTPS
-          command: |
-            echo "=== After ==="
-            git remote -v
-            fetch_url=$(git remote get-url origin)
-            push_url=$(git remote get-url --push origin)
-            echo "Fetch URL: ${fetch_url}"
-            echo "Push URL:  ${push_url}"
-            if ! echo "${fetch_url}" | grep -q "^https://"; then
-              echo "FAIL: fetch URL is not HTTPS"
-              exit 1
-            fi
-            if ! echo "${push_url}" | grep -q "^https://"; then
-              echo "FAIL: push URL is not HTTPS"
-              exit 1
-            fi
-            echo "PASS: both fetch and push URLs are HTTPS"
-
-  orb-release-ensure-registered:
-    executor: orb-tools/default
-    steps:
-      - run:
-          name: Ensure orb is registered
-          command: |
-            set +e
-            circleci setup --token "${CIRCLE_TOKEN}" --host https://circleci.com --no-prompt
-            setup_exit=$?
-            set -e
-            if [ "${setup_exit}" -ne 0 ] && [ "${setup_exit}" -ne 255 ]; then
-              echo "circleci setup failed with exit ${setup_exit}" >&2
-              exit "${setup_exit}"
-            fi
-            set +e
-            circleci orb info jerus-org/gen-orb-mcp
-            orb_info_exit=$?
-            set -e
-            echo "orb info exit: ${orb_info_exit}"
-            if [ "${orb_info_exit}" -ne 0 ] && [ "${orb_info_exit}" -ne 255 ]; then
-              set +e
-              create_output=$(circleci orb create jerus-org/gen-orb-mcp --no-prompt 2>&1)
-              create_exit=$?
-              set -e
-              echo "${create_output}"
-              if [ "${create_exit}" -ne 0 ] && ! echo "${create_output}" | grep -q "already exists"; then
-                exit "${create_exit}"
-              fi
-            fi
-            echo "Orb is registered."
-
 workflows:
   validation:
     jobs:
@@ -252,8 +80,6 @@ workflows:
                 - /pull\/[0-9]+/
                 - main
 
-      - verify-git-https-setup
-
       - gen-circleci-orb/build_rust_binary:
           name: build-binary
           package: gen-orb-mcp
@@ -279,7 +105,9 @@ workflows:
 
   orb-release:
     jobs:
-      - orb-release-binary:
+      - gen-circleci-orb/build_rust_binary:
+          name: orb-release-binary
+          package: gen-orb-mcp
           filters:
             tags:
               only: /^gen-orb-mcp-v.*/
@@ -306,7 +134,12 @@ workflows:
             branches:
               ignore: /.*/
 
-      - orb-release-container:
+      - gen-circleci-orb/build_container:
+          name: orb-release-container
+          binary: gen-orb-mcp
+          docker_namespace: jerusdp
+          orb_dir: orb
+          crate_tag_prefix: gen-orb-mcp-v
           requires: [orb-release-binary]
           context: [docker]
           filters:
@@ -315,7 +148,9 @@ workflows:
             branches:
               ignore: /.*/
 
-      - orb-release-ensure-registered:
+      - gen-circleci-orb/ensure_orb_registered:
+          name: orb-release-ensure-registered-jerus-org
+          orb_name: jerus-org/gen-orb-mcp
           context: [orb-publishing]
           filters:
             tags:
@@ -324,7 +159,7 @@ workflows:
               ignore: /.*/
 
       - orb-tools/publish:
-          name: publish-orb
+          name: publish-orb-jerus-org
           pre-steps:
             - run:
                 name: Normalize CIRCLE_TAG for orb version
@@ -335,7 +170,7 @@ workflows:
           pub_type: production
           vcs_type: github
           enable_pr_comment: false
-          requires: [orb-release-container, orb-release-pack, orb-release-ensure-registered]
+          requires: [orb-release-container, orb-release-pack, orb-release-ensure-registered-jerus-org]
           context: [orb-publishing]
           filters:
             tags:
@@ -343,8 +178,13 @@ workflows:
             branches:
               ignore: /.*/
 
-      - build-mcp-server:
-          requires: [publish-orb]
+      - gen-circleci-orb/build_mcp_server:
+          name: build-mcp-server
+          binary_name: gen-orb-mcp
+          tag_prefix: gen-orb-mcp-v
+          orb_path: orb/src/@orb.yml
+          earliest_version: "0.1.11"
+          requires: [publish-orb-jerus-org]
           context:
             - release
             - bot-check
