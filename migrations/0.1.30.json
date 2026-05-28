@@ -1,0 +1,18 @@
+[
+  {
+    "type": "ParameterRemoved",
+    "data": {
+      "job": "generate",
+      "parameter": "version",
+      "since_version": "0.1.30"
+    }
+  },
+  {
+    "type": "CommandParameterRemoved",
+    "data": {
+      "command": "generate",
+      "parameter": "version",
+      "since_version": "0.1.30"
+    }
+  }
+]
