@@ -1,0 +1,57 @@
+description: Run save command in a dedicated job.
+executor: default
+parameters:
+  paths:
+    type: string
+    description: Paths to stage and commit (relative to repository root)
+  message:
+    type: string
+    description: Commit message
+    default: 'chore: update generated MCP server artifacts [skip ci]'
+  push:
+    type: enum
+    description: 'Push after committing (default: true)'
+    default: 'true'
+    enum:
+    - 'true'
+    - 'false'
+  no_push:
+    type: boolean
+    description: Stage and commit only, do not push
+    default: false
+  dry_run:
+    type: boolean
+    description: Show what would be committed without writing anything
+    default: false
+  sign:
+    type: boolean
+    description: 'Use GPG-signed commit and GitHub App token push.  Reads: BOT_GPG_KEY (base64 GPG key), BOT_TRUST (ownertrust), BOT_USER_NAME, BOT_USER_EMAIL, BOT_SIGN_KEY (key ID), GITHUB_TOKEN (GitHub App installation token), CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME, CIRCLE_BRANCH.'
+    default: false
+  attach_workspace:
+    type: boolean
+    description: Attach a workspace before running the command (use when the binary was built in a prior job).
+    default: false
+  workspace_root:
+    type: string
+    description: Path at which to attach the workspace; also prepended to PATH (only used when attach_workspace is true).
+    default: /tmp/workspace
+steps:
+- checkout
+- when:
+    condition: << parameters.attach_workspace >>
+    steps:
+    - attach_workspace:
+        at: << parameters.workspace_root >>
+    - run:
+        name: Add workspace binaries to PATH
+        command: <<include(scripts/add-workspace-to-path.sh)>>
+        environment:
+          WORKSPACE_ROOT: << parameters.workspace_root >>
+- set_https_remote
+- save:
+    paths: << parameters.paths >>
+    message: << parameters.message >>
+    push: << parameters.push >>
+    no_push: << parameters.no_push >>
+    dry_run: << parameters.dry_run >>
+    sign: << parameters.sign >>

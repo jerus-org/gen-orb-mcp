@@ -1,0 +1,23 @@
+[orb]
+binary = "gen-orb-mcp"
+namespaces = ["jerus-org"]
+orb_dir = "orb"
+home_url = "https://github.com/jerus-org/gen-orb-mcp"
+source_url = "https://github.com/jerus-org/gen-orb-mcp"
+git_push_subcommands = ["save"]
+
+[ci]
+build_workflow = "validation"
+release_workflow = "orb-release"
+requires_job = "toolkit/common_tests"
+release_after_job = "publish-orb-jerus-org"
+crate_tag_prefix = "gen-orb-mcp-v"
+docker_namespace = "jerusdp"
+docker_context = "docker"
+orb_context = "orb-publishing"
+mcp = true
+mcp_context = "pcu-app"
+mcp_earliest_version = "0.1.11"
+
+[subcommand.help]
+generate_job = false
