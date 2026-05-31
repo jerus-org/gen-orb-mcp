@@ -7,5 +7,4 @@ usage:
   workflows:
     use-my-orb:
       jobs:
-        - gen-orb-mcp/generate:
-            orb_path: your-orb-path
+        - gen-orb-mcp/generate

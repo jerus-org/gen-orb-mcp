@@ -4,6 +4,7 @@ parameters:
   orb_path:
     type: string
     description: Path to the orb YAML file
+    default: src/@orb.yml
   attach_workspace:
     type: boolean
     description: Attach a workspace before running the command (use when the binary was built in a prior job).

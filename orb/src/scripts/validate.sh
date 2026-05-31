@@ -1,3 +1,3 @@
 set -- gen-orb-mcp validate
-set -- "$@" --orb-path "${ORB_PATH}"
+[[ -n "${ORB_PATH:-}" ]] && set -- "$@" --orb-path "${ORB_PATH}"
 "$@"

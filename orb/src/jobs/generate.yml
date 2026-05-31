@@ -4,6 +4,7 @@ parameters:
   orb_path:
     type: string
     description: Path to the orb YAML file (e.g., src/@orb.yml)
+    default: src/@orb.yml
   output:
     type: string
     description: Output directory for generated server
@@ -15,7 +16,7 @@ parameters:
     enum:
     - binary
     - source
-  version:
+  crate_version:
     type: string
     description: Version for the generated MCP server crate (e.g., "1.0.0")  Required when regenerating an existing output directory. For CI workflows, this should match the orb release version.
     default: ''
@@ -59,7 +60,7 @@ steps:
     orb_path: << parameters.orb_path >>
     output: << parameters.output >>
     format: << parameters.format >>
-    version: << parameters.version >>
+    crate_version: << parameters.crate_version >>
     force: << parameters.force >>
     migrations: << parameters.migrations >>
     prior_versions: << parameters.prior_versions >>
