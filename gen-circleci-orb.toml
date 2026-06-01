@@ -16,7 +16,7 @@ docker_namespace = "jerusdp"
 docker_context = "docker"
 orb_context = "orb-publishing"
 mcp = true
-mcp_context = "pcu-app"
+mcp_context = ["release", "bot-check", "pcu-app"]
 mcp_earliest_version = "0.1.11"
 
 [subcommand.help]
