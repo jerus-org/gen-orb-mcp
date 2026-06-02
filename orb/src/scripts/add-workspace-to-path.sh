@@ -1,0 +1,1 @@
+export PATH="${WORKSPACE_ROOT}:${PATH}"

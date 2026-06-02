@@ -1,0 +1,16 @@
+description: Compile generated MCP server source to a native binary
+parameters:
+  input:
+    type: string
+    description: Directory containing generated MCP server source
+  build_name:
+    type: string
+    description: 'Override the binary name (default: derived from Cargo.toml) --target <TARGET>  Rust target triple (default: host) --dry-run          Print the cargo command without running it'
+    default: ''
+steps:
+- run:
+    name: build
+    command: <<include(scripts/build.sh)>>
+    environment:
+      INPUT: << parameters.input >>
+      BUILD_NAME: << parameters.build_name >>

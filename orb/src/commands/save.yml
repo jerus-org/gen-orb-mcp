@@ -1,0 +1,39 @@
+description: 'Stage, commit, and push generated artifacts back to the repository  Idempotent: if the working tree is clean after staging the specified paths, exits successfully without creating an empty commit. The default commit message includes [skip ci] to prevent CI re-triggering.'
+parameters:
+  paths:
+    type: string
+    description: Paths to stage and commit (relative to repository root)
+  message:
+    type: string
+    description: Commit message
+    default: 'chore: update generated MCP server artifacts [skip ci]'
+  push:
+    type: enum
+    description: 'Push after committing (default: true)'
+    default: 'true'
+    enum:
+    - 'true'
+    - 'false'
+  no_push:
+    type: boolean
+    description: Stage and commit only, do not push
+    default: false
+  dry_run:
+    type: boolean
+    description: Show what would be committed without writing anything
+    default: false
+  sign:
+    type: boolean
+    description: 'Use GPG-signed commit and GitHub App token push.  Reads: BOT_GPG_KEY (base64 GPG key), BOT_TRUST (ownertrust), BOT_USER_NAME, BOT_USER_EMAIL, BOT_SIGN_KEY (key ID), GITHUB_TOKEN (GitHub App installation token), CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME, CIRCLE_BRANCH.'
+    default: false
+steps:
+- run:
+    name: save
+    command: <<include(scripts/save.sh)>>
+    environment:
+      PATHS: << parameters.paths >>
+      MESSAGE: << parameters.message >>
+      PUSH: << parameters.push >>
+      NO_PUSH: << parameters.no_push >>
+      DRY_RUN: << parameters.dry_run >>
+      SIGN: << parameters.sign >>

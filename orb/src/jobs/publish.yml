@@ -1,0 +1,42 @@
+description: Run publish command in a dedicated job.
+executor: default
+parameters:
+  binary:
+    type: string
+    description: Path to the binary file to upload
+  asset_name:
+    type: string
+    description: Name for the release asset (e.g. my-orb-mcp-linux-x86_64)
+  tag:
+    type: string
+    description: 'Release tag to publish to (default: $CIRCLE_TAG)'
+    default: ''
+  dry_run:
+    type: boolean
+    description: Describe the upload without performing it
+    default: false
+  attach_workspace:
+    type: boolean
+    description: Attach a workspace before running the command (use when the binary was built in a prior job).
+    default: false
+  workspace_root:
+    type: string
+    description: Path at which to attach the workspace; also prepended to PATH (only used when attach_workspace is true).
+    default: /tmp/workspace
+steps:
+- checkout
+- when:
+    condition: << parameters.attach_workspace >>
+    steps:
+    - attach_workspace:
+        at: << parameters.workspace_root >>
+    - run:
+        name: Add workspace binaries to PATH
+        command: <<include(scripts/add-workspace-to-path.sh)>>
+        environment:
+          WORKSPACE_ROOT: << parameters.workspace_root >>
+- publish:
+    binary: << parameters.binary >>
+    asset_name: << parameters.asset_name >>
+    tag: << parameters.tag >>
+    dry_run: << parameters.dry_run >>
