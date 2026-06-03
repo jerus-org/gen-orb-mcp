@@ -1,0 +1,8 @@
+description: Execution environment with gen-orb-mcp pre-installed.
+docker:
+- image: jerusdp/gen-orb-mcp:<< parameters.tag >>
+parameters:
+  tag:
+    type: string
+    description: Docker image tag.
+    default: latest

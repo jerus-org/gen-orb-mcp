@@ -1,0 +1,7 @@
+description: >
+  Remove the SSH insteadOf rewrite rule that CircleCI checkout injects and
+  set both the fetch and push URLs for origin to HTTPS.
+steps:
+- run:
+    name: Set HTTPS remote URLs (fetch and push)
+    command: <<include(scripts/set_https_remote.sh)>>
