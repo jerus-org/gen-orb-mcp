@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- initialise orb wiring with gen-circleci-orb v0.0.38(pr [#175])
+
 ### Changed
 
 - chore-strip orb source and CI wiring for v0.0.38 init(pr [#174])
@@ -569,6 +573,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#171]: https://github.com/jerus-org/gen-orb-mcp/pull/171
 [#172]: https://github.com/jerus-org/gen-orb-mcp/pull/172
 [#174]: https://github.com/jerus-org/gen-orb-mcp/pull/174
+[#175]: https://github.com/jerus-org/gen-orb-mcp/pull/175
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.42...HEAD
 [0.1.42]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.41...v0.1.42
 [0.1.41]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.40...v0.1.41
