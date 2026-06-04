@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - orb: add gnupg to executor image for save --sign(pr [#178])
+- deps: update rust crate chrono to 0.4.45(pr [#179])
 
 ## [0.1.44] - 2026-06-04
 
@@ -593,6 +594,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#176]: https://github.com/jerus-org/gen-orb-mcp/pull/176
 [#177]: https://github.com/jerus-org/gen-orb-mcp/pull/177
 [#178]: https://github.com/jerus-org/gen-orb-mcp/pull/178
+[#179]: https://github.com/jerus-org/gen-orb-mcp/pull/179
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.44...HEAD
 [0.1.44]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.43...v0.1.44
 [0.1.43]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.42...v0.1.43
