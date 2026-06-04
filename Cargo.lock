@@ -1850,7 +1850,7 @@ dependencies = [
 
 [[package]]
 name = "gen-orb-mcp"
-version = "0.1.35"
+version = "0.1.36"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3897,9 +3897,9 @@ dependencies = [
 
 [[package]]
 name = "pmcp"
-version = "2.8.1"
+version = "2.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ad9ddbb2c644e762987a9d42d3b65630612dc30f64e35c0f734820cb37ef66f"
+checksum = "88c9cf51f3ce3953091a5f58e4de10d11a739705058dc9d9a5c66103c7c1cba6"
 dependencies = [
  "anyhow",
  "async-trait",

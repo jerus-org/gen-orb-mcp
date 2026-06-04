@@ -5,11 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.44] - 2026-06-04
 
 ### Added
 
 - rust executor image via gen-circleci-orb 0.0.43(pr [#176])
+
+### Fixed
+
+- deps: update rust crate pmcp to 2.9.0(pr [#177])
 
 ## [0.1.43] - 2026-06-03
 
@@ -581,7 +585,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#174]: https://github.com/jerus-org/gen-orb-mcp/pull/174
 [#175]: https://github.com/jerus-org/gen-orb-mcp/pull/175
 [#176]: https://github.com/jerus-org/gen-orb-mcp/pull/176
-[Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.43...HEAD
+[#177]: https://github.com/jerus-org/gen-orb-mcp/pull/177
+[0.1.44]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.43...v0.1.44
 [0.1.43]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.42...v0.1.43
 [0.1.42]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.41...v0.1.42
 [0.1.41]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.40...v0.1.41
