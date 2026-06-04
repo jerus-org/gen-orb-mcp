@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - rust executor image via gen-circleci-orb 0.0.43(pr [#176])
 
+### Fixed
+
+- deps: update rust crate pmcp to 2.9.0(pr [#177])
+
 ## [0.1.43] - 2026-06-03
 
 ### Added
@@ -581,6 +585,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#174]: https://github.com/jerus-org/gen-orb-mcp/pull/174
 [#175]: https://github.com/jerus-org/gen-orb-mcp/pull/175
 [#176]: https://github.com/jerus-org/gen-orb-mcp/pull/176
+[#177]: https://github.com/jerus-org/gen-orb-mcp/pull/177
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.43...HEAD
 [0.1.43]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.42...v0.1.43
 [0.1.42]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.41...v0.1.42
