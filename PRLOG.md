@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- chore-simplify mcp executor config via gen-circleci-orb 0.0.44(pr [#180])
+
 ## [0.1.45] - 2026-06-04
 
 ### Fixed
@@ -595,6 +601,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#177]: https://github.com/jerus-org/gen-orb-mcp/pull/177
 [#178]: https://github.com/jerus-org/gen-orb-mcp/pull/178
 [#179]: https://github.com/jerus-org/gen-orb-mcp/pull/179
+[#180]: https://github.com/jerus-org/gen-orb-mcp/pull/180
+[Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.45...HEAD
 [0.1.45]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.44...v0.1.45
 [0.1.44]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.43...v0.1.44
 [0.1.43]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.42...v0.1.43
