@@ -3,14 +3,8 @@ binary = "gen-orb-mcp"
 namespaces = ["jerus-org"]
 orb_dir = "orb"
 git_push_subcommands = ["save"]
-# build_mcp_server compiles MCP servers in this image via
-# `gen-orb-mcp generate --format binary`, so the runtime needs a Rust
-# toolchain (cargo) plus the build deps for the compiled server.
-# gnupg is required by `gen-orb-mcp save --sign` to import the bot GPG key
-# and create the signed commit-back. (openssh-client is not needed: git
-# uses HTTPS via set_https_remote.)
-base_image = "rust:1-slim-trixie"
-apt_packages = ["gnupg", "libssl-dev", "pkg-config"]
+# The Rust executor base and build deps (cargo, gnupg, libssl-dev, pkg-config)
+# are provisioned automatically by gen-circleci-orb because [ci].mcp = true.
 
 [ci]
 build_workflow = "validation"
