@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - chore-simplify mcp executor config via gen-circleci-orb 0.0.44(pr [#180])
+- chore-toolkit 6.3.0 + ignore RUSTSEC-2026-0173(pr [#182])
 
 ## [0.1.45] - 2026-06-04
 
@@ -602,6 +603,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#178]: https://github.com/jerus-org/gen-orb-mcp/pull/178
 [#179]: https://github.com/jerus-org/gen-orb-mcp/pull/179
 [#180]: https://github.com/jerus-org/gen-orb-mcp/pull/180
+[#182]: https://github.com/jerus-org/gen-orb-mcp/pull/182
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.45...HEAD
 [0.1.45]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.44...v0.1.45
 [0.1.44]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.43...v0.1.44
