@@ -214,8 +214,11 @@ enum Commands {
     /// paths, exits successfully without creating an empty commit.
     /// The default commit message includes [skip ci] to prevent CI re-triggering.
     Save {
-        /// Paths to stage and commit (relative to repository root)
-        #[arg(long, required = true)]
+        /// Paths to stage and commit (relative to repository root).
+        ///
+        /// Repeatable (`--paths a --paths b`) or comma-separated
+        /// (`--paths a,b`) so a single orb parameter can carry multiple paths.
+        #[arg(long, required = true, value_delimiter = ',')]
         paths: Vec<std::path::PathBuf>,
 
         /// Commit message
@@ -253,13 +256,25 @@ enum Commands {
     /// Set GITHUB_TOKEN, CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME,
     /// and CIRCLE_TAG (or use --tag) in the environment.
     Publish {
-        /// Path to the binary file to upload
-        #[arg(short = 'b', long)]
-        binary: std::path::PathBuf,
+        /// Orb binary base name (e.g. "gen-orb-mcp"). Derives the binary path
+        /// and asset name when --binary / --asset-name are not given:
+        ///   binary = <input>/target/release/<name_underscored>_mcp
+        ///   asset  = <name_underscored>_mcp-linux-x86_64
+        #[arg(short = 'n', long)]
+        name: Option<String>,
 
-        /// Name for the release asset (e.g. my-orb-mcp-linux-x86_64)
+        /// Directory containing the compiled `target/release` (used with --name).
+        #[arg(short = 'i', long, default_value = "./dist")]
+        input: std::path::PathBuf,
+
+        /// Path to the binary file to upload (overrides derivation from --name)
+        #[arg(short = 'b', long)]
+        binary: Option<std::path::PathBuf>,
+
+        /// Name for the release asset, e.g. my-orb-mcp-linux-x86_64
+        /// (overrides derivation from --name)
         #[arg(short = 'a', long)]
-        asset_name: String,
+        asset_name: Option<String>,
 
         /// Release tag to publish to (default: $CIRCLE_TAG)
         #[arg(long)]
@@ -377,11 +392,20 @@ impl Cli {
                 sign,
             } => run_save(paths, message, *push && !*no_push, *dry_run, *sign),
             Commands::Publish {
+                name,
+                input,
                 binary,
                 asset_name,
                 tag,
                 dry_run,
-            } => run_publish(binary, asset_name, tag.as_deref(), *dry_run),
+            } => run_publish(
+                name.as_deref(),
+                input,
+                binary.as_deref(),
+                asset_name.as_deref(),
+                tag.as_deref(),
+                *dry_run,
+            ),
             Commands::Build {
                 input,
                 name,
@@ -1002,12 +1026,51 @@ fn save_git_push(repo: &git2::Repository) -> Result<()> {
     Ok(())
 }
 
+/// Resolve the binary path and release asset name for `publish`.
+///
+/// Explicit `--binary` / `--asset-name` take precedence; otherwise both are
+/// derived from `--name` and the `input` directory:
+///   binary = `<input>/target/release/<name_underscored>_mcp`
+///   asset  = `<name_underscored>_mcp-linux-x86_64`
+fn resolve_publish_target(
+    name: Option<&str>,
+    input: &std::path::Path,
+    binary: Option<&std::path::Path>,
+    asset_name: Option<&str>,
+) -> Result<(std::path::PathBuf, String)> {
+    let derived = name.map(|n| {
+        let underscored = n.replace('-', "_");
+        let bin = input
+            .join("target")
+            .join("release")
+            .join(format!("{underscored}_mcp"));
+        let asset = format!("{underscored}_mcp-linux-x86_64");
+        (bin, asset)
+    });
+
+    let resolved_binary = binary
+        .map(std::path::Path::to_path_buf)
+        .or_else(|| derived.as_ref().map(|(bin, _)| bin.clone()))
+        .ok_or_else(|| anyhow::anyhow!("publish requires --binary or --name"))?;
+    let resolved_asset = asset_name
+        .map(str::to_string)
+        .or_else(|| derived.as_ref().map(|(_, asset)| asset.clone()))
+        .ok_or_else(|| anyhow::anyhow!("publish requires --asset-name or --name"))?;
+
+    Ok((resolved_binary, resolved_asset))
+}
+
 fn run_publish(
-    binary: &std::path::Path,
-    asset_name: &str,
+    name: Option<&str>,
+    input: &std::path::Path,
+    binary: Option<&std::path::Path>,
+    asset_name: Option<&str>,
     tag: Option<&str>,
     dry_run: bool,
 ) -> Result<()> {
+    let (binary, asset_name) = resolve_publish_target(name, input, binary, asset_name)?;
+    let binary = binary.as_path();
+    let asset_name = asset_name.as_str();
     if !binary.exists() {
         anyhow::bail!("Binary not found: {}", binary.display());
     }
@@ -2013,8 +2076,10 @@ mod tests {
     fn test_publish_missing_binary_returns_error() {
         let dir = TempDir::new().unwrap();
         let result = run_publish(
-            &dir.path().join("missing-binary"),
-            "asset.tar.gz",
+            None,
+            std::path::Path::new("."),
+            Some(&dir.path().join("missing-binary")),
+            Some("asset.tar.gz"),
             None,
             false,
         );
@@ -2033,7 +2098,14 @@ mod tests {
         std::fs::write(&binary, b"fake binary").unwrap();
         // dry_run must succeed without credentials — no API call is made
         std::env::remove_var("GITHUB_TOKEN");
-        let result = run_publish(&binary, "my-asset", Some("v1.0.0"), true);
+        let result = run_publish(
+            None,
+            std::path::Path::new("."),
+            Some(&binary),
+            Some("my-asset"),
+            Some("v1.0.0"),
+            true,
+        );
         assert!(
             result.is_ok(),
             "dry_run should not require credentials: {result:?}"
@@ -2048,7 +2120,14 @@ mod tests {
         std::env::set_var("GITHUB_TOKEN", "fake-token");
         std::env::remove_var("CIRCLE_TAG");
         // no --tag and no CIRCLE_TAG — should fail with a clear message
-        let result = run_publish(&binary, "my-asset", None, true);
+        let result = run_publish(
+            None,
+            std::path::Path::new("."),
+            Some(&binary),
+            Some("my-asset"),
+            None,
+            true,
+        );
         std::env::remove_var("GITHUB_TOKEN");
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
@@ -2066,7 +2145,14 @@ mod tests {
         std::env::set_var("GITHUB_TOKEN", "fake-token");
         std::env::set_var("CIRCLE_PROJECT_USERNAME", "jerus-org");
         std::env::set_var("CIRCLE_PROJECT_REPONAME", "my-orb");
-        let result = run_publish(&binary, "my-asset-linux-x86_64", Some("v1.0.0"), true);
+        let result = run_publish(
+            None,
+            std::path::Path::new("."),
+            Some(&binary),
+            Some("my-asset-linux-x86_64"),
+            Some("v1.0.0"),
+            true,
+        );
         std::env::remove_var("GITHUB_TOKEN");
         std::env::remove_var("CIRCLE_PROJECT_USERNAME");
         std::env::remove_var("CIRCLE_PROJECT_REPONAME");
@@ -2108,14 +2194,104 @@ mod tests {
             asset_name,
             tag,
             dry_run,
+            ..
         } = cli.unwrap().command
         {
-            assert_eq!(binary.to_str().unwrap(), "/tmp/my-binary");
-            assert_eq!(asset_name, "my-binary-linux-x86_64");
+            assert_eq!(
+                binary.as_deref().and_then(|p| p.to_str()),
+                Some("/tmp/my-binary")
+            );
+            assert_eq!(asset_name.as_deref(), Some("my-binary-linux-x86_64"));
             assert_eq!(tag.as_deref(), Some("v2.0.0"));
             assert!(dry_run);
         } else {
             panic!("expected Publish variant");
+        }
+    }
+
+    #[test]
+    fn test_resolve_publish_target_derives_from_name() {
+        let (binary, asset) = resolve_publish_target(
+            Some("gen-orb-mcp"),
+            std::path::Path::new("/tmp/mcp-server"),
+            None,
+            None,
+        )
+        .expect("derivation from name should succeed");
+        assert_eq!(
+            binary,
+            std::path::PathBuf::from("/tmp/mcp-server/target/release/gen_orb_mcp_mcp")
+        );
+        assert_eq!(asset, "gen_orb_mcp_mcp-linux-x86_64");
+    }
+
+    #[test]
+    fn test_resolve_publish_target_explicit_overrides_name() {
+        let (binary, asset) = resolve_publish_target(
+            Some("gen-orb-mcp"),
+            std::path::Path::new("/tmp/mcp-server"),
+            Some(std::path::Path::new("/custom/bin")),
+            Some("custom-asset"),
+        )
+        .expect("explicit values should win");
+        assert_eq!(binary, std::path::PathBuf::from("/custom/bin"));
+        assert_eq!(asset, "custom-asset");
+    }
+
+    #[test]
+    fn test_resolve_publish_target_requires_name_or_binary() {
+        let result = resolve_publish_target(None, std::path::Path::new("./dist"), None, None);
+        assert!(
+            result.is_err(),
+            "must error when neither --name nor --binary is given"
+        );
+    }
+
+    #[test]
+    fn test_cli_parse_publish_with_name() {
+        let cli = Cli::try_parse_from([
+            "gen-orb-mcp",
+            "publish",
+            "--name",
+            "gen-orb-mcp",
+            "--input",
+            "/tmp/mcp-server",
+        ]);
+        assert!(cli.is_ok(), "publish with --name should parse");
+        if let Commands::Publish {
+            name,
+            input,
+            binary,
+            ..
+        } = cli.unwrap().command
+        {
+            assert_eq!(name.as_deref(), Some("gen-orb-mcp"));
+            assert_eq!(input, std::path::PathBuf::from("/tmp/mcp-server"));
+            assert!(binary.is_none());
+        } else {
+            panic!("expected Publish variant");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_save_comma_separated_paths() {
+        let cli = Cli::try_parse_from([
+            "gen-orb-mcp",
+            "save",
+            "--paths",
+            "prior-versions,migrations",
+        ]);
+        assert!(cli.is_ok(), "comma-separated --paths should parse");
+        if let Commands::Save { paths, .. } = cli.unwrap().command {
+            assert_eq!(
+                paths,
+                vec![
+                    std::path::PathBuf::from("prior-versions"),
+                    std::path::PathBuf::from("migrations"),
+                ]
+            );
+        } else {
+            panic!("expected Save variant");
         }
     }
 
