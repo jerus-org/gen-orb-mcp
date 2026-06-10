@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- publish --name derive, save comma paths(pr [#181])
+
 ### Changed
 
 - chore-simplify mcp executor config via gen-circleci-orb 0.0.44(pr [#180])
@@ -604,6 +608,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#179]: https://github.com/jerus-org/gen-orb-mcp/pull/179
 [#180]: https://github.com/jerus-org/gen-orb-mcp/pull/180
 [#182]: https://github.com/jerus-org/gen-orb-mcp/pull/182
+[#181]: https://github.com/jerus-org/gen-orb-mcp/pull/181
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.45...HEAD
 [0.1.45]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.44...v0.1.45
 [0.1.44]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.43...v0.1.44
