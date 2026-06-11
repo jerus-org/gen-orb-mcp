@@ -9,6 +9,7 @@ orbs:
   toolkit: jerus-org/circleci-toolkit@6.3.0
 
   gen-circleci-orb: jerus-org/gen-circleci-orb@0.0.46
+  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.39
   orb-tools: circleci/orb-tools@12.3.3
 workflows:
   validation:
@@ -60,7 +61,6 @@ workflows:
           filters:
             branches:
               only:
-                - main
                 - /pull\/[0-9]+/
 
       - toolkit/security:
@@ -70,7 +70,6 @@ workflows:
             branches:
               ignore:
                 - /pull\/[0-9]+/
-                - main
 
       - toolkit/code_coverage:
           context: SonarCloud
@@ -175,12 +174,15 @@ workflows:
             branches:
               ignore: /.*/
 
-      - gen-circleci-orb/build_mcp_server:
+      - gen-orb-mcp/build_mcp_server:
           name: build-mcp-server
           binary_name: gen-orb-mcp
           tag_prefix: gen-orb-mcp-v
           orb_path: orb/src/@orb.yml
           earliest_version: "0.1.11"
+          # Attach the freshly-built binary so the release dogfoods its own build.
+          attach_workspace: true
+          workspace_root: /tmp/bin
           requires: [publish-orb-jerus-org]
           context: [release, bot-check, pcu-app]
           filters:
