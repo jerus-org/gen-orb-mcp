@@ -818,10 +818,28 @@ fn read_sign_env() -> Result<SignEnv> {
 }
 
 fn setup_git_identity(repo: &git2::Repository, sign_env: &SignEnv) -> Result<()> {
-    let mut config = repo.config()?;
-    config.set_str("user.name", &sign_env.user_name)?;
-    config.set_str("user.email", &sign_env.user_email)?;
-    config.set_str("user.signingkey", &sign_env.sign_key)?;
+    // Use `git config` (shell) rather than git2's Config::set_str. In some CI
+    // container libgit2 builds the set_str write is not visible to the freshly
+    // opened repo handle pcu uses for the signed commit, surfacing as
+    // "config value 'user.name' was not found". Shelling out writes the local
+    // .git/config reliably, which the merged config read by signature() picks up.
+    let workdir = repo
+        .workdir()
+        .ok_or_else(|| anyhow::anyhow!("repository has no working directory"))?;
+    let set = |key: &str, value: &str| -> Result<()> {
+        let status = std::process::Command::new("git")
+            .args(["config", key, value])
+            .current_dir(workdir)
+            .status()
+            .map_err(|e| anyhow::anyhow!("failed to run `git config {key}`: {e}"))?;
+        if !status.success() {
+            anyhow::bail!("`git config {key}` exited with status {status}");
+        }
+        Ok(())
+    };
+    set("user.name", &sign_env.user_name)?;
+    set("user.email", &sign_env.user_email)?;
+    set("user.signingkey", &sign_env.sign_key)?;
     Ok(())
 }
 
@@ -1894,6 +1912,33 @@ mod tests {
             result.is_ok(),
             "clean tree should exit 0 without creating a commit: {result:?}"
         );
+    }
+
+    #[test]
+    fn setup_git_identity_persists_for_fresh_repo_handle() {
+        // save --sign sets the identity on one repo handle, but the signed
+        // commit is created by pcu via a separately-discovered handle. The
+        // identity must therefore persist to the local config file so a fresh
+        // handle reads it back.
+        let dir = TempDir::new().unwrap();
+        init_git_repo(dir.path());
+        let sign_env = SignEnv {
+            gpg_key_b64: String::new(),
+            gpg_trust: String::new(),
+            user_name: "Bot Name".to_string(),
+            user_email: "bot@example.com".to_string(),
+            sign_key: "DEADBEEF".to_string(),
+        };
+        {
+            let repo = git2::Repository::discover(dir.path()).unwrap();
+            setup_git_identity(&repo, &sign_env).unwrap();
+        }
+        // Fresh handle, as pcu's commit_staged does internally.
+        let repo2 = git2::Repository::discover(dir.path()).unwrap();
+        let cfg = repo2.config().unwrap();
+        assert_eq!(cfg.get_string("user.name").unwrap(), "Bot Name");
+        assert_eq!(cfg.get_string("user.email").unwrap(), "bot@example.com");
+        assert_eq!(cfg.get_string("user.signingkey").unwrap(), "DEADBEEF");
     }
 
     #[test]
