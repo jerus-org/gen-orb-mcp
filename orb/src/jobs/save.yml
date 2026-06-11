@@ -3,7 +3,7 @@ executor: default
 parameters:
   paths:
     type: string
-    description: Paths to stage and commit (relative to repository root)
+    description: Paths to stage and commit (relative to repository root).  Repeatable (`--paths a --paths b`) or comma-separated (`--paths a,b`) so a single orb parameter can carry multiple paths.
   message:
     type: string
     description: Commit message

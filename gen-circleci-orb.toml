@@ -25,3 +25,114 @@ mcp_earliest_version = "0.1.11"
 
 [subcommand.help]
 generate_job = false
+
+# build_mcp_server: a goal-oriented composite job assembled from this orb's own
+# commands (set_https_remote, prime, generate, publish, save) plus a small git
+# setup step. It primes prior-version snapshots, generates and compiles the MCP
+# server, publishes the binary to the GitHub release, and commits the generated
+# artifacts back to main.
+#
+# Runs in the orb's `default` executor (the gen-orb-mcp image). When invoked
+# with attach_workspace=true it uses a freshly-built binary attached at
+# workspace_root (so a release dogfoods its own build); otherwise it falls back
+# to the gen-orb-mcp already installed in the image.
+[[job_group]]
+name = "build_mcp_server"
+description = "Prime, generate, compile, publish and commit back the MCP server (composed from the orb's own commands)."
+
+[[job_group.parameter]]
+name = "binary_name"
+description = "Orb binary name (e.g. gen-orb-mcp); names the generated MCP server and release asset."
+
+[[job_group.parameter]]
+name = "tag_prefix"
+description = "Git tag prefix for VERSION extraction and prime scoping (e.g. gen-orb-mcp-v)."
+
+[[job_group.parameter]]
+name = "orb_path"
+default = "orb/src/@orb.yml"
+description = "Path to the orb source @orb.yml."
+
+[[job_group.parameter]]
+name = "earliest_version"
+description = "Earliest orb version to include when priming prior-version snapshots."
+
+[[job_group.parameter]]
+name = "prior_versions_dir"
+default = "prior-versions"
+description = "Directory for prior-version snapshots."
+
+[[job_group.parameter]]
+name = "migrations_dir"
+default = "migrations"
+description = "Directory for migration rule files."
+
+[[job_group.step]]
+builtin = "checkout"
+
+[[job_group.step]]
+builtin = "attach_workspace"
+
+[[job_group.step]]
+command = "set_https_remote"
+
+[[job_group.step]]
+run = "Set up git and environment"
+script = '''
+# Use the freshly-built binary if it was attached from the workspace,
+# otherwise fall back to the gen-orb-mcp installed in the image.
+if [[ -f "${WORKSPACE_BIN_PATH}/${NAME}" ]]; then
+  chmod +x "${WORKSPACE_BIN_PATH}/${NAME}"
+  echo "export PATH=${WORKSPACE_BIN_PATH}:\$PATH" >> "$BASH_ENV"
+fi
+VERSION="${CIRCLE_TAG#${TAG_PREFIX}}"
+echo "export VERSION=${VERSION}" >> "$BASH_ENV"
+echo "export CIRCLE_BRANCH=main" >> "$BASH_ENV"
+git fetch origin main
+git checkout -B main origin/main
+'''
+
+[job_group.step.environment]
+NAME = "<< parameters.binary_name >>"
+TAG_PREFIX = "<< parameters.tag_prefix >>"
+WORKSPACE_BIN_PATH = "<< parameters.workspace_root >>"
+
+[[job_group.step]]
+command = "prime"
+
+[job_group.step.with]
+orb_path = "<< parameters.orb_path >>"
+tag_prefix = "<< parameters.tag_prefix >>"
+earliest_version = "<< parameters.earliest_version >>"
+
+[[job_group.step]]
+command = "generate"
+
+# crate_version is intentionally omitted: gen-orb-mcp generate auto-resolves it
+# from the latest tag matching tag_prefix, and a runtime $VERSION cannot be
+# threaded through an orb parameter.
+[job_group.step.with]
+format = "binary"
+generate_name = "<< parameters.binary_name >>"
+orb_path = "<< parameters.orb_path >>"
+output = "/tmp/mcp-server"
+force = "true"
+prior_versions = "<< parameters.prior_versions_dir >>"
+migrations = "<< parameters.migrations_dir >>"
+
+[[job_group.step]]
+command = "publish"
+
+# publish derives the binary path and asset name from the orb name + input dir
+# (gen-orb-mcp >= 0.1.38); --tag defaults to $CIRCLE_TAG.
+[job_group.step.with]
+publish_name = "<< parameters.binary_name >>"
+input = "/tmp/mcp-server"
+
+[[job_group.step]]
+command = "save"
+
+# save accepts comma-separated paths (gen-orb-mcp >= 0.1.38).
+[job_group.step.with]
+paths = "<< parameters.prior_versions_dir >>,<< parameters.migrations_dir >>"
+sign = "true"

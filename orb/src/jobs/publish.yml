@@ -1,12 +1,18 @@
 description: Run publish command in a dedicated job.
 executor: default
 parameters:
+  input:
+    type: string
+    description: Directory containing the compiled `target/release` (used with --name)
+    default: ./dist
   binary:
     type: string
-    description: Path to the binary file to upload
+    description: Path to the binary file to upload (overrides derivation from --name)
+    default: ''
   asset_name:
     type: string
-    description: Name for the release asset (e.g. my-orb-mcp-linux-x86_64)
+    description: Name for the release asset, e.g. my-orb-mcp-linux-x86_64 (overrides derivation from --name)
+    default: ''
   tag:
     type: string
     description: 'Release tag to publish to (default: $CIRCLE_TAG)'
@@ -36,6 +42,7 @@ steps:
         environment:
           WORKSPACE_ROOT: << parameters.workspace_root >>
 - publish:
+    input: << parameters.input >>
     binary: << parameters.binary >>
     asset_name: << parameters.asset_name >>
     tag: << parameters.tag >>

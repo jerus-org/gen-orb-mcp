@@ -1,11 +1,21 @@
 description: Upload a compiled binary to an existing GitHub release as a release asset  The GitHub release must already exist before this command is run. Set GITHUB_TOKEN, CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME, and CIRCLE_TAG (or use --tag) in the environment.
 parameters:
+  publish_name:
+    type: string
+    description: 'Orb binary base name (e.g. "gen-orb-mcp"). Derives the binary path and asset name when --binary / --asset-name are not given: binary = <input>/target/release/<name_underscored>_mcp asset  = <name_underscored>_mcp-linux-x86_64'
+    default: ''
+  input:
+    type: string
+    description: Directory containing the compiled `target/release` (used with --name)
+    default: ./dist
   binary:
     type: string
-    description: Path to the binary file to upload
+    description: Path to the binary file to upload (overrides derivation from --name)
+    default: ''
   asset_name:
     type: string
-    description: Name for the release asset (e.g. my-orb-mcp-linux-x86_64)
+    description: Name for the release asset, e.g. my-orb-mcp-linux-x86_64 (overrides derivation from --name)
+    default: ''
   tag:
     type: string
     description: 'Release tag to publish to (default: $CIRCLE_TAG)'
@@ -19,6 +29,8 @@ steps:
     name: publish
     command: <<include(scripts/publish.sh)>>
     environment:
+      PUBLISH_NAME: << parameters.publish_name >>
+      INPUT: << parameters.input >>
       BINARY: << parameters.binary >>
       ASSET_NAME: << parameters.asset_name >>
       TAG: << parameters.tag >>
