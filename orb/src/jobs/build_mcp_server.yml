@@ -62,6 +62,7 @@ steps:
     force: true
     prior_versions: << parameters.prior_versions_dir >>
     migrations: << parameters.migrations_dir >>
+    tag_prefix: << parameters.tag_prefix >>
 - publish:
     publish_name: << parameters.binary_name >>
     input: /tmp/mcp-server
