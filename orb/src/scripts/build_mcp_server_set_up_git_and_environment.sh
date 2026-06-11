@@ -1,6 +1,6 @@
 # Use the freshly-built binary if it was attached from the workspace,
 # otherwise fall back to the gen-orb-mcp installed in the image.
-if [ -f "${WORKSPACE_BIN_PATH}/${NAME}" ]; then
+if [[ -f "${WORKSPACE_BIN_PATH}/${NAME}" ]]; then
   chmod +x "${WORKSPACE_BIN_PATH}/${NAME}"
   echo "export PATH=${WORKSPACE_BIN_PATH}:\$PATH" >> "$BASH_ENV"
 fi
