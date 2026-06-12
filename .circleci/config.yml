@@ -9,7 +9,7 @@ orbs:
   toolkit: jerus-org/circleci-toolkit@6.3.0
 
   gen-circleci-orb: jerus-org/gen-circleci-orb@0.0.47
-  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.42
+  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.43
   orb-tools: circleci/orb-tools@12.4.0
 workflows:
   validation:
