@@ -52,8 +52,8 @@ octocrate = { version = "2.2.0", default-features = false, features = [
 ] }
 
 # Git operations — staging, committing, pushing for the save subcommand
-git2 = "0.20.4"
-git2_credentials = "0.15.0"
+git2 = "0.21.0"
+git2_credentials = "0.16.0"
 
 # Signed commit and GitHub App token push (for save --sign)
 pcu = "0.6.22"
