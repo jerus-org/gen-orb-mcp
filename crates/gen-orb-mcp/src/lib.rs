@@ -818,17 +818,28 @@ fn read_sign_env() -> Result<SignEnv> {
 }
 
 fn setup_git_identity(repo: &git2::Repository, sign_env: &SignEnv) -> Result<()> {
-    // Use `git config` (shell) rather than git2's Config::set_str. In some CI
-    // container libgit2 builds the set_str write is not visible to the freshly
-    // opened repo handle pcu uses for the signed commit, surfacing as
-    // "config value 'user.name' was not found". Shelling out writes the local
-    // .git/config reliably, which the merged config read by signature() picks up.
+    // Write the identity to BOTH the global and the local config via `git
+    // config` (shell) rather than git2's Config::set_str.
+    //
+    // The local `.git/config` write alone proved insufficient in the CI
+    // container: pcu creates the signed commit through a separately-opened
+    // repo handle whose merged-config snapshot did not reflect the
+    // freshly-written local file, surfacing as
+    // "config value 'user.name' was not found; class=Config". Writing the
+    // global config ($HOME/.gitconfig) is read unconditionally by libgit2's
+    // `signature()` via the merged config regardless of which handle pcu
+    // opens, so the identity is always found. The local write is retained so
+    // the value is also scoped to this repo.
     let workdir = repo
         .workdir()
         .ok_or_else(|| anyhow::anyhow!("repository has no working directory"))?;
-    let set = |key: &str, value: &str| -> Result<()> {
+    let set = |scope: &[&str], key: &str, value: &str| -> Result<()> {
+        let mut args = vec!["config"];
+        args.extend_from_slice(scope);
+        args.push(key);
+        args.push(value);
         let status = std::process::Command::new("git")
-            .args(["config", key, value])
+            .args(&args)
             .current_dir(workdir)
             .status()
             .map_err(|e| anyhow::anyhow!("failed to run `git config {key}`: {e}"))?;
@@ -837,9 +848,14 @@ fn setup_git_identity(repo: &git2::Repository, sign_env: &SignEnv) -> Result<()>
         }
         Ok(())
     };
-    set("user.name", &sign_env.user_name)?;
-    set("user.email", &sign_env.user_email)?;
-    set("user.signingkey", &sign_env.sign_key)?;
+    for (key, value) in [
+        ("user.name", &sign_env.user_name),
+        ("user.email", &sign_env.user_email),
+        ("user.signingkey", &sign_env.sign_key),
+    ] {
+        set(&["--global"], key, value)?;
+        set(&[], key, value)?;
+    }
     Ok(())
 }
 
@@ -1691,6 +1707,82 @@ mod tests {
     // Serialises tests that mutate the global CWD.
     static CWD_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+    // Serialises tests that mutate HOME/XDG_CONFIG_HOME so a test writing the
+    // global git config never touches the developer's real ~/.gitconfig.
+    static HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// RAII guard that redirects `$HOME` (and clears `$XDG_CONFIG_HOME`) to an
+    /// isolated directory for the duration of a test, restoring the previous
+    /// values on drop. Holds `HOME_LOCK` so concurrent tests don't race.
+    struct HomeGuard {
+        prev_home: Option<std::ffi::OsString>,
+        prev_xdg: Option<std::ffi::OsString>,
+        _lock: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl HomeGuard {
+        fn new(home: &std::path::Path) -> Self {
+            let lock = HOME_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            let prev_home = std::env::var_os("HOME");
+            let prev_xdg = std::env::var_os("XDG_CONFIG_HOME");
+            std::env::set_var("HOME", home);
+            std::env::remove_var("XDG_CONFIG_HOME");
+            Self {
+                prev_home,
+                prev_xdg,
+                _lock: lock,
+            }
+        }
+    }
+
+    impl Drop for HomeGuard {
+        fn drop(&mut self) {
+            match &self.prev_home {
+                Some(v) => std::env::set_var("HOME", v),
+                None => std::env::remove_var("HOME"),
+            }
+            match &self.prev_xdg {
+                Some(v) => std::env::set_var("XDG_CONFIG_HOME", v),
+                None => std::env::remove_var("XDG_CONFIG_HOME"),
+            }
+        }
+    }
+
+    /// The local `.git/config` write alone is not reliably visible to the
+    /// separately-opened repo handle pcu uses for the signed commit (observed
+    /// in the CI container, surfacing as "config value 'user.name' was not
+    /// found"). The identity must also land in the global config, which
+    /// libgit2's `signature()` always reads via the merged config.
+    #[test]
+    fn setup_git_identity_sets_global_config() {
+        let repo_dir = TempDir::new().unwrap();
+        init_git_repo(repo_dir.path());
+        let home = TempDir::new().unwrap();
+        let _home_guard = HomeGuard::new(home.path());
+        let sign_env = SignEnv {
+            gpg_key_b64: String::new(),
+            gpg_trust: String::new(),
+            user_name: "Bot Name".to_string(),
+            user_email: "bot@example.com".to_string(),
+            sign_key: "DEADBEEF".to_string(),
+        };
+        let repo = git2::Repository::discover(repo_dir.path()).unwrap();
+        setup_git_identity(&repo, &sign_env).unwrap();
+        let global = std::fs::read_to_string(home.path().join(".gitconfig")).unwrap_or_default();
+        assert!(
+            global.contains("Bot Name"),
+            "global config must carry user.name, got: {global:?}"
+        );
+        assert!(
+            global.contains("bot@example.com"),
+            "global config must carry user.email, got: {global:?}"
+        );
+        assert!(
+            global.contains("DEADBEEF"),
+            "global config must carry user.signingkey, got: {global:?}"
+        );
+    }
+
     /// Regression test: `find_git_root` with a *relative* orb path must return
     /// an **absolute** path.
     ///
@@ -1922,6 +2014,10 @@ mod tests {
         // handle reads it back.
         let dir = TempDir::new().unwrap();
         init_git_repo(dir.path());
+        // Isolate HOME so the global config write does not touch the real
+        // ~/.gitconfig.
+        let home = TempDir::new().unwrap();
+        let _home_guard = HomeGuard::new(home.path());
         let sign_env = SignEnv {
             gpg_key_b64: String::new(),
             gpg_trust: String::new(),
