@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- chore-pin build_mcp_server orb to gen-orb-mcp@0.1.42(pr [#189])
+
 ### Fixed
 
 - build_mcp_server generate uses crate version(pr [#188])
@@ -644,6 +648,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#186]: https://github.com/jerus-org/gen-orb-mcp/pull/186
 [#187]: https://github.com/jerus-org/gen-orb-mcp/pull/187
 [#188]: https://github.com/jerus-org/gen-orb-mcp/pull/188
+[#189]: https://github.com/jerus-org/gen-orb-mcp/pull/189
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.50...HEAD
 [0.1.50]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.49...v0.1.50
 [0.1.49]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.48...v0.1.49
