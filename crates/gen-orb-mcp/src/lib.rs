@@ -817,48 +817,6 @@ fn read_sign_env() -> Result<SignEnv> {
     })
 }
 
-fn setup_git_identity(repo: &git2::Repository, sign_env: &SignEnv) -> Result<()> {
-    // Write the identity to BOTH the global and the local config via `git
-    // config` (shell) rather than git2's Config::set_str.
-    //
-    // The local `.git/config` write alone proved insufficient in the CI
-    // container: pcu creates the signed commit through a separately-opened
-    // repo handle whose merged-config snapshot did not reflect the
-    // freshly-written local file, surfacing as
-    // "config value 'user.name' was not found; class=Config". Writing the
-    // global config ($HOME/.gitconfig) is read unconditionally by libgit2's
-    // `signature()` via the merged config regardless of which handle pcu
-    // opens, so the identity is always found. The local write is retained so
-    // the value is also scoped to this repo.
-    let workdir = repo
-        .workdir()
-        .ok_or_else(|| anyhow::anyhow!("repository has no working directory"))?;
-    let set = |scope: &[&str], key: &str, value: &str| -> Result<()> {
-        let mut args = vec!["config"];
-        args.extend_from_slice(scope);
-        args.push(key);
-        args.push(value);
-        let status = std::process::Command::new("git")
-            .args(&args)
-            .current_dir(workdir)
-            .status()
-            .map_err(|e| anyhow::anyhow!("failed to run `git config {key}`: {e}"))?;
-        if !status.success() {
-            anyhow::bail!("`git config {key}` exited with status {status}");
-        }
-        Ok(())
-    };
-    for (key, value) in [
-        ("user.name", &sign_env.user_name),
-        ("user.email", &sign_env.user_email),
-        ("user.signingkey", &sign_env.sign_key),
-    ] {
-        set(&["--global"], key, value)?;
-        set(&[], key, value)?;
-    }
-    Ok(())
-}
-
 fn build_pcu_config() -> Result<config::Config> {
     // PCU_APP_ID and PCU_PRIVATE_KEY (if present via pcu-app context) are
     // picked up automatically by the PCU_ prefix source and used for GitHub
@@ -890,10 +848,10 @@ fn run_save(
         let sign_env = read_sign_env()?;
         pcu::import_gpg_key(&sign_env.gpg_key_b64, &sign_env.gpg_trust)
             .map_err(|e| anyhow::anyhow!("GPG import failed: {e}"))?;
-        let repo = git2::Repository::discover(".")
-            .map_err(|e| anyhow::anyhow!("Not inside a git repository: {}", e))?;
-        setup_git_identity(&repo, &sign_env)?;
-        run_save_signed(paths, message, push, dry_run)
+        // The commit identity and signing key are passed explicitly to pcu via
+        // SignConfig (below), so no git-config setup is needed — this avoids the
+        // CI config-visibility fragility (safe.directory / dubious ownership).
+        run_save_signed(paths, message, push, dry_run, &sign_env)
     } else {
         run_save_unsigned(paths, message, push, dry_run)
     }
@@ -904,6 +862,7 @@ fn run_save_signed(
     message: &str,
     push: bool,
     dry_run: bool,
+    sign_env: &SignEnv,
 ) -> Result<()> {
     let pcu_config = build_pcu_config()?;
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -936,15 +895,19 @@ fn run_save_signed(
         return Ok(());
     }
 
-    let sign_config = pcu::SignConfig::new(pcu::Sign::Gpg);
+    // Supply the commit identity and GPG signing key explicitly so pcu does not
+    // read them from git config (which is not reliably visible to its repo
+    // handle in CI).
+    let sign_config = pcu::SignConfig::new(pcu::Sign::Gpg)
+        .with_identity(&sign_env.user_name, &sign_env.user_email)
+        .with_signing_key(&sign_env.sign_key);
     client
         .commit_staged(sign_config, message, "", None)
         .map_err(|e| anyhow::anyhow!("Failed to sign and commit: {}", e))?;
     println!("Created signed commit: {message}");
     if push {
-        let bot_name = std::env::var("BOT_USER_NAME").unwrap_or_else(|_| "bot".to_string());
         client
-            .push_commit("", None, false, &bot_name)
+            .push_commit("", None, false, &sign_env.user_name)
             .map_err(|e| anyhow::anyhow!("Failed to push: {}", e))?;
         println!("Pushed to remote.");
     }
@@ -1710,82 +1673,6 @@ mod tests {
     // Serialises tests that mutate the global CWD.
     static CWD_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-    // Serialises tests that mutate HOME/XDG_CONFIG_HOME so a test writing the
-    // global git config never touches the developer's real ~/.gitconfig.
-    static HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-    /// RAII guard that redirects `$HOME` (and clears `$XDG_CONFIG_HOME`) to an
-    /// isolated directory for the duration of a test, restoring the previous
-    /// values on drop. Holds `HOME_LOCK` so concurrent tests don't race.
-    struct HomeGuard {
-        prev_home: Option<std::ffi::OsString>,
-        prev_xdg: Option<std::ffi::OsString>,
-        _lock: std::sync::MutexGuard<'static, ()>,
-    }
-
-    impl HomeGuard {
-        fn new(home: &std::path::Path) -> Self {
-            let lock = HOME_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-            let prev_home = std::env::var_os("HOME");
-            let prev_xdg = std::env::var_os("XDG_CONFIG_HOME");
-            std::env::set_var("HOME", home);
-            std::env::remove_var("XDG_CONFIG_HOME");
-            Self {
-                prev_home,
-                prev_xdg,
-                _lock: lock,
-            }
-        }
-    }
-
-    impl Drop for HomeGuard {
-        fn drop(&mut self) {
-            match &self.prev_home {
-                Some(v) => std::env::set_var("HOME", v),
-                None => std::env::remove_var("HOME"),
-            }
-            match &self.prev_xdg {
-                Some(v) => std::env::set_var("XDG_CONFIG_HOME", v),
-                None => std::env::remove_var("XDG_CONFIG_HOME"),
-            }
-        }
-    }
-
-    /// The local `.git/config` write alone is not reliably visible to the
-    /// separately-opened repo handle pcu uses for the signed commit (observed
-    /// in the CI container, surfacing as "config value 'user.name' was not
-    /// found"). The identity must also land in the global config, which
-    /// libgit2's `signature()` always reads via the merged config.
-    #[test]
-    fn setup_git_identity_sets_global_config() {
-        let repo_dir = TempDir::new().unwrap();
-        init_git_repo(repo_dir.path());
-        let home = TempDir::new().unwrap();
-        let _home_guard = HomeGuard::new(home.path());
-        let sign_env = SignEnv {
-            gpg_key_b64: String::new(),
-            gpg_trust: String::new(),
-            user_name: "Bot Name".to_string(),
-            user_email: "bot@example.com".to_string(),
-            sign_key: "DEADBEEF".to_string(),
-        };
-        let repo = git2::Repository::discover(repo_dir.path()).unwrap();
-        setup_git_identity(&repo, &sign_env).unwrap();
-        let global = std::fs::read_to_string(home.path().join(".gitconfig")).unwrap_or_default();
-        assert!(
-            global.contains("Bot Name"),
-            "global config must carry user.name, got: {global:?}"
-        );
-        assert!(
-            global.contains("bot@example.com"),
-            "global config must carry user.email, got: {global:?}"
-        );
-        assert!(
-            global.contains("DEADBEEF"),
-            "global config must carry user.signingkey, got: {global:?}"
-        );
-    }
-
     /// Regression test: `find_git_root` with a *relative* orb path must return
     /// an **absolute** path.
     ///
@@ -2007,37 +1894,6 @@ mod tests {
             result.is_ok(),
             "clean tree should exit 0 without creating a commit: {result:?}"
         );
-    }
-
-    #[test]
-    fn setup_git_identity_persists_for_fresh_repo_handle() {
-        // save --sign sets the identity on one repo handle, but the signed
-        // commit is created by pcu via a separately-discovered handle. The
-        // identity must therefore persist to the local config file so a fresh
-        // handle reads it back.
-        let dir = TempDir::new().unwrap();
-        init_git_repo(dir.path());
-        // Isolate HOME so the global config write does not touch the real
-        // ~/.gitconfig.
-        let home = TempDir::new().unwrap();
-        let _home_guard = HomeGuard::new(home.path());
-        let sign_env = SignEnv {
-            gpg_key_b64: String::new(),
-            gpg_trust: String::new(),
-            user_name: "Bot Name".to_string(),
-            user_email: "bot@example.com".to_string(),
-            sign_key: "DEADBEEF".to_string(),
-        };
-        {
-            let repo = git2::Repository::discover(dir.path()).unwrap();
-            setup_git_identity(&repo, &sign_env).unwrap();
-        }
-        // Fresh handle, as pcu's commit_staged does internally.
-        let repo2 = git2::Repository::discover(dir.path()).unwrap();
-        let cfg = repo2.config().unwrap();
-        assert_eq!(cfg.get_string("user.name").unwrap(), "Bot Name");
-        assert_eq!(cfg.get_string("user.email").unwrap(), "bot@example.com");
-        assert_eq!(cfg.get_string("user.signingkey").unwrap(), "DEADBEEF");
     }
 
     #[test]

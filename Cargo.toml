@@ -55,7 +55,8 @@ octocrate = { version = "2.2.0", default-features = false, features = [
 git2 = "0.21.0"
 git2_credentials = "0.16.0"
 
-# Signed commit and GitHub App token push (for save --sign)
+# Signed commit and GitHub App token push (for save --sign).
+# Needs pcu >= 0.6.22 for SignConfig::with_identity + with_signing_key.
 pcu = "0.6.22"
 config = { version = "0.15.23", default-features = false }
 
