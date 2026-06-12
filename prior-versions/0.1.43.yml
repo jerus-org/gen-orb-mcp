@@ -1,0 +1,1076 @@
+version: '2.1'
+description: |
+  Generate MCP servers from CircleCI orb definitions, exposing commands, jobs, and executors as AI-accessible resources. Supports migration tooling, prior-version snapshots, and diff-based conformance rules to help consumers keep their CI config in sync with orb updates.
+display:
+  home_url: https://github.com/jerus-org/gen-orb-mcp
+  source_url: https://github.com/jerus-org/gen-orb-mcp
+orbs: {}
+commands:
+  diff:
+    description: Compute conformance rules by diffing two orb versions  Compares the current orb against a previous version (read from a file) and emits a JSON array of ConformanceRule values. These rules can be passed to `generate --migrations` to embed migration tooling in the generated MCP server.
+    parameters:
+      since_version:
+        type: string
+        description: The version string to embed in emitted rules (e.g. "5.0.0")
+        default: null
+        enum: null
+      current:
+        type: string
+        description: Path to the current orb YAML (the new version)
+        default: null
+        enum: null
+      previous:
+        type: string
+        description: Path to the previous orb YAML (the old version to diff against)
+        default: null
+        enum: null
+      output:
+        type: string
+        description: 'Optional output file for the JSON rules (default: stdout)'
+        default: ''
+        enum: null
+    steps:
+    - run:
+        command: <<include(scripts/diff.sh)>>
+        name: diff
+        working_directory: null
+        environment:
+          OUTPUT: << parameters.output >>
+          SINCE_VERSION: << parameters.since_version >>
+          CURRENT: << parameters.current >>
+          PREVIOUS: << parameters.previous >>
+        shell: null
+        background: null
+        no_output_timeout: null
+        when: null
+  migrate:
+    description: Apply conformance-based migration to a consumer's .circleci/ directory  Reads conformance rules from a JSON file (produced by `diff`) and applies them to the consumer's CI config. Reports planned changes before applying.
+    parameters:
+      orb:
+        type: string
+        description: 'The orb alias as used in the consumer''s orbs: section (e.g. "toolkit")'
+        default: null
+        enum: null
+      rules:
+        type: string
+        description: Path to the conformance rules JSON file (produced by `diff`)
+        default: null
+        enum: null
+      ci_dir:
+        type: string
+        description: Path to the consumer's .circleci/ directory
+        default: .circleci
+        enum: null
+      dry_run:
+        type: boolean
+        description: Show planned changes without modifying files
+        default: false
+        enum: null
+    steps:
+    - run:
+        command: <<include(scripts/migrate.sh)>>
+        name: migrate
+        working_directory: null
+        environment:
+          RULES: << parameters.rules >>
+          CI_DIR: << parameters.ci_dir >>
+          DRY_RUN: << parameters.dry_run >>
+          ORB: << parameters.orb >>
+        shell: null
+        background: null
+        no_output_timeout: null
+        when: null
+  prime:
+    description: 'Populate prior-versions/ and migrations/ from git history  Discovers version tags in a sliding window (default: last 6 months), checks out each version, saves a snapshot to `prior-versions/<version>.yml`, and computes conformance-rule diffs to `migrations/<version>.json`. Removes files for versions outside the window to keep binary size bounded. Idempotent.'
+    parameters:
+      migrations_dir:
+        type: string
+        description: Directory to write migration rule JSON files
+        default: migrations
+        enum: null
+      tag_prefix:
+        type: string
+        description: Git tag prefix (e.g. "v" matches tags like "v4.1.0")
+        default: v
+        enum: null
+      ephemeral:
+        type: boolean
+        description: Write to `/tmp/gen-orb-mcp-prime-<pid>/` and print PRIME_PV_DIR/PRIME_MIG_DIR to stdout
+        default: false
+        enum: null
+      rename_map:
+        type: string
+        description: '<OLD=NEW> Override git rename detection for a specific job (repeatable). Format: `OLD=NEW`, e.g. `--rename-map common_tests_rolling=common_tests`. Manual entries take precedence over git-detected hints for matching old names.  Use this when commits cannot be restructured to follow the two-commit rename rule'
+        default: ''
+        enum: null
+      earliest_version:
+        type: string
+        description: Fixed earliest version anchor (e.g. "4.1.0"); conflicts with --since
+        default: ''
+        enum: null
+      dry_run:
+        type: boolean
+        description: Describe actions without writing any files
+        default: false
+        enum: null
+      git_repo:
+        type: string
+        description: 'Path to the git repository root (default: walk up from orb-path to .git)'
+        default: ''
+        enum: null
+      since:
+        type: string
+        description: 'Rolling window duration (e.g. "6 months", "1 year"); default: "6 months"'
+        default: ''
+        enum: null
+      orb_path:
+        type: string
+        description: Path to the orb YAML entry point
+        default: src/@orb.yml
+        enum: null
+      prior_versions_dir:
+        type: string
+        description: Directory to write prior-version snapshots
+        default: prior-versions
+        enum: null
+    steps:
+    - run:
+        command: <<include(scripts/prime.sh)>>
+        name: prime
+        working_directory: null
+        environment:
+          GIT_REPO: << parameters.git_repo >>
+          EARLIEST_VERSION: << parameters.earliest_version >>
+          PRIOR_VERSIONS_DIR: << parameters.prior_versions_dir >>
+          SINCE: << parameters.since >>
+          TAG_PREFIX: << parameters.tag_prefix >>
+          DRY_RUN: << parameters.dry_run >>
+          RENAME_MAP: << parameters.rename_map >>
+          MIGRATIONS_DIR: << parameters.migrations_dir >>
+          ORB_PATH: << parameters.orb_path >>
+          EPHEMERAL: << parameters.ephemeral >>
+        shell: null
+        background: null
+        no_output_timeout: null
+        when: null
+  set_https_remote:
+    description: |
+      Remove the SSH insteadOf rewrite rule that CircleCI checkout injects and set both the fetch and push URLs for origin to HTTPS.
+    parameters: {}
+    steps:
+    - run:
+        command: <<include(scripts/set_https_remote.sh)>>
+        name: Set HTTPS remote URLs (fetch and push)
+        working_directory: null
+        environment: {}
+        shell: null
+        background: null
+        no_output_timeout: null
+        when: null
+  build:
+    description: Compile generated MCP server source to a native binary
+    parameters:
+      input:
+        type: string
+        description: Directory containing generated MCP server source
+        default: null
+        enum: null
+      build_name:
+        type: string
+        description: 'Override the binary name (default: derived from Cargo.toml) --target <TARGET>  Rust target triple (default: host) --dry-run          Print the cargo command without running it'
+        default: ''
+        enum: null
+    steps:
+    - run:
+        command: <<include(scripts/build.sh)>>
+        name: build
+        working_directory: null
+        environment:
+          INPUT: << parameters.input >>
+          BUILD_NAME: << parameters.build_name >>
+        shell: null
+        background: null
+        no_output_timeout: null
+        when: null
+  generate:
+    description: Generate an MCP server from an orb definition
+    parameters:
+      prior_versions:
+        type: string
+        description: Directory of prior orb version YAML snapshots to embed in the server  Each file should be named `<version>.yml` (e.g., `4.7.1.yml`). The generated server will expose version-specific resources for each prior version alongside the current version.
+        default: ''
+        enum: null
+      migrations:
+        type: string
+        description: Directory containing conformance rule JSON files to embed in the server  All *.json files in this directory are merged and embedded as migration tooling in the generated server. When provided, the server gains plan_migration and apply_migration MCP Tools in addition to Resources.
+        default: ''
+        enum: null
+      tag_prefix:
+        type: string
+        description: Tag prefix used to discover the orb version from git tags  The git repository is derived automatically from --orb-path. Defaults to "v" (matches tags like v6.0.0).
+        default: v
+        enum: null
+      force:
+        type: boolean
+        description: Overwrite existing files without confirmation  Required for non-interactive CI environments when output exists.
+        default: false
+        enum: null
+      format:
+        type: enum
+        description: Output format
+        default: source
+        enum:
+        - binary
+        - source
+      output:
+        type: string
+        description: Output directory for generated server
+        default: ./dist
+        enum: null
+      generate_name:
+        type: string
+        description: Name for the generated orb server (defaults to filename)
+        default: ''
+        enum: null
+      crate_version:
+        type: string
+        description: Version for the generated MCP server crate (e.g., "1.0.0")  Required when regenerating an existing output directory. For CI workflows, this should match the orb release version.
+        default: ''
+        enum: null
+      orb_path:
+        type: string
+        description: Path to the orb YAML file (e.g., src/@orb.yml)
+        default: src/@orb.yml
+        enum: null
+    steps:
+    - run:
+        command: <<include(scripts/generate.sh)>>
+        name: generate
+        working_directory: null
+        environment:
+          GENERATE_NAME: << parameters.generate_name >>
+          MIGRATIONS: << parameters.migrations >>
+          ORB_PATH: << parameters.orb_path >>
+          FORCE: << parameters.force >>
+          OUTPUT: << parameters.output >>
+          PRIOR_VERSIONS: << parameters.prior_versions >>
+          TAG_PREFIX: << parameters.tag_prefix >>
+          CRATE_VERSION: << parameters.crate_version >>
+          FORMAT: << parameters.format >>
+        shell: null
+        background: null
+        no_output_timeout: null
+        when: null
+  save:
+    description: 'Stage, commit, and push generated artifacts back to the repository  Idempotent: if the working tree is clean after staging the specified paths, exits successfully without creating an empty commit. The default commit message includes [skip ci] to prevent CI re-triggering.'
+    parameters:
+      dry_run:
+        type: boolean
+        description: Show what would be committed without writing anything
+        default: false
+        enum: null
+      paths:
+        type: string
+        description: Paths to stage and commit (relative to repository root).  Repeatable (`--paths a --paths b`) or comma-separated (`--paths a,b`) so a single orb parameter can carry multiple paths.
+        default: null
+        enum: null
+      sign:
+        type: boolean
+        description: 'Use GPG-signed commit and GitHub App token push.  Reads: BOT_GPG_KEY (base64 GPG key), BOT_TRUST (ownertrust), BOT_USER_NAME, BOT_USER_EMAIL, BOT_SIGN_KEY (key ID), GITHUB_TOKEN (GitHub App installation token), CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME, CIRCLE_BRANCH.'
+        default: false
+        enum: null
+      push:
+        type: enum
+        description: 'Push after committing (default: true)'
+        default: 'true'
+        enum:
+        - 'true'
+        - 'false'
+      no_push:
+        type: boolean
+        description: Stage and commit only, do not push
+        default: false
+        enum: null
+      message:
+        type: string
+        description: Commit message
+        default: 'chore: update generated MCP server artifacts [skip ci]'
+        enum: null
+    steps:
+    - run:
+        command: <<include(scripts/save.sh)>>
+        name: save
+        working_directory: null
+        environment:
+          NO_PUSH: << parameters.no_push >>
+          SIGN: << parameters.sign >>
+          MESSAGE: << parameters.message >>
+          PATHS: << parameters.paths >>
+          DRY_RUN: << parameters.dry_run >>
+          PUSH: << parameters.push >>
+        shell: null
+        background: null
+        no_output_timeout: null
+        when: null
+  validate:
+    description: Validate an orb definition without generating
+    parameters:
+      orb_path:
+        type: string
+        description: Path to the orb YAML file
+        default: src/@orb.yml
+        enum: null
+    steps:
+    - run:
+        command: <<include(scripts/validate.sh)>>
+        name: validate
+        working_directory: null
+        environment:
+          ORB_PATH: << parameters.orb_path >>
+        shell: null
+        background: null
+        no_output_timeout: null
+        when: null
+  publish:
+    description: Upload a compiled binary to an existing GitHub release as a release asset  The GitHub release must already exist before this command is run. Set GITHUB_TOKEN, CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME, and CIRCLE_TAG (or use --tag) in the environment.
+    parameters:
+      input:
+        type: string
+        description: Directory containing the compiled `target/release` (used with --name)
+        default: ./dist
+        enum: null
+      binary:
+        type: string
+        description: Path to the binary file to upload (overrides derivation from --name)
+        default: ''
+        enum: null
+      tag:
+        type: string
+        description: 'Release tag to publish to (default: $CIRCLE_TAG)'
+        default: ''
+        enum: null
+      asset_name:
+        type: string
+        description: Name for the release asset, e.g. my-orb-mcp-linux-x86_64 (overrides derivation from --name)
+        default: ''
+        enum: null
+      publish_name:
+        type: string
+        description: 'Orb binary base name (e.g. "gen-orb-mcp"). Derives the binary path and asset name when --binary / --asset-name are not given: binary = <input>/target/release/<name_underscored>_mcp asset  = <name_underscored>_mcp-linux-x86_64'
+        default: ''
+        enum: null
+      dry_run:
+        type: boolean
+        description: Describe the upload without performing it
+        default: false
+        enum: null
+    steps:
+    - run:
+        command: <<include(scripts/publish.sh)>>
+        name: publish
+        working_directory: null
+        environment:
+          ASSET_NAME: << parameters.asset_name >>
+          INPUT: << parameters.input >>
+          BINARY: << parameters.binary >>
+          TAG: << parameters.tag >>
+          DRY_RUN: << parameters.dry_run >>
+          PUBLISH_NAME: << parameters.publish_name >>
+        shell: null
+        background: null
+        no_output_timeout: null
+        when: null
+jobs:
+  diff:
+    description: Run diff command in a dedicated job.
+    executor: default
+    docker: null
+    machine: null
+    macos: null
+    resource_class: null
+    working_directory: null
+    environment: {}
+    shell: null
+    parameters:
+      previous:
+        type: string
+        description: Path to the previous orb YAML (the old version to diff against)
+        default: null
+        enum: null
+      workspace_root:
+        type: string
+        description: Path at which to attach the workspace; also prepended to PATH (only used when attach_workspace is true).
+        default: /tmp/workspace
+        enum: null
+      since_version:
+        type: string
+        description: The version string to embed in emitted rules (e.g. "5.0.0")
+        default: null
+        enum: null
+      current:
+        type: string
+        description: Path to the current orb YAML (the new version)
+        default: null
+        enum: null
+      attach_workspace:
+        type: boolean
+        description: Attach a workspace before running the command (use when the binary was built in a prior job).
+        default: false
+        enum: null
+      output:
+        type: string
+        description: 'Optional output file for the JSON rules (default: stdout)'
+        default: ''
+        enum: null
+    steps:
+    - checkout
+    - when:
+        condition: << parameters.attach_workspace >>
+        steps:
+        - attach_workspace:
+            at: << parameters.workspace_root >>
+        - run:
+            command: <<include(scripts/add-workspace-to-path.sh)>>
+            name: Add workspace binaries to PATH
+            working_directory: null
+            environment:
+              WORKSPACE_ROOT: << parameters.workspace_root >>
+            shell: null
+            background: null
+            no_output_timeout: null
+            when: null
+    - diff:
+        current: << parameters.current >>
+        previous: << parameters.previous >>
+        since_version: << parameters.since_version >>
+        output: << parameters.output >>
+    parallelism: null
+    circleci_ip_ranges: null
+  migrate:
+    description: Run migrate command in a dedicated job.
+    executor: default
+    docker: null
+    machine: null
+    macos: null
+    resource_class: null
+    working_directory: null
+    environment: {}
+    shell: null
+    parameters:
+      ci_dir:
+        type: string
+        description: Path to the consumer's .circleci/ directory
+        default: .circleci
+        enum: null
+      dry_run:
+        type: boolean
+        description: Show planned changes without modifying files
+        default: false
+        enum: null
+      rules:
+        type: string
+        description: Path to the conformance rules JSON file (produced by `diff`)
+        default: null
+        enum: null
+      workspace_root:
+        type: string
+        description: Path at which to attach the workspace; also prepended to PATH (only used when attach_workspace is true).
+        default: /tmp/workspace
+        enum: null
+      attach_workspace:
+        type: boolean
+        description: Attach a workspace before running the command (use when the binary was built in a prior job).
+        default: false
+        enum: null
+      orb:
+        type: string
+        description: 'The orb alias as used in the consumer''s orbs: section (e.g. "toolkit")'
+        default: null
+        enum: null
+    steps:
+    - checkout
+    - when:
+        condition: << parameters.attach_workspace >>
+        steps:
+        - attach_workspace:
+            at: << parameters.workspace_root >>
+        - run:
+            command: <<include(scripts/add-workspace-to-path.sh)>>
+            name: Add workspace binaries to PATH
+            working_directory: null
+            environment:
+              WORKSPACE_ROOT: << parameters.workspace_root >>
+            shell: null
+            background: null
+            no_output_timeout: null
+            when: null
+    - migrate:
+        ci_dir: << parameters.ci_dir >>
+        orb: << parameters.orb >>
+        rules: << parameters.rules >>
+        dry_run: << parameters.dry_run >>
+    parallelism: null
+    circleci_ip_ranges: null
+  validate:
+    description: Run validate command in a dedicated job.
+    executor: default
+    docker: null
+    machine: null
+    macos: null
+    resource_class: null
+    working_directory: null
+    environment: {}
+    shell: null
+    parameters:
+      orb_path:
+        type: string
+        description: Path to the orb YAML file
+        default: src/@orb.yml
+        enum: null
+      attach_workspace:
+        type: boolean
+        description: Attach a workspace before running the command (use when the binary was built in a prior job).
+        default: false
+        enum: null
+      workspace_root:
+        type: string
+        description: Path at which to attach the workspace; also prepended to PATH (only used when attach_workspace is true).
+        default: /tmp/workspace
+        enum: null
+    steps:
+    - checkout
+    - when:
+        condition: << parameters.attach_workspace >>
+        steps:
+        - attach_workspace:
+            at: << parameters.workspace_root >>
+        - run:
+            command: <<include(scripts/add-workspace-to-path.sh)>>
+            name: Add workspace binaries to PATH
+            working_directory: null
+            environment:
+              WORKSPACE_ROOT: << parameters.workspace_root >>
+            shell: null
+            background: null
+            no_output_timeout: null
+            when: null
+    - validate:
+        orb_path: << parameters.orb_path >>
+    parallelism: null
+    circleci_ip_ranges: null
+  prime:
+    description: Run prime command in a dedicated job.
+    executor: default
+    docker: null
+    machine: null
+    macos: null
+    resource_class: null
+    working_directory: null
+    environment: {}
+    shell: null
+    parameters:
+      git_repo:
+        type: string
+        description: 'Path to the git repository root (default: walk up from orb-path to .git)'
+        default: ''
+        enum: null
+      ephemeral:
+        type: boolean
+        description: Write to `/tmp/gen-orb-mcp-prime-<pid>/` and print PRIME_PV_DIR/PRIME_MIG_DIR to stdout
+        default: false
+        enum: null
+      tag_prefix:
+        type: string
+        description: Git tag prefix (e.g. "v" matches tags like "v4.1.0")
+        default: v
+        enum: null
+      dry_run:
+        type: boolean
+        description: Describe actions without writing any files
+        default: false
+        enum: null
+      attach_workspace:
+        type: boolean
+        description: Attach a workspace before running the command (use when the binary was built in a prior job).
+        default: false
+        enum: null
+      prior_versions_dir:
+        type: string
+        description: Directory to write prior-version snapshots
+        default: prior-versions
+        enum: null
+      orb_path:
+        type: string
+        description: Path to the orb YAML entry point
+        default: src/@orb.yml
+        enum: null
+      since:
+        type: string
+        description: 'Rolling window duration (e.g. "6 months", "1 year"); default: "6 months"'
+        default: ''
+        enum: null
+      migrations_dir:
+        type: string
+        description: Directory to write migration rule JSON files
+        default: migrations
+        enum: null
+      earliest_version:
+        type: string
+        description: Fixed earliest version anchor (e.g. "4.1.0"); conflicts with --since
+        default: ''
+        enum: null
+      workspace_root:
+        type: string
+        description: Path at which to attach the workspace; also prepended to PATH (only used when attach_workspace is true).
+        default: /tmp/workspace
+        enum: null
+      rename_map:
+        type: string
+        description: '<OLD=NEW> Override git rename detection for a specific job (repeatable). Format: `OLD=NEW`, e.g. `--rename-map common_tests_rolling=common_tests`. Manual entries take precedence over git-detected hints for matching old names.  Use this when commits cannot be restructured to follow the two-commit rename rule'
+        default: ''
+        enum: null
+    steps:
+    - checkout
+    - when:
+        condition: << parameters.attach_workspace >>
+        steps:
+        - attach_workspace:
+            at: << parameters.workspace_root >>
+        - run:
+            command: <<include(scripts/add-workspace-to-path.sh)>>
+            name: Add workspace binaries to PATH
+            working_directory: null
+            environment:
+              WORKSPACE_ROOT: << parameters.workspace_root >>
+            shell: null
+            background: null
+            no_output_timeout: null
+            when: null
+    - prime:
+        orb_path: << parameters.orb_path >>
+        git_repo: << parameters.git_repo >>
+        tag_prefix: << parameters.tag_prefix >>
+        earliest_version: << parameters.earliest_version >>
+        since: << parameters.since >>
+        prior_versions_dir: << parameters.prior_versions_dir >>
+        migrations_dir: << parameters.migrations_dir >>
+        ephemeral: << parameters.ephemeral >>
+        rename_map: << parameters.rename_map >>
+        dry_run: << parameters.dry_run >>
+    parallelism: null
+    circleci_ip_ranges: null
+  build:
+    description: Run build command in a dedicated job.
+    executor: default
+    docker: null
+    machine: null
+    macos: null
+    resource_class: null
+    working_directory: null
+    environment: {}
+    shell: null
+    parameters:
+      attach_workspace:
+        type: boolean
+        description: Attach a workspace before running the command (use when the binary was built in a prior job).
+        default: false
+        enum: null
+      workspace_root:
+        type: string
+        description: Path at which to attach the workspace; also prepended to PATH (only used when attach_workspace is true).
+        default: /tmp/workspace
+        enum: null
+      input:
+        type: string
+        description: Directory containing generated MCP server source
+        default: null
+        enum: null
+    steps:
+    - checkout
+    - when:
+        condition: << parameters.attach_workspace >>
+        steps:
+        - attach_workspace:
+            at: << parameters.workspace_root >>
+        - run:
+            command: <<include(scripts/add-workspace-to-path.sh)>>
+            name: Add workspace binaries to PATH
+            working_directory: null
+            environment:
+              WORKSPACE_ROOT: << parameters.workspace_root >>
+            shell: null
+            background: null
+            no_output_timeout: null
+            when: null
+    - build:
+        input: << parameters.input >>
+    parallelism: null
+    circleci_ip_ranges: null
+  save:
+    description: Run save command in a dedicated job.
+    executor: default
+    docker: null
+    machine: null
+    macos: null
+    resource_class: null
+    working_directory: null
+    environment: {}
+    shell: null
+    parameters:
+      workspace_root:
+        type: string
+        description: Path at which to attach the workspace; also prepended to PATH (only used when attach_workspace is true).
+        default: /tmp/workspace
+        enum: null
+      push:
+        type: enum
+        description: 'Push after committing (default: true)'
+        default: 'true'
+        enum:
+        - 'true'
+        - 'false'
+      no_push:
+        type: boolean
+        description: Stage and commit only, do not push
+        default: false
+        enum: null
+      sign:
+        type: boolean
+        description: 'Use GPG-signed commit and GitHub App token push.  Reads: BOT_GPG_KEY (base64 GPG key), BOT_TRUST (ownertrust), BOT_USER_NAME, BOT_USER_EMAIL, BOT_SIGN_KEY (key ID), GITHUB_TOKEN (GitHub App installation token), CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME, CIRCLE_BRANCH.'
+        default: false
+        enum: null
+      paths:
+        type: string
+        description: Paths to stage and commit (relative to repository root).  Repeatable (`--paths a --paths b`) or comma-separated (`--paths a,b`) so a single orb parameter can carry multiple paths.
+        default: null
+        enum: null
+      attach_workspace:
+        type: boolean
+        description: Attach a workspace before running the command (use when the binary was built in a prior job).
+        default: false
+        enum: null
+      message:
+        type: string
+        description: Commit message
+        default: 'chore: update generated MCP server artifacts [skip ci]'
+        enum: null
+      dry_run:
+        type: boolean
+        description: Show what would be committed without writing anything
+        default: false
+        enum: null
+    steps:
+    - checkout
+    - when:
+        condition: << parameters.attach_workspace >>
+        steps:
+        - attach_workspace:
+            at: << parameters.workspace_root >>
+        - run:
+            command: <<include(scripts/add-workspace-to-path.sh)>>
+            name: Add workspace binaries to PATH
+            working_directory: null
+            environment:
+              WORKSPACE_ROOT: << parameters.workspace_root >>
+            shell: null
+            background: null
+            no_output_timeout: null
+            when: null
+    - set_https_remote
+    - save:
+        paths: << parameters.paths >>
+        message: << parameters.message >>
+        push: << parameters.push >>
+        no_push: << parameters.no_push >>
+        dry_run: << parameters.dry_run >>
+        sign: << parameters.sign >>
+    parallelism: null
+    circleci_ip_ranges: null
+  build_mcp_server:
+    description: Prime, generate, compile, publish and commit back the MCP server (composed from the orb's own commands).
+    executor: default
+    docker: null
+    machine: null
+    macos: null
+    resource_class: null
+    working_directory: null
+    environment: {}
+    shell: null
+    parameters:
+      attach_workspace:
+        type: boolean
+        description: Attach a workspace before running the command (use when the binary was built in a prior job).
+        default: false
+        enum: null
+      earliest_version:
+        type: string
+        description: Earliest orb version to include when priming prior-version snapshots.
+        default: null
+        enum: null
+      binary_name:
+        type: string
+        description: Orb binary name (e.g. gen-orb-mcp); names the generated MCP server and release asset.
+        default: null
+        enum: null
+      migrations_dir:
+        type: string
+        description: Directory for migration rule files.
+        default: migrations
+        enum: null
+      tag_prefix:
+        type: string
+        description: Git tag prefix for VERSION extraction and prime scoping (e.g. gen-orb-mcp-v).
+        default: null
+        enum: null
+      prior_versions_dir:
+        type: string
+        description: Directory for prior-version snapshots.
+        default: prior-versions
+        enum: null
+      workspace_root:
+        type: string
+        description: Path at which to attach the workspace; also prepended to PATH (only used when attach_workspace is true).
+        default: /tmp/workspace
+        enum: null
+      orb_path:
+        type: string
+        description: Path to the orb source @orb.yml.
+        default: orb/src/@orb.yml
+        enum: null
+    steps:
+    - checkout
+    - when:
+        condition: << parameters.attach_workspace >>
+        steps:
+        - attach_workspace:
+            at: << parameters.workspace_root >>
+        - run:
+            command: <<include(scripts/add-workspace-to-path.sh)>>
+            name: Add workspace binaries to PATH
+            working_directory: null
+            environment:
+              WORKSPACE_ROOT: << parameters.workspace_root >>
+            shell: null
+            background: null
+            no_output_timeout: null
+            when: null
+    - set_https_remote
+    - run:
+        command: <<include(scripts/build_mcp_server_set_up_git_and_environment.sh)>>
+        name: Set up git and environment
+        working_directory: null
+        environment:
+          NAME: << parameters.binary_name >>
+          WORKSPACE_BIN_PATH: << parameters.workspace_root >>
+          TAG_PREFIX: << parameters.tag_prefix >>
+        shell: null
+        background: null
+        no_output_timeout: null
+        when: null
+    - prime:
+        orb_path: << parameters.orb_path >>
+        tag_prefix: << parameters.tag_prefix >>
+        earliest_version: << parameters.earliest_version >>
+    - generate:
+        format: binary
+        generate_name: << parameters.binary_name >>
+        orb_path: << parameters.orb_path >>
+        output: /tmp/mcp-server
+        force: true
+        prior_versions: << parameters.prior_versions_dir >>
+        migrations: << parameters.migrations_dir >>
+        tag_prefix: << parameters.tag_prefix >>
+    - publish:
+        publish_name: << parameters.binary_name >>
+        input: /tmp/mcp-server
+    - save:
+        paths: << parameters.prior_versions_dir >>,<< parameters.migrations_dir >>
+        sign: true
+    parallelism: null
+    circleci_ip_ranges: null
+  publish:
+    description: Run publish command in a dedicated job.
+    executor: default
+    docker: null
+    machine: null
+    macos: null
+    resource_class: null
+    working_directory: null
+    environment: {}
+    shell: null
+    parameters:
+      attach_workspace:
+        type: boolean
+        description: Attach a workspace before running the command (use when the binary was built in a prior job).
+        default: false
+        enum: null
+      binary:
+        type: string
+        description: Path to the binary file to upload (overrides derivation from --name)
+        default: ''
+        enum: null
+      tag:
+        type: string
+        description: 'Release tag to publish to (default: $CIRCLE_TAG)'
+        default: ''
+        enum: null
+      workspace_root:
+        type: string
+        description: Path at which to attach the workspace; also prepended to PATH (only used when attach_workspace is true).
+        default: /tmp/workspace
+        enum: null
+      input:
+        type: string
+        description: Directory containing the compiled `target/release` (used with --name)
+        default: ./dist
+        enum: null
+      asset_name:
+        type: string
+        description: Name for the release asset, e.g. my-orb-mcp-linux-x86_64 (overrides derivation from --name)
+        default: ''
+        enum: null
+      dry_run:
+        type: boolean
+        description: Describe the upload without performing it
+        default: false
+        enum: null
+    steps:
+    - checkout
+    - when:
+        condition: << parameters.attach_workspace >>
+        steps:
+        - attach_workspace:
+            at: << parameters.workspace_root >>
+        - run:
+            command: <<include(scripts/add-workspace-to-path.sh)>>
+            name: Add workspace binaries to PATH
+            working_directory: null
+            environment:
+              WORKSPACE_ROOT: << parameters.workspace_root >>
+            shell: null
+            background: null
+            no_output_timeout: null
+            when: null
+    - publish:
+        input: << parameters.input >>
+        binary: << parameters.binary >>
+        asset_name: << parameters.asset_name >>
+        tag: << parameters.tag >>
+        dry_run: << parameters.dry_run >>
+    parallelism: null
+    circleci_ip_ranges: null
+  generate:
+    description: Run generate command in a dedicated job.
+    executor: default
+    docker: null
+    machine: null
+    macos: null
+    resource_class: null
+    working_directory: null
+    environment: {}
+    shell: null
+    parameters:
+      force:
+        type: boolean
+        description: Overwrite existing files without confirmation  Required for non-interactive CI environments when output exists.
+        default: false
+        enum: null
+      attach_workspace:
+        type: boolean
+        description: Attach a workspace before running the command (use when the binary was built in a prior job).
+        default: false
+        enum: null
+      format:
+        type: enum
+        description: Output format
+        default: source
+        enum:
+        - binary
+        - source
+      orb_path:
+        type: string
+        description: Path to the orb YAML file (e.g., src/@orb.yml)
+        default: src/@orb.yml
+        enum: null
+      workspace_root:
+        type: string
+        description: Path at which to attach the workspace; also prepended to PATH (only used when attach_workspace is true).
+        default: /tmp/workspace
+        enum: null
+      tag_prefix:
+        type: string
+        description: Tag prefix used to discover the orb version from git tags  The git repository is derived automatically from --orb-path. Defaults to "v" (matches tags like v6.0.0).
+        default: v
+        enum: null
+      prior_versions:
+        type: string
+        description: Directory of prior orb version YAML snapshots to embed in the server  Each file should be named `<version>.yml` (e.g., `4.7.1.yml`). The generated server will expose version-specific resources for each prior version alongside the current version.
+        default: ''
+        enum: null
+      output:
+        type: string
+        description: Output directory for generated server
+        default: ./dist
+        enum: null
+      crate_version:
+        type: string
+        description: Version for the generated MCP server crate (e.g., "1.0.0")  Required when regenerating an existing output directory. For CI workflows, this should match the orb release version.
+        default: ''
+        enum: null
+      migrations:
+        type: string
+        description: Directory containing conformance rule JSON files to embed in the server  All *.json files in this directory are merged and embedded as migration tooling in the generated server. When provided, the server gains plan_migration and apply_migration MCP Tools in addition to Resources.
+        default: ''
+        enum: null
+    steps:
+    - checkout
+    - when:
+        condition: << parameters.attach_workspace >>
+        steps:
+        - attach_workspace:
+            at: << parameters.workspace_root >>
+        - run:
+            command: <<include(scripts/add-workspace-to-path.sh)>>
+            name: Add workspace binaries to PATH
+            working_directory: null
+            environment:
+              WORKSPACE_ROOT: << parameters.workspace_root >>
+            shell: null
+            background: null
+            no_output_timeout: null
+            when: null
+    - generate:
+        orb_path: << parameters.orb_path >>
+        output: << parameters.output >>
+        format: << parameters.format >>
+        crate_version: << parameters.crate_version >>
+        force: << parameters.force >>
+        migrations: << parameters.migrations >>
+        prior_versions: << parameters.prior_versions >>
+        tag_prefix: << parameters.tag_prefix >>
+    parallelism: null
+    circleci_ip_ranges: null
+executors:
+  default:
+    description: Execution environment with gen-orb-mcp pre-installed.
+    docker:
+    - image: jerusdp/gen-orb-mcp:<< parameters.tag >>
+      auth: null
+      aws_auth: null
+      name: null
+      entrypoint: null
+      command: null
+      user: null
+      environment: {}
+    machine: null
+    macos: null
+    resource_class: null
+    working_directory: null
+    environment: {}
+    shell: null
+    parameters:
+      tag:
+        type: string
+        description: Docker image tag.
+        default: latest
+        enum: null
