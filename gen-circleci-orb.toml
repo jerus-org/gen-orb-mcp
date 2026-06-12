@@ -110,7 +110,8 @@ command = "generate"
 
 # crate_version is intentionally omitted: gen-orb-mcp generate auto-resolves it
 # from the latest tag matching tag_prefix, and a runtime $VERSION cannot be
-# threaded through an orb parameter.
+# threaded through an orb parameter. tag_prefix MUST be passed so it resolves
+# the crate tag (gen-orb-mcp-v*) and not the workspace/repo tag (v*).
 [job_group.step.with]
 format = "binary"
 generate_name = "<< parameters.binary_name >>"
@@ -119,6 +120,7 @@ output = "/tmp/mcp-server"
 force = "true"
 prior_versions = "<< parameters.prior_versions_dir >>"
 migrations = "<< parameters.migrations_dir >>"
+tag_prefix = "<< parameters.tag_prefix >>"
 
 [[job_group.step]]
 command = "publish"
