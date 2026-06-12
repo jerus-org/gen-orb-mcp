@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- deps: update dependency gen-circleci-orb to v0.0.47(pr [#191])
+
 ## [0.1.51] - 2026-06-12
 
 ### Changed
@@ -649,6 +655,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#187]: https://github.com/jerus-org/gen-orb-mcp/pull/187
 [#188]: https://github.com/jerus-org/gen-orb-mcp/pull/188
 [#189]: https://github.com/jerus-org/gen-orb-mcp/pull/189
+[#191]: https://github.com/jerus-org/gen-orb-mcp/pull/191
+[Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.51...HEAD
 [0.1.51]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.50...v0.1.51
 [0.1.50]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.49...v0.1.50
 [0.1.49]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.48...v0.1.49
