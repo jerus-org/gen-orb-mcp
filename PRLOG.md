@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - deps: update dependency gen-circleci-orb to v0.0.47(pr [#191])
 - deps: update dependency orb-tools to v12.4.0(pr [#193])
+- deps: update rust crate pcu to 0.6.22(pr [#196])
 
 ## [0.1.51] - 2026-06-12
 
@@ -658,6 +659,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#189]: https://github.com/jerus-org/gen-orb-mcp/pull/189
 [#191]: https://github.com/jerus-org/gen-orb-mcp/pull/191
 [#193]: https://github.com/jerus-org/gen-orb-mcp/pull/193
+[#196]: https://github.com/jerus-org/gen-orb-mcp/pull/196
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.51...HEAD
 [0.1.51]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.50...v0.1.51
 [0.1.50]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.49...v0.1.50
