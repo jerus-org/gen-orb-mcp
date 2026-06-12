@@ -1027,13 +1027,15 @@ fn save_create_commit(
 }
 
 fn save_git_push(repo: &git2::Repository) -> Result<()> {
+    // git2 0.21: StringArray::iter() yields Result<Option<&str>, Error>;
+    // keep the first valid UTF-8 remote name, defaulting to "origin".
     let remote_name = repo
         .remotes()?
         .iter()
-        .flatten()
+        .filter_map(|r| r.ok().flatten())
         .next()
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| "origin".to_string());
+        .unwrap_or("origin")
+        .to_string();
 
     let mut callbacks = git2::RemoteCallbacks::new();
     let git_config = repo.config()?;
@@ -1046,9 +1048,10 @@ fn save_git_push(repo: &git2::Repository) -> Result<()> {
     push_opts.remote_callbacks(callbacks);
 
     let head_ref = repo.head()?;
+    // git2 0.21: Reference::shorthand() returns Result<&str, Error>.
     let branch_name = head_ref
         .shorthand()
-        .ok_or_else(|| anyhow::anyhow!("HEAD has no branch name"))?;
+        .map_err(|e| anyhow::anyhow!("HEAD has no branch name: {e}"))?;
     let refspec = format!("refs/heads/{branch_name}:refs/heads/{branch_name}");
 
     let mut remote = repo.find_remote(&remote_name)?;
