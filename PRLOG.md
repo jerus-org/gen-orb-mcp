@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- pass identity + signing key explicitly to pcu(pr [#195])
+
 ### Fixed
 
 - deps: update dependency gen-circleci-orb to v0.0.47(pr [#191])
@@ -666,6 +670,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#190]: https://github.com/jerus-org/gen-orb-mcp/pull/190
 [#192]: https://github.com/jerus-org/gen-orb-mcp/pull/192
 [#194]: https://github.com/jerus-org/gen-orb-mcp/pull/194
+[#195]: https://github.com/jerus-org/gen-orb-mcp/pull/195
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.51...HEAD
 [0.1.51]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.50...v0.1.51
 [0.1.50]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.49...v0.1.50
