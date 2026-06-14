@@ -26,6 +26,21 @@ mcp_earliest_version = "0.1.11"
 [subcommand.help]
 generate_job = false
 
+# Curated, human-readable run-step names for the orb commands (used by
+# build_mcp_server's steps and the standalone command jobs). Without these the
+# generator falls back to each command's short --help line, then the bare name.
+[subcommand.prime]
+label = "Prime prior versions and migrations"
+
+[subcommand.generate]
+label = "Generate and compile MCP server"
+
+[subcommand.publish]
+label = "Publish MCP server binary to GitHub release"
+
+[subcommand.save]
+label = "Commit back generated artifacts"
+
 # build_mcp_server: a goal-oriented composite job assembled from this orb's own
 # commands (set_https_remote, prime, generate, publish, save) plus a small git
 # setup step. It primes prior-version snapshots, generates and compiles the MCP
