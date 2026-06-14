@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- curated run-step labels for orb commands(pr [#198])
+
 ### Changed
 
 - chore-pin build_mcp_server orb to gen-orb-mcp@0.1.44(pr [#197])
@@ -678,6 +682,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#194]: https://github.com/jerus-org/gen-orb-mcp/pull/194
 [#195]: https://github.com/jerus-org/gen-orb-mcp/pull/195
 [#197]: https://github.com/jerus-org/gen-orb-mcp/pull/197
+[#198]: https://github.com/jerus-org/gen-orb-mcp/pull/198
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.52...HEAD
 [0.1.52]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.51...v0.1.52
 [0.1.51]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.50...v0.1.51
