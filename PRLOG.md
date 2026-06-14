@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- chore-pin build_mcp_server orb to gen-orb-mcp@0.1.44(pr [#197])
+
 ## [0.1.52] - 2026-06-13
 
 ### Added
@@ -671,6 +677,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#192]: https://github.com/jerus-org/gen-orb-mcp/pull/192
 [#194]: https://github.com/jerus-org/gen-orb-mcp/pull/194
 [#195]: https://github.com/jerus-org/gen-orb-mcp/pull/195
+[#197]: https://github.com/jerus-org/gen-orb-mcp/pull/197
+[Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.52...HEAD
 [0.1.52]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.51...v0.1.52
 [0.1.51]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.50...v0.1.51
 [0.1.50]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.49...v0.1.50
