@@ -180,9 +180,11 @@ workflows:
           tag_prefix: gen-orb-mcp-v
           orb_path: orb/src/@orb.yml
           earliest_version: "0.1.11"
-          # Attach the freshly-built binary so the release dogfoods its own build.
-          attach_workspace: true
-          workspace_root: /tmp/bin
+          # Run the stable pinned-orb image binary (no /tmp/bin override). The
+          # attached workspace binary shadowed the image's gen-orb-mcp on PATH,
+          # and a stale (pre-explicit-identity) cached build there made `save`
+          # fail with "user.name not found". The pinned image binary uses the
+          # explicit-identity path and commits cleanly.
           requires: [publish-orb-jerus-org]
           context: [release, bot-check, pcu-app]
           filters:
