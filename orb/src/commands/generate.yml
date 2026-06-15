@@ -41,7 +41,7 @@ parameters:
     default: v
 steps:
 - run:
-    name: generate
+    name: Generate and compile MCP server
     command: <<include(scripts/generate.sh)>>
     environment:
       ORB_PATH: << parameters.orb_path >>

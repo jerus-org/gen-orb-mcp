@@ -26,7 +26,7 @@ parameters:
     default: false
 steps:
 - run:
-    name: publish
+    name: Publish MCP server binary to GitHub release
     command: <<include(scripts/publish.sh)>>
     environment:
       PUBLISH_NAME: << parameters.publish_name >>

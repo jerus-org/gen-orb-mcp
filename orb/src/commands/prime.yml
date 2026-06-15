@@ -42,7 +42,7 @@ parameters:
     default: false
 steps:
 - run:
-    name: prime
+    name: Prime prior versions and migrations
     command: <<include(scripts/prime.sh)>>
     environment:
       ORB_PATH: << parameters.orb_path >>
