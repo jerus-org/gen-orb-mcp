@@ -34,6 +34,18 @@ unit-tests:
 audit:
     cargo deny check advisories bans licenses sources
 
+# verify the documented MSRV (rust-version) still builds with the locked deps.
+# CI's "minimum" build uses the earliest rolling toolchain, which is typically
+# newer than the documented MSRV, so it does NOT validate the true MSRV — run
+# this locally on every change (especially when Cargo.lock changes).
+msrv:
+    cargo msrv verify --manifest-path crates/gen-orb-mcp/Cargo.toml
+
+# discover the true minimum supported rust-version (bisects; run when a dep bump
+# breaks `just msrv`, then bump rust-version + CI min_rust_version to match).
+msrv-find:
+    cargo msrv find --manifest-path crates/gen-orb-mcp/Cargo.toml
+
 # run nightly rustfmt for its extra features, but check that it won't upset stable rustfmt
 fmt:
     cargo +nightly fmt --all -- --config-path rustfmt-nightly.toml
