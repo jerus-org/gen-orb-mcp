@@ -8,7 +8,7 @@ parameters:
 orbs:
   toolkit: jerus-org/circleci-toolkit@6.4.2
 
-  gen-circleci-orb: jerus-org/gen-circleci-orb@0.0.48
+  gen-circleci-orb: jerus-org/gen-circleci-orb@0.0.49
   gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.46
   orb-tools: circleci/orb-tools@12.4.0
 workflows:
@@ -171,7 +171,12 @@ workflows:
           pub_type: production
           vcs_type: github
           enable_pr_comment: false
-          requires: [orb-release-container, orb-release-pack, orb-release-ensure-registered-jerus-org]
+          requires:
+            [
+              orb-release-container,
+              orb-release-pack,
+              orb-release-ensure-registered-jerus-org,
+            ]
           context: [orb-publishing]
           filters:
             tags:
