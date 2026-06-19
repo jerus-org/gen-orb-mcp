@@ -28,7 +28,7 @@ parameters:
     default: false
 steps:
 - run:
-    name: save
+    name: Commit back generated artifacts
     command: <<include(scripts/save.sh)>>
     environment:
       PATHS: << parameters.paths >>
