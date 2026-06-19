@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- adopt gen-circleci-orb auto-record(pr [#207])
+
 ### Fixed
 
 - deps: update dependency toolkit to v6.4.2(pr [#206])
@@ -707,6 +711,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#204]: https://github.com/jerus-org/gen-orb-mcp/pull/204
 [#205]: https://github.com/jerus-org/gen-orb-mcp/pull/205
 [#201]: https://github.com/jerus-org/gen-orb-mcp/pull/201
+[#207]: https://github.com/jerus-org/gen-orb-mcp/pull/207
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.54...HEAD
 [0.1.54]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.53...v0.1.54
 [0.1.53]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.52...v0.1.53
