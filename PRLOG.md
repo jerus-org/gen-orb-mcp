@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deps: update rust crate config to 0.15.24(pr [#204])
 - deps: update rust crate pcu to 0.6.25(pr [#205])
 - enable git2 https+ssh features; MSRV 1.91(pr [#201])
+- curated run-step names in committed orb command files(pr [#200])
 
 ## [0.1.54] - 2026-06-15
 
@@ -712,6 +713,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#205]: https://github.com/jerus-org/gen-orb-mcp/pull/205
 [#201]: https://github.com/jerus-org/gen-orb-mcp/pull/201
 [#207]: https://github.com/jerus-org/gen-orb-mcp/pull/207
+[#200]: https://github.com/jerus-org/gen-orb-mcp/pull/200
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.54...HEAD
 [0.1.54]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.53...v0.1.54
 [0.1.53]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.52...v0.1.53
