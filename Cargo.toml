@@ -57,7 +57,7 @@ git2_credentials = "0.16.0"
 
 # Signed commit and GitHub App token push (for save --sign).
 # Needs pcu >= 0.6.22 for SignConfig::with_identity + with_signing_key.
-pcu = "0.6.22"
+pcu = "0.6.25"
 config = { version = "0.15.24", default-features = false }
 
 # Testing
