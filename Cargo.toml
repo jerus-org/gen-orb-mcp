@@ -7,7 +7,7 @@ edition = "2021"
 authors = ["Jeremiah Russell <jrussell@jerus.ie>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/jerus-org/gen-orb-mcp"
-rust-version = "1.87"
+rust-version = "1.91"
 keywords = ["mcp", "circleci", "orb", "codegen"]
 categories = ["development-tools", "command-line-utilities"]
 
@@ -52,13 +52,17 @@ octocrate = { version = "2.2.0", default-features = false, features = [
 ] }
 
 # Git operations — staging, committing, pushing for the save subcommand
-git2 = "0.21.0"
+# git2 0.21 changed its default features to `[]` (0.20 defaulted to
+# ["ssh", "https"]). Without `https`, libgit2 is built with no TLS backend and
+# `save`'s git push fails at runtime ("there is no TLS stream available").
+# Enable them explicitly; `ssh` keeps SSH remotes working too.
+git2 = { version = "0.21.0", features = ["ssh", "https"] }
 git2_credentials = "0.16.0"
 
 # Signed commit and GitHub App token push (for save --sign).
 # Needs pcu >= 0.6.22 for SignConfig::with_identity + with_signing_key.
-pcu = "0.6.22"
-config = { version = "0.15.23", default-features = false }
+pcu = "0.6.25"
+config = { version = "0.15.24", default-features = false }
 
 # Testing
 tempfile = "3.27.0"
