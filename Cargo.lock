@@ -1798,9 +1798,9 @@ dependencies = [
 
 [[package]]
 name = "gen-bsky"
-version = "0.1.24"
+version = "0.1.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17e29a25ca46da0942f6631a992affe421b7031407566e4c2095f049781b7ce1"
+checksum = "6151e2cbc8dc45a9d65c361612ea419937f94cbe21f295bc212d7ba46da6cb2f"
 dependencies = [
  "base62",
  "bsky-sdk",
@@ -1820,9 +1820,9 @@ dependencies = [
 
 [[package]]
 name = "gen-linkedin"
-version = "0.1.17"
+version = "0.1.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "749344f351cd853146815f25407d857fdd668e8908a91a84bcfb324da30e268d"
+checksum = "c162e5c4a7dd3e2369100354faeb98d0c29ebb0c79e06ab00dcfd50971846a05"
 dependencies = [
  "chrono",
  "log",
@@ -1944,6 +1944,8 @@ dependencies = [
  "libc",
  "libgit2-sys",
  "log",
+ "openssl-probe 0.1.6",
+ "openssl-sys",
  "url",
 ]
 
@@ -2772,7 +2774,9 @@ checksum = "9b26f66f35e1871b22efcf7191564123d2a446ca0538cde63c23adfefa9b15b7"
 dependencies = [
  "cc",
  "libc",
+ "libssh2-sys",
  "libz-sys",
+ "openssl-sys",
  "pkg-config",
 ]
 
@@ -2802,6 +2806,20 @@ dependencies = [
  "libc",
  "plain",
  "redox_syscall 0.7.3",
+]
+
+[[package]]
+name = "libssh2-sys"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "220e4f05ad4a218192533b300327f5150e809b54c4ec83b5a1d91833601811b9"
+dependencies = [
+ "cc",
+ "libc",
+ "libz-sys",
+ "openssl-sys",
+ "pkg-config",
+ "vcpkg",
 ]
 
 [[package]]
@@ -3015,7 +3033,7 @@ dependencies = [
  "libc",
  "log",
  "openssl",
- "openssl-probe",
+ "openssl-probe 0.2.1",
  "openssl-sys",
  "schannel",
  "security-framework",
@@ -3370,6 +3388,12 @@ dependencies = [
 
 [[package]]
 name = "openssl-probe"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d05e27ee213611ffe7d6348b942e8f942b37114c00cc03cec254295a4a17852e"
+
+[[package]]
+name = "openssl-probe"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
@@ -3528,9 +3552,9 @@ dependencies = [
 
 [[package]]
 name = "pcu"
-version = "0.6.22"
+version = "0.6.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a45ef5fbce4b5932b6fabc9926af3110d180778836b8a34959a3d69907605849"
+checksum = "13bf0f81c8e71e39b42f10e90b23bfbc662f42da754e2bb9efbaf884a4fdf6fc"
 dependencies = [
  "base62",
  "base64 0.22.1",
@@ -4471,7 +4495,7 @@ version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "612460d5f7bea540c490b2b6395d8e34a953e52b491accd6c86c8164c5932a63"
 dependencies = [
- "openssl-probe",
+ "openssl-probe 0.2.1",
  "rustls-pki-types",
  "schannel",
  "security-framework",
