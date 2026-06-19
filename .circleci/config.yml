@@ -6,10 +6,10 @@ parameters:
     default: "1.91"
 
 orbs:
-  toolkit: jerus-org/circleci-toolkit@6.3.0
+  toolkit: jerus-org/circleci-toolkit@6.4.2
 
   gen-circleci-orb: jerus-org/gen-circleci-orb@0.0.47
-  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.44
+  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.46
   orb-tools: circleci/orb-tools@12.4.0
 workflows:
   validation:
