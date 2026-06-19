@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deps: update pinned containers(pr [#202])
 - deps: update dependency gen-orb-mcp to v0.1.46(pr [#203])
 - deps: update rust crate config to 0.15.24(pr [#204])
+- deps: update rust crate pcu to 0.6.25(pr [#205])
 
 ## [0.1.54] - 2026-06-15
 
@@ -703,6 +704,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#202]: https://github.com/jerus-org/gen-orb-mcp/pull/202
 [#203]: https://github.com/jerus-org/gen-orb-mcp/pull/203
 [#204]: https://github.com/jerus-org/gen-orb-mcp/pull/204
+[#205]: https://github.com/jerus-org/gen-orb-mcp/pull/205
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.54...HEAD
 [0.1.54]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.53...v0.1.54
 [0.1.53]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.52...v0.1.53
