@@ -6,6 +6,22 @@ git_push_subcommands = ["save"]
 # The Rust executor base and build deps (cargo, gnupg, libssl-dev, pkg-config)
 # are provisioned automatically by gen-circleci-orb because [ci].mcp = true.
 
+# Auto-record: after `generate` regenerates the orb, the regenerate-orb CI job
+# GPG-signs a commit of the orb source and pushes it to the PR branch (for
+# review), keeping the published orb in sync with the CLI. The values are the
+# *names* of the env vars holding the signing material and a contents:write
+# GitHub token; the secret values live in the contexts (release -> BOT_*,
+# bot-check -> GITHUB_TOKEN). The binary records only on a PR branch.
+[record]
+enabled = true
+gpg_key_env = "BOT_GPG_KEY"
+gpg_trust_env = "BOT_TRUST"
+user_name_env = "BOT_USER_NAME"
+user_email_env = "BOT_USER_EMAIL"
+signing_key_env = "BOT_SIGN_KEY"
+write_token_env = "GITHUB_TOKEN"
+contexts = ["release", "bot-check"]
+
 [ci]
 build_workflow = "validation"
 release_workflow = "release"

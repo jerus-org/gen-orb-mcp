@@ -8,7 +8,7 @@ parameters:
 orbs:
   toolkit: jerus-org/circleci-toolkit@6.4.2
 
-  gen-circleci-orb: jerus-org/gen-circleci-orb@0.0.47
+  gen-circleci-orb: jerus-org/gen-circleci-orb@0.0.48
   gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.46
   orb-tools: circleci/orb-tools@12.4.0
 workflows:
@@ -89,6 +89,11 @@ workflows:
           orb_namespace: jerus-org
           orb_dir: orb
           attach_workspace: true
+          # Auto-record ([record] in gen-circleci-orb.toml): `release` supplies
+          # BOT_* signing material, `bot-check` the GITHUB_TOKEN (contents:write).
+          # The binary records only on a PR branch (no-op on main/forks), so the
+          # regenerated orb is committed back to the PR for review.
+          context: [release, bot-check]
           requires: [build-binary]
       - orb-tools/pack:
           name: pack-orb
