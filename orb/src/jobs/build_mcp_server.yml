@@ -51,21 +51,21 @@ steps:
       TAG_PREFIX: << parameters.tag_prefix >>
       WORKSPACE_BIN_PATH: << parameters.workspace_root >>
 - prime:
+    earliest_version: << parameters.earliest_version >>
     orb_path: << parameters.orb_path >>
     tag_prefix: << parameters.tag_prefix >>
-    earliest_version: << parameters.earliest_version >>
 - generate:
+    force: true
     format: binary
     generate_name: << parameters.binary_name >>
+    migrations: << parameters.migrations_dir >>
     orb_path: << parameters.orb_path >>
     output: /tmp/mcp-server
-    force: true
     prior_versions: << parameters.prior_versions_dir >>
-    migrations: << parameters.migrations_dir >>
     tag_prefix: << parameters.tag_prefix >>
 - publish:
-    publish_name: << parameters.binary_name >>
     input: /tmp/mcp-server
+    publish_name: << parameters.binary_name >>
 - save:
     paths: << parameters.prior_versions_dir >>,<< parameters.migrations_dir >>
     sign: true

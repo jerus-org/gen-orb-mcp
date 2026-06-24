@@ -27,6 +27,24 @@ parameters:
     description: 'Use GPG-signed commit and GitHub App token push.  Reads: BOT_GPG_KEY (base64 GPG key), BOT_TRUST (ownertrust), BOT_USER_NAME, BOT_USER_EMAIL, BOT_SIGN_KEY (key ID), GITHUB_TOKEN (GitHub App installation token), CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME, CIRCLE_BRANCH.'
     default: false
 steps:
+- when:
+    condition: << parameters.no_push >>
+    steps:
+    - run:
+        name: Set NO_PUSH flag
+        command: echo 'export NO_PUSH=true' >> "$BASH_ENV"
+- when:
+    condition: << parameters.dry_run >>
+    steps:
+    - run:
+        name: Set DRY_RUN flag
+        command: echo 'export DRY_RUN=true' >> "$BASH_ENV"
+- when:
+    condition: << parameters.sign >>
+    steps:
+    - run:
+        name: Set SIGN flag
+        command: echo 'export SIGN=true' >> "$BASH_ENV"
 - run:
     name: Commit back generated artifacts
     command: <<include(scripts/save.sh)>>
@@ -34,6 +52,3 @@ steps:
       PATHS: << parameters.paths >>
       MESSAGE: << parameters.message >>
       PUSH: << parameters.push >>
-      NO_PUSH: << parameters.no_push >>
-      DRY_RUN: << parameters.dry_run >>
-      SIGN: << parameters.sign >>

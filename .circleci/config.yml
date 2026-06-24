@@ -8,7 +8,7 @@ parameters:
 orbs:
   toolkit: jerus-org/circleci-toolkit@6.4.2
 
-  gen-circleci-orb: jerus-org/gen-circleci-orb@0.0.49
+  gen-circleci-orb: jerus-org/gen-circleci-orb@0.0.51
   gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.46
   orb-tools: circleci/orb-tools@12.4.0
 workflows:
@@ -89,20 +89,43 @@ workflows:
           orb_namespace: jerus-org
           orb_dir: orb
           attach_workspace: true
-          # Auto-record ([record] in gen-circleci-orb.toml): `release` supplies
-          # BOT_* signing material, `bot-check` the GITHUB_TOKEN (contents:write).
-          # The binary records only on a PR branch (no-op on main/forks), so the
-          # regenerated orb is committed back to the PR for review.
-          context: [release, bot-check]
+          # Model B: regenerate but do NOT push (no_record); persist the orb to
+          # the workspace so pack/review validate the regenerated orb, and the
+          # end push-orb job commits + pushes once, after validation. `release`
+          # supplies the BOT_* GPG signing material.
+          no_record: true
+          persist_orb_workspace: true
+          context: [release]
           requires: [build-binary]
       - orb-tools/pack:
           name: pack-orb
+          checkout: false
           source_dir: orb/src
+          pre-steps:
+            - attach_workspace:
+                at: .
           requires: [regenerate-orb]
       - orb-tools/review:
           name: review-orb
+          checkout: false
           source_dir: orb/src
+          pre-steps:
+            - attach_workspace:
+                at: .
           requires: [pack-orb]
+      # End push: regenerate WITH record (signed commit + push), gated on the
+      # orb validations (atomic). add_ssh_keys loads the org write key
+      # (ssh_fingerprint) so the push has write authority; `release` supplies
+      # the GPG signing material.
+      - gen-circleci-orb/generate:
+          name: push-orb
+          binary: gen-orb-mcp
+          orb_namespace: jerus-org
+          orb_dir: orb
+          attach_workspace: true
+          ssh_fingerprint: "SHA256:OkxsH8Z6Iim6WDJBaII9eTT9aaO1f3eDc6IpsgYYPVg"
+          context: [release]
+          requires: [pack-orb, review-orb]
 
   orb-release:
     jobs:

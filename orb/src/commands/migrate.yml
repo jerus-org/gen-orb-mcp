@@ -15,11 +15,16 @@ parameters:
     description: Show planned changes without modifying files
     default: false
 steps:
+- when:
+    condition: << parameters.dry_run >>
+    steps:
+    - run:
+        name: Set DRY_RUN flag
+        command: echo 'export DRY_RUN=true' >> "$BASH_ENV"
 - run:
-    name: migrate
+    name: Apply conformance-based migration to a consumer's .circleci/ directory
     command: <<include(scripts/migrate.sh)>>
     environment:
       CI_DIR: << parameters.ci_dir >>
       ORB: << parameters.orb >>
       RULES: << parameters.rules >>
-      DRY_RUN: << parameters.dry_run >>
