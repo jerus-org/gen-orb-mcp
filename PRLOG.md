@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deps: update rust crate pmcp to 2.10.0(pr [#212])
 - deps: update rust crate handlebars to 6.4.2(pr [#213])
 - deps: pin dependencies(pr [#214])
+- ci: push-orb auths via release App; restrict to non-main(pr [#215])
 
 ## [0.1.54] - 2026-06-15
 
@@ -724,6 +725,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#212]: https://github.com/jerus-org/gen-orb-mcp/pull/212
 [#213]: https://github.com/jerus-org/gen-orb-mcp/pull/213
 [#214]: https://github.com/jerus-org/gen-orb-mcp/pull/214
+[#215]: https://github.com/jerus-org/gen-orb-mcp/pull/215
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.54...HEAD
 [0.1.54]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.53...v0.1.54
 [0.1.53]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.52...v0.1.53
