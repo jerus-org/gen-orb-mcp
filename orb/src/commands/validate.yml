@@ -6,7 +6,7 @@ parameters:
     default: src/@orb.yml
 steps:
 - run:
-    name: validate
+    name: Validate an orb definition without generating
     command: <<include(scripts/validate.sh)>>
     environment:
       ORB_PATH: << parameters.orb_path >>

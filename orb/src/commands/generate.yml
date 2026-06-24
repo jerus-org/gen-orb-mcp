@@ -40,6 +40,12 @@ parameters:
     description: Tag prefix used to discover the orb version from git tags  The git repository is derived automatically from --orb-path. Defaults to "v" (matches tags like v6.0.0).
     default: v
 steps:
+- when:
+    condition: << parameters.force >>
+    steps:
+    - run:
+        name: Set FORCE flag
+        command: echo 'export FORCE=true' >> "$BASH_ENV"
 - run:
     name: Generate and compile MCP server
     command: <<include(scripts/generate.sh)>>
@@ -49,7 +55,6 @@ steps:
       FORMAT: << parameters.format >>
       GENERATE_NAME: << parameters.generate_name >>
       CRATE_VERSION: << parameters.crate_version >>
-      FORCE: << parameters.force >>
       MIGRATIONS: << parameters.migrations >>
       PRIOR_VERSIONS: << parameters.prior_versions >>
       TAG_PREFIX: << parameters.tag_prefix >>
