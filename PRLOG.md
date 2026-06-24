@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - adopt gen-circleci-orb auto-record(pr [#207])
+- adopt gen-circleci-orb 0.0.50 (Model B auto-record)(pr [#208])
 
 ### Fixed
 
@@ -714,6 +715,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#201]: https://github.com/jerus-org/gen-orb-mcp/pull/201
 [#207]: https://github.com/jerus-org/gen-orb-mcp/pull/207
 [#200]: https://github.com/jerus-org/gen-orb-mcp/pull/200
+[#208]: https://github.com/jerus-org/gen-orb-mcp/pull/208
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.54...HEAD
 [0.1.54]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.53...v0.1.54
 [0.1.53]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.52...v0.1.53
