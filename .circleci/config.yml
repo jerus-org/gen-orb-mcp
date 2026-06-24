@@ -117,6 +117,12 @@ workflows:
       # orb validations (atomic). add_ssh_keys loads the org write key
       # (ssh_fingerprint) so the push has write authority; `release` supplies
       # the GPG signing material.
+      #
+      # Only runs on same-repo, non-main branches: the regenerated orb is
+      # committed back to the PR branch (and reaches main via the merge). It
+      # must NOT run on `main` — main is protected and the bot has no authority
+      # to push to it directly — nor on forked PRs (`pull/N`), which are
+      # read-only.
       - gen-circleci-orb/generate:
           name: push-orb
           binary: gen-orb-mcp
@@ -126,6 +132,11 @@ workflows:
           ssh_fingerprint: "SHA256:OkxsH8Z6Iim6WDJBaII9eTT9aaO1f3eDc6IpsgYYPVg"
           context: [release]
           requires: [pack-orb, review-orb]
+          filters:
+            branches:
+              ignore:
+                - main
+                - /pull\/[0-9]+/
 
   orb-release:
     jobs:
