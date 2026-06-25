@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deps: update dependency gen-circleci-orb to v0.0.52(pr [#211])
 - deps: pin dependencies(pr [#216])
 - deps: update dependency gen-circleci-orb to v0.0.53(pr [#217])
+- deps: bump quinn-proto for RUSTSEC-2026-0185(pr [#210])
 
 ## [0.1.54] - 2026-06-15
 
@@ -732,6 +733,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#211]: https://github.com/jerus-org/gen-orb-mcp/pull/211
 [#216]: https://github.com/jerus-org/gen-orb-mcp/pull/216
 [#217]: https://github.com/jerus-org/gen-orb-mcp/pull/217
+[#210]: https://github.com/jerus-org/gen-orb-mcp/pull/210
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.54...HEAD
 [0.1.54]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.53...v0.1.54
 [0.1.53]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.52...v0.1.53
