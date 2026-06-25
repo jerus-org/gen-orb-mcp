@@ -9,7 +9,7 @@ parameters:
     default: ''
 steps:
 - run:
-    name: build
+    name: Compile generated MCP server source to a native binary
     command: <<include(scripts/build.sh)>>
     environment:
       INPUT: << parameters.input >>

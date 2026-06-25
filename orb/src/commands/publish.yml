@@ -25,6 +25,12 @@ parameters:
     description: Describe the upload without performing it
     default: false
 steps:
+- when:
+    condition: << parameters.dry_run >>
+    steps:
+    - run:
+        name: Set DRY_RUN flag
+        command: echo 'export DRY_RUN=true' >> "$BASH_ENV"
 - run:
     name: Publish MCP server binary to GitHub release
     command: <<include(scripts/publish.sh)>>
@@ -34,4 +40,3 @@ steps:
       BINARY: << parameters.binary >>
       ASSET_NAME: << parameters.asset_name >>
       TAG: << parameters.tag >>
-      DRY_RUN: << parameters.dry_run >>

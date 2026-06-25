@@ -19,8 +19,11 @@ gpg_trust_env = "BOT_TRUST"
 user_name_env = "BOT_USER_NAME"
 user_email_env = "BOT_USER_EMAIL"
 signing_key_env = "BOT_SIGN_KEY"
-write_token_env = "GITHUB_TOKEN"
-contexts = ["release", "bot-check"]
+# Push uses the org SSH write key (loaded by add_ssh_keys in the push job),
+# not a token — add_ssh_keys resolves the fingerprint at config-compile time
+# and can't read env vars, so this is a value, not an env-var name.
+push_ssh_fingerprint = "SHA256:OkxsH8Z6Iim6WDJBaII9eTT9aaO1f3eDc6IpsgYYPVg"
+contexts = ["release"]
 
 [ci]
 build_workflow = "validation"

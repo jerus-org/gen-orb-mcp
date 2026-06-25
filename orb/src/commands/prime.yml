@@ -41,6 +41,18 @@ parameters:
     description: Describe actions without writing any files
     default: false
 steps:
+- when:
+    condition: << parameters.ephemeral >>
+    steps:
+    - run:
+        name: Set EPHEMERAL flag
+        command: echo 'export EPHEMERAL=true' >> "$BASH_ENV"
+- when:
+    condition: << parameters.dry_run >>
+    steps:
+    - run:
+        name: Set DRY_RUN flag
+        command: echo 'export DRY_RUN=true' >> "$BASH_ENV"
 - run:
     name: Prime prior versions and migrations
     command: <<include(scripts/prime.sh)>>
@@ -52,6 +64,4 @@ steps:
       SINCE: << parameters.since >>
       PRIOR_VERSIONS_DIR: << parameters.prior_versions_dir >>
       MIGRATIONS_DIR: << parameters.migrations_dir >>
-      EPHEMERAL: << parameters.ephemeral >>
       RENAME_MAP: << parameters.rename_map >>
-      DRY_RUN: << parameters.dry_run >>

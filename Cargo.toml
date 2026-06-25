@@ -13,7 +13,7 @@ categories = ["development-tools", "command-line-utilities"]
 
 [workspace.dependencies]
 # MCP Protocol
-pmcp = "2.9.0"
+pmcp = "2.10.0"
 
 # YAML Processing
 serde = { version = "1.0.228", features = ["derive"] }
@@ -31,7 +31,7 @@ thiserror = "2.0.18"
 tokio = { version = "1.52.3", features = ["full"] }
 
 # Template Engine
-handlebars = "6.4.1"
+handlebars = "6.4.2"
 
 # Logging
 tracing = "0.1.44"
@@ -61,7 +61,7 @@ git2_credentials = "0.16.0"
 
 # Signed commit and GitHub App token push (for save --sign).
 # Needs pcu >= 0.6.22 for SignConfig::with_identity + with_signing_key.
-pcu = "0.6.25"
+pcu = "0.6.27"
 config = { version = "0.15.24", default-features = false }
 
 # Testing

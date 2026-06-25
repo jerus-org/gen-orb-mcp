@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - adopt gen-circleci-orb auto-record(pr [#207])
+- adopt gen-circleci-orb 0.0.50 (Model B auto-record)(pr [#208])
 
 ### Fixed
 
@@ -20,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deps: update rust crate pcu to 0.6.25(pr [#205])
 - enable git2 https+ssh features; MSRV 1.91(pr [#201])
 - curated run-step names in committed orb command files(pr [#200])
+- deps: update rust crate pcu to 0.6.27(pr [#209])
+- deps: update rust crate pmcp to 2.10.0(pr [#212])
+- deps: update rust crate handlebars to 6.4.2(pr [#213])
+- deps: pin dependencies(pr [#214])
+- ci: push-orb auths via release App; restrict to non-main(pr [#215])
+- deps: update dependency gen-circleci-orb to v0.0.52(pr [#211])
+- deps: pin dependencies(pr [#216])
+- deps: update dependency gen-circleci-orb to v0.0.53(pr [#217])
 
 ## [0.1.54] - 2026-06-15
 
@@ -714,6 +723,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#201]: https://github.com/jerus-org/gen-orb-mcp/pull/201
 [#207]: https://github.com/jerus-org/gen-orb-mcp/pull/207
 [#200]: https://github.com/jerus-org/gen-orb-mcp/pull/200
+[#208]: https://github.com/jerus-org/gen-orb-mcp/pull/208
+[#209]: https://github.com/jerus-org/gen-orb-mcp/pull/209
+[#212]: https://github.com/jerus-org/gen-orb-mcp/pull/212
+[#213]: https://github.com/jerus-org/gen-orb-mcp/pull/213
+[#214]: https://github.com/jerus-org/gen-orb-mcp/pull/214
+[#215]: https://github.com/jerus-org/gen-orb-mcp/pull/215
+[#211]: https://github.com/jerus-org/gen-orb-mcp/pull/211
+[#216]: https://github.com/jerus-org/gen-orb-mcp/pull/216
+[#217]: https://github.com/jerus-org/gen-orb-mcp/pull/217
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.54...HEAD
 [0.1.54]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.53...v0.1.54
 [0.1.53]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.52...v0.1.53
