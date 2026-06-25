@@ -8,9 +8,11 @@ parameters:
 orbs:
   toolkit: jerus-org/circleci-toolkit@6.4.2
 
-  gen-circleci-orb: jerus-org/gen-circleci-orb@0.0.52
   gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.46
   orb-tools: circleci/orb-tools@12.4.0
+  # >>> gen-circleci-orb (managed — edits overwritten by 'gen-circleci-orb update')
+  gen-circleci-orb: jerus-org/gen-circleci-orb@0.0.53
+  # <<< gen-circleci-orb
 workflows:
   validation:
     jobs:
@@ -79,40 +81,6 @@ workflows:
                 - /pull\/[0-9]+/
                 - main
 
-      - gen-circleci-orb/build_rust_binary:
-          name: build-binary
-          package: gen-orb-mcp
-          requires: [toolkit/common_tests]
-      - gen-circleci-orb/generate:
-          name: regenerate-orb
-          binary: gen-orb-mcp
-          orb_namespace: jerus-org
-          orb_dir: orb
-          attach_workspace: true
-          # Model B: regenerate but do NOT push (no_record); persist the orb to
-          # the workspace so pack/review validate the regenerated orb, and the
-          # end push-orb job commits + pushes once, after validation. `release`
-          # supplies the BOT_* GPG signing material.
-          no_record: true
-          persist_orb_workspace: true
-          context: [release]
-          requires: [build-binary]
-      - orb-tools/pack:
-          name: pack-orb
-          checkout: false
-          source_dir: orb/src
-          pre-steps:
-            - attach_workspace:
-                at: .
-          requires: [regenerate-orb]
-      - orb-tools/review:
-          name: review-orb
-          checkout: false
-          source_dir: orb/src
-          pre-steps:
-            - attach_workspace:
-                at: .
-          requires: [pack-orb]
       # End push: regenerate WITH record (signed commit + push), gated on the
       # orb validations (atomic). add_ssh_keys loads the org write key
       # (ssh_fingerprint) so the push has write authority; `release` supplies
@@ -123,21 +91,51 @@ workflows:
       # must NOT run on `main` — main is protected and the bot has no authority
       # to push to it directly — nor on forked PRs (`pull/N`), which are
       # read-only.
+      # >>> gen-circleci-orb (managed — edits overwritten by 'gen-circleci-orb update')
+      - gen-circleci-orb/build_rust_binary:
+          name: build-binary
+          package: gen-orb-mcp
       - gen-circleci-orb/generate:
-          name: push-orb
+          name: regenerate-orb
           binary: gen-orb-mcp
           orb_namespace: jerus-org
           orb_dir: orb
           attach_workspace: true
           ssh_fingerprint: "SHA256:OkxsH8Z6Iim6WDJBaII9eTT9aaO1f3eDc6IpsgYYPVg"
+          persist_orb_workspace: true
           context: [release]
-          requires: [pack-orb, review-orb]
+          requires: [build-binary, toolkit/common_tests]
           filters:
             branches:
               ignore:
                 - main
-                - /pull\/[0-9]+/
+      - orb-tools/pack:
+          name: pack-orb
+          checkout: false
+          source_dir: orb/src
+          pre-steps:
+            - attach_workspace:
+                at: .
+          requires: [regenerate-orb]
+          filters:
+            branches:
+              ignore:
+                - main
+      - orb-tools/review:
+          name: review-orb
+          checkout: false
+          source_dir: orb/src
+          pre-steps:
+            - attach_workspace:
+                at: .
+          requires: [pack-orb]
+          filters:
+            branches:
+              ignore:
+                - main
+      # <<< gen-circleci-orb
 
+  # >>> gen-circleci-orb (managed — edits overwritten by 'gen-circleci-orb update')
   orb-release:
     jobs:
       - gen-circleci-orb/build_rust_binary:
@@ -149,10 +147,25 @@ workflows:
             branches:
               ignore: /.*/
 
+      - gen-circleci-orb/generate:
+          name: verify-orb
+          binary: gen-orb-mcp
+          orb_namespace: jerus-org
+          orb_dir: orb
+          attach_workspace: true
+          check: true
+          requires: [orb-release-binary]
+          filters:
+            tags:
+              only: /^gen-orb-mcp-v.*/
+            branches:
+              ignore: /.*/
+
       - orb-tools/pack:
           name: orb-release-pack
           checkout: false
           source_dir: orb/src
+          requires: [verify-orb]
           pre-steps:
             - checkout
             - run:
@@ -175,7 +188,7 @@ workflows:
           docker_namespace: jerusdp
           orb_dir: orb
           crate_tag_prefix: gen-orb-mcp-v
-          requires: [orb-release-binary]
+          requires: [verify-orb]
           context: [docker]
           filters:
             tags:
@@ -205,12 +218,7 @@ workflows:
           pub_type: production
           vcs_type: github
           enable_pr_comment: false
-          requires:
-            [
-              orb-release-container,
-              orb-release-pack,
-              orb-release-ensure-registered-jerus-org,
-            ]
+          requires: [orb-release-container, orb-release-pack, orb-release-ensure-registered-jerus-org]
           context: [orb-publishing]
           filters:
             tags:
@@ -218,17 +226,12 @@ workflows:
             branches:
               ignore: /.*/
 
-      - gen-orb-mcp/build_mcp_server:
+      - gen-circleci-orb/build_mcp_server:
           name: build-mcp-server
           binary_name: gen-orb-mcp
           tag_prefix: gen-orb-mcp-v
           orb_path: orb/src/@orb.yml
           earliest_version: "0.1.11"
-          # Run the stable pinned-orb image binary (no /tmp/bin override). The
-          # attached workspace binary shadowed the image's gen-orb-mcp on PATH,
-          # and a stale (pre-explicit-identity) cached build there made `save`
-          # fail with "user.name not found". The pinned image binary uses the
-          # explicit-identity path and commits cleanly.
           requires: [publish-orb-jerus-org]
           context: [release, bot-check, pcu-app]
           filters:
@@ -236,3 +239,4 @@ workflows:
               only: /^gen-orb-mcp-v.*/
             branches:
               ignore: /.*/
+  # <<< gen-circleci-orb
