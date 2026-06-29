@@ -13,27 +13,12 @@ parameters:
 orbs:
   toolkit: jerus-org/circleci-toolkit@6.5.0
 
-jobs:
-  tools:
-    executor: toolkit/rust_env_rolling
-    steps:
-      - run:
-          name: Verify tools
-          command: |
-            set -ex
-            nextsv --version
-            pcu --version
-            cargo release --version
-            rsign --version
-
 workflows:
   release:
     jobs:
-      - tools
-
       - toolkit/calculate_versions:
           name: calculate-versions
-          requires: [tools]
+          verify_tools: true
           crates: "gen-orb-mcp:gen-orb-mcp-v"
           crate_version_overrides: "gen-orb-mcp:<< pipeline.parameters.gen_orb_mcp_version >>"
           workspace_version_override: << pipeline.parameters.workspace_version >>
