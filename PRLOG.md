@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- ci-dogfood gen-orb-mcp orb + refresh orb pins (Stage 1)(pr [#219])
+
 ### Fixed
 
 - lift RUSTSEC-2026-0173 + prune stale ignore(pr [#218])
@@ -741,6 +745,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#217]: https://github.com/jerus-org/gen-orb-mcp/pull/217
 [#210]: https://github.com/jerus-org/gen-orb-mcp/pull/210
 [#218]: https://github.com/jerus-org/gen-orb-mcp/pull/218
+[#219]: https://github.com/jerus-org/gen-orb-mcp/pull/219
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.55...HEAD
 [0.1.55]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.54...v0.1.55
 [0.1.54]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.53...v0.1.54
