@@ -4,18 +4,4 @@ ignore = [
     # Pulled in transitively by pcu → sigstore → openidconnect → rsa.
     # Cannot be resolved without upstream pcu/sigstore/rsa patches.
     "RUSTSEC-2023-0071",
-    # RUSTSEC-2024-0370: proc-macro-error is unmaintained (warning only).
-    # Pulled in transitively by pcu → sigstore → json-syntax → locspan-derive.
-    # Cannot be resolved without upstream pcu/sigstore patches.
-    "RUSTSEC-2024-0370",
-    # RUSTSEC-2026-0173: proc-macro-error2 is unmaintained (advisory 2026-06-07).
-    # The proc-macro-error2 repo is ARCHIVED (read-only) so it will never be patched.
-    # Reaches this repo transitively, via pcu:
-    #   pcu → sigstore → oci-client → oci-spec → getset → proc-macro-error2
-    #     (getset is the blocker: no release since 2025-06; getset#132 tracks it)
-    #   pcu → gen-bsky → aquamarine → proc-macro-error2
-    #     (aquamarine is docs-only; being removed from gen-bsky in-house)
-    # Upstream tracking: jbaublitz/getset#132, youki-dev/oci-spec-rs#340.
-    # TEMPORARY — review weekly; remove once a fixed getset/oci-spec ships.
-    "RUSTSEC-2026-0173",
 ]
