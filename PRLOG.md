@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- configurable signing/publish env-var names (#185)(pr [#220])
+
 ### Changed
 
 - ci-dogfood gen-orb-mcp orb + refresh orb pins (Stage 1)(pr [#219])
@@ -746,6 +750,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#210]: https://github.com/jerus-org/gen-orb-mcp/pull/210
 [#218]: https://github.com/jerus-org/gen-orb-mcp/pull/218
 [#219]: https://github.com/jerus-org/gen-orb-mcp/pull/219
+[#220]: https://github.com/jerus-org/gen-orb-mcp/pull/220
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.55...HEAD
 [0.1.55]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.54...v0.1.55
 [0.1.54]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.53...v0.1.54
