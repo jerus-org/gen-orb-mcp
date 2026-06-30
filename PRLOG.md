@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - ci-dogfood gen-orb-mcp orb + refresh orb pins (Stage 1)(pr [#219])
+- ci-dogfood gen-orb-mcp/build_mcp_server (adopt cede)(pr [#221])
 
 ### Fixed
 
@@ -751,6 +752,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#218]: https://github.com/jerus-org/gen-orb-mcp/pull/218
 [#219]: https://github.com/jerus-org/gen-orb-mcp/pull/219
 [#220]: https://github.com/jerus-org/gen-orb-mcp/pull/220
+[#221]: https://github.com/jerus-org/gen-orb-mcp/pull/221
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.55...HEAD
 [0.1.55]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.54...v0.1.55
 [0.1.54]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.53...v0.1.54
