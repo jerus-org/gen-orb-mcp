@@ -11,7 +11,7 @@ orbs:
   gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.46
   orb-tools: circleci/orb-tools@12.4.0
   # >>> gen-circleci-orb (managed — edits overwritten by 'gen-circleci-orb update')
-  gen-circleci-orb: jerus-org/gen-circleci-orb@0.0.53
+  gen-circleci-orb: jerus-org/gen-circleci-orb@0.0.54
   # <<< gen-circleci-orb
 workflows:
   validation:
@@ -226,7 +226,7 @@ workflows:
             branches:
               ignore: /.*/
 
-      - gen-circleci-orb/build_mcp_server:
+      - gen-orb-mcp/build_mcp_server:
           name: build-mcp-server
           binary_name: gen-orb-mcp
           tag_prefix: gen-orb-mcp-v
