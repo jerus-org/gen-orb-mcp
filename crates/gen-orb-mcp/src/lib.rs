@@ -248,7 +248,7 @@ enum Commands {
         /// Reads the GPG key, ownertrust, commit name/email and signing key id
         /// from env vars whose NAMES default to GPG_KEY / GPG_TRUST /
         /// GIT_USER_NAME / GIT_USER_EMAIL / GPG_SIGN_KEY and are configurable
-        /// via gen-orb-mcp.toml ([sign]) or the --*-env flags. Also reads
+        /// via gen-orb-mcp.toml (`[sign]`) or the --*-env flags. Also reads
         /// GITHUB_TOKEN (GitHub App token), CIRCLE_PROJECT_USERNAME,
         /// CIRCLE_PROJECT_REPONAME, CIRCLE_BRANCH.
         #[arg(long)]
@@ -259,27 +259,27 @@ enum Commands {
         config: Option<std::path::PathBuf>,
 
         /// Env var NAME for the base64 GPG key (default GPG_KEY;
-        /// [sign].gpg_key_env).
+        /// `[sign].gpg_key_env`).
         #[arg(long)]
         gpg_key_env: Option<String>,
 
         /// Env var NAME for the GPG ownertrust (default GPG_TRUST;
-        /// [sign].trust_env).
+        /// `[sign].trust_env`).
         #[arg(long)]
         trust_env: Option<String>,
 
         /// Env var NAME for the commit author name (default GIT_USER_NAME;
-        /// [sign].user_name_env).
+        /// `[sign].user_name_env`).
         #[arg(long)]
         user_name_env: Option<String>,
 
         /// Env var NAME for the commit author email (default GIT_USER_EMAIL;
-        /// [sign].user_email_env).
+        /// `[sign].user_email_env`).
         #[arg(long)]
         user_email_env: Option<String>,
 
         /// Env var NAME for the GPG signing key id (default GPG_SIGN_KEY;
-        /// [sign].sign_key_env).
+        /// `[sign].sign_key_env`).
         #[arg(long)]
         sign_key_env: Option<String>,
     },
@@ -312,12 +312,12 @@ enum Commands {
         asset_name: Option<String>,
 
         /// Release tag to publish to. When omitted, read from the env var named
-        /// by --tag-env / [publish].tag_env (default CIRCLE_TAG).
+        /// by --tag-env / `[publish].tag_env` (default CIRCLE_TAG).
         #[arg(long)]
         tag: Option<String>,
 
         /// Env var NAME holding the release tag when --tag is not given
-        /// (default CIRCLE_TAG; config [publish].tag_env).
+        /// (default CIRCLE_TAG; config `[publish].tag_env`).
         #[arg(long)]
         tag_env: Option<String>,
 
@@ -878,7 +878,7 @@ fn run_prime(
 const DEFAULT_CONFIG_FILE: &str = "gen-orb-mcp.toml";
 /// Generic default env-var NAMES for the signing inputs — deliberately free of
 /// any org-specific convention. A consumer maps them to their own secret names
-/// once via `gen-orb-mcp.toml` ([sign]) or per-call `--*-env` flags.
+/// once via `gen-orb-mcp.toml` (`[sign]`) or per-call `--*-env` flags.
 const DEFAULT_GPG_KEY_ENV: &str = "GPG_KEY";
 const DEFAULT_TRUST_ENV: &str = "GPG_TRUST";
 const DEFAULT_USER_NAME_ENV: &str = "GIT_USER_NAME";
@@ -897,7 +897,7 @@ struct SignEnv {
 }
 
 /// The env-var NAMES (not values) from which `read_sign_env` reads the signing
-/// inputs. Resolved by precedence: `--*-env` flag > `gen-orb-mcp.toml` [sign] >
+/// inputs. Resolved by precedence: `--*-env` flag > `gen-orb-mcp.toml` `[sign]` >
 /// generic default.
 #[derive(Debug, Clone)]
 struct SignEnvNames {
@@ -958,7 +958,7 @@ fn resolve_sign_env_names(
 }
 
 /// Resolve the env-var NAME holding the release tag (used when `--tag` is not
-/// given). Precedence: `--tag-env` flag > `gen-orb-mcp.toml` [publish].tag_env
+/// given). Precedence: `--tag-env` flag > `gen-orb-mcp.toml` `[publish].tag_env`
 /// > `CIRCLE_TAG`.
 fn resolve_tag_env_name(
     config_path: &std::path::Path,
