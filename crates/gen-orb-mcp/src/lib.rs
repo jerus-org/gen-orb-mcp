@@ -197,9 +197,10 @@ enum Commands {
         ephemeral: bool,
 
         /// Override git rename detection for a specific job (repeatable).
-        /// Format: `OLD=NEW`, e.g. `--rename-map common_tests_rolling=common_tests`.
-        /// Manual entries take precedence over git-detected hints for matching
-        /// old names.  Use this when commits cannot be restructured to follow
+        /// Format: `OLD=NEW`, e.g. `--rename-map
+        /// common_tests_rolling=common_tests`. Manual entries take
+        /// precedence over git-detected hints for matching old names.
+        /// Use this when commits cannot be restructured to follow
         /// the two-commit rename rule.
         #[arg(long, value_name = "OLD=NEW")]
         rename_map: Vec<String>,
@@ -212,7 +213,8 @@ enum Commands {
     ///
     /// Idempotent: if the working tree is clean after staging the specified
     /// paths, exits successfully without creating an empty commit.
-    /// The default commit message includes [skip ci] to prevent CI re-triggering.
+    /// The default commit message includes [skip ci] to prevent CI
+    /// re-triggering.
     Save {
         /// Paths to stage and commit (relative to repository root).
         ///
@@ -243,14 +245,46 @@ enum Commands {
 
         /// Use GPG-signed commit and GitHub App token push.
         ///
-        /// Reads: BOT_GPG_KEY (base64 GPG key), BOT_TRUST (ownertrust),
-        /// BOT_USER_NAME, BOT_USER_EMAIL, BOT_SIGN_KEY (key ID),
-        /// GITHUB_TOKEN (GitHub App installation token),
-        /// CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME, CIRCLE_BRANCH.
+        /// Reads the GPG key, ownertrust, commit name/email and signing key id
+        /// from env vars whose NAMES default to GPG_KEY / GPG_TRUST /
+        /// GIT_USER_NAME / GIT_USER_EMAIL / GPG_SIGN_KEY and are configurable
+        /// via gen-orb-mcp.toml ([sign]) or the --*-env flags. Also reads
+        /// GITHUB_TOKEN (GitHub App token), CIRCLE_PROJECT_USERNAME,
+        /// CIRCLE_PROJECT_REPONAME, CIRCLE_BRANCH.
         #[arg(long)]
         sign: bool,
+
+        /// Path to the config file (default: gen-orb-mcp.toml in cwd).
+        #[arg(long)]
+        config: Option<std::path::PathBuf>,
+
+        /// Env var NAME for the base64 GPG key (default GPG_KEY;
+        /// [sign].gpg_key_env).
+        #[arg(long)]
+        gpg_key_env: Option<String>,
+
+        /// Env var NAME for the GPG ownertrust (default GPG_TRUST;
+        /// [sign].trust_env).
+        #[arg(long)]
+        trust_env: Option<String>,
+
+        /// Env var NAME for the commit author name (default GIT_USER_NAME;
+        /// [sign].user_name_env).
+        #[arg(long)]
+        user_name_env: Option<String>,
+
+        /// Env var NAME for the commit author email (default GIT_USER_EMAIL;
+        /// [sign].user_email_env).
+        #[arg(long)]
+        user_email_env: Option<String>,
+
+        /// Env var NAME for the GPG signing key id (default GPG_SIGN_KEY;
+        /// [sign].sign_key_env).
+        #[arg(long)]
+        sign_key_env: Option<String>,
     },
-    /// Upload a compiled binary to an existing GitHub release as a release asset
+    /// Upload a compiled binary to an existing GitHub release as a release
+    /// asset
     ///
     /// The GitHub release must already exist before this command is run.
     /// Set GITHUB_TOKEN, CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME,
@@ -263,7 +297,8 @@ enum Commands {
         #[arg(short = 'n', long)]
         name: Option<String>,
 
-        /// Directory containing the compiled `target/release` (used with --name).
+        /// Directory containing the compiled `target/release` (used with
+        /// --name).
         #[arg(short = 'i', long, default_value = "./dist")]
         input: std::path::PathBuf,
 
@@ -276,9 +311,19 @@ enum Commands {
         #[arg(short = 'a', long)]
         asset_name: Option<String>,
 
-        /// Release tag to publish to (default: $CIRCLE_TAG)
+        /// Release tag to publish to. When omitted, read from the env var named
+        /// by --tag-env / [publish].tag_env (default CIRCLE_TAG).
         #[arg(long)]
         tag: Option<String>,
+
+        /// Env var NAME holding the release tag when --tag is not given
+        /// (default CIRCLE_TAG; config [publish].tag_env).
+        #[arg(long)]
+        tag_env: Option<String>,
+
+        /// Path to the config file (default: gen-orb-mcp.toml in cwd).
+        #[arg(long)]
+        config: Option<std::path::PathBuf>,
 
         /// Describe the upload without performing it
         #[arg(long)]
@@ -390,22 +435,58 @@ impl Cli {
                 no_push,
                 dry_run,
                 sign,
-            } => run_save(paths, message, *push && !*no_push, *dry_run, *sign),
+                config,
+                gpg_key_env,
+                trust_env,
+                user_name_env,
+                user_email_env,
+                sign_key_env,
+            } => {
+                let config_path = config
+                    .clone()
+                    .unwrap_or_else(|| std::path::PathBuf::from(DEFAULT_CONFIG_FILE));
+                let overrides = SignEnvNameOverrides {
+                    gpg_key_env: gpg_key_env.clone(),
+                    trust_env: trust_env.clone(),
+                    user_name_env: user_name_env.clone(),
+                    user_email_env: user_email_env.clone(),
+                    sign_key_env: sign_key_env.clone(),
+                };
+                run_save(
+                    paths,
+                    message,
+                    *push && !*no_push,
+                    *dry_run,
+                    *sign,
+                    &config_path,
+                    &overrides,
+                )
+            }
             Commands::Publish {
                 name,
                 input,
                 binary,
                 asset_name,
                 tag,
+                tag_env,
+                config,
                 dry_run,
-            } => run_publish(
-                name.as_deref(),
-                input,
-                binary.as_deref(),
-                asset_name.as_deref(),
-                tag.as_deref(),
-                *dry_run,
-            ),
+            } => {
+                let config_path = config
+                    .clone()
+                    .unwrap_or_else(|| std::path::PathBuf::from(DEFAULT_CONFIG_FILE));
+                PublishJob {
+                    name: name.as_deref(),
+                    input,
+                    binary: binary.as_deref(),
+                    asset_name: asset_name.as_deref(),
+                    tag: tag.as_deref(),
+                    dry_run: *dry_run,
+                    config_path: &config_path,
+                    tag_env_override: tag_env.as_deref(),
+                }
+                .run()
+            }
             Commands::Build {
                 input,
                 name,
@@ -792,6 +873,20 @@ fn run_prime(
     Ok(())
 }
 
+/// Config file auto-discovered in the working directory (override with
+/// --config).
+const DEFAULT_CONFIG_FILE: &str = "gen-orb-mcp.toml";
+/// Generic default env-var NAMES for the signing inputs — deliberately free of
+/// any org-specific convention. A consumer maps them to their own secret names
+/// once via `gen-orb-mcp.toml` ([sign]) or per-call `--*-env` flags.
+const DEFAULT_GPG_KEY_ENV: &str = "GPG_KEY";
+const DEFAULT_TRUST_ENV: &str = "GPG_TRUST";
+const DEFAULT_USER_NAME_ENV: &str = "GIT_USER_NAME";
+const DEFAULT_USER_EMAIL_ENV: &str = "GIT_USER_EMAIL";
+const DEFAULT_SIGN_KEY_ENV: &str = "GPG_SIGN_KEY";
+/// Default env-var NAME holding the release tag for `publish`.
+const DEFAULT_TAG_ENV: &str = "CIRCLE_TAG";
+
 #[derive(Debug)]
 struct SignEnv {
     gpg_key_b64: String,
@@ -801,19 +896,95 @@ struct SignEnv {
     sign_key: String,
 }
 
-fn read_sign_env() -> Result<SignEnv> {
+/// The env-var NAMES (not values) from which `read_sign_env` reads the signing
+/// inputs. Resolved by precedence: `--*-env` flag > `gen-orb-mcp.toml` [sign] >
+/// generic default.
+#[derive(Debug, Clone)]
+struct SignEnvNames {
+    gpg_key: String,
+    trust: String,
+    user_name: String,
+    user_email: String,
+    sign_key: String,
+}
+
+/// Per-call CLI overrides for the signing env-var names (highest precedence).
+#[derive(Debug, Default, Clone)]
+struct SignEnvNameOverrides {
+    gpg_key_env: Option<String>,
+    trust_env: Option<String>,
+    user_name_env: Option<String>,
+    user_email_env: Option<String>,
+    sign_key_env: Option<String>,
+}
+
+/// Resolve the env-var NAMES for the signing inputs. Only names are configured
+/// here; the secret/identifier VALUES are read from those vars in
+/// `read_sign_env`, so nothing private is committed or passed on the CLI.
+fn resolve_sign_env_names(
+    config_path: &std::path::Path,
+    overrides: &SignEnvNameOverrides,
+) -> Result<SignEnvNames> {
+    let mut builder = config::Config::builder()
+        .set_default("sign.gpg_key_env", DEFAULT_GPG_KEY_ENV)?
+        .set_default("sign.trust_env", DEFAULT_TRUST_ENV)?
+        .set_default("sign.user_name_env", DEFAULT_USER_NAME_ENV)?
+        .set_default("sign.user_email_env", DEFAULT_USER_EMAIL_ENV)?
+        .set_default("sign.sign_key_env", DEFAULT_SIGN_KEY_ENV)?
+        .add_source(config::File::from(config_path).required(false));
+    if let Some(v) = overrides.gpg_key_env.as_deref() {
+        builder = builder.set_override("sign.gpg_key_env", v)?;
+    }
+    if let Some(v) = overrides.trust_env.as_deref() {
+        builder = builder.set_override("sign.trust_env", v)?;
+    }
+    if let Some(v) = overrides.user_name_env.as_deref() {
+        builder = builder.set_override("sign.user_name_env", v)?;
+    }
+    if let Some(v) = overrides.user_email_env.as_deref() {
+        builder = builder.set_override("sign.user_email_env", v)?;
+    }
+    if let Some(v) = overrides.sign_key_env.as_deref() {
+        builder = builder.set_override("sign.sign_key_env", v)?;
+    }
+    let cfg = builder.build()?;
+    Ok(SignEnvNames {
+        gpg_key: cfg.get_string("sign.gpg_key_env")?,
+        trust: cfg.get_string("sign.trust_env")?,
+        user_name: cfg.get_string("sign.user_name_env")?,
+        user_email: cfg.get_string("sign.user_email_env")?,
+        sign_key: cfg.get_string("sign.sign_key_env")?,
+    })
+}
+
+/// Resolve the env-var NAME holding the release tag (used when `--tag` is not
+/// given). Precedence: `--tag-env` flag > `gen-orb-mcp.toml` [publish].tag_env
+/// > `CIRCLE_TAG`.
+fn resolve_tag_env_name(
+    config_path: &std::path::Path,
+    override_name: Option<&str>,
+) -> Result<String> {
+    if let Some(v) = override_name {
+        return Ok(v.to_string());
+    }
+    let cfg = config::Config::builder()
+        .set_default("publish.tag_env", DEFAULT_TAG_ENV)?
+        .add_source(config::File::from(config_path).required(false))
+        .build()?;
+    Ok(cfg.get_string("publish.tag_env")?)
+}
+
+fn read_sign_env(names: &SignEnvNames) -> Result<SignEnv> {
+    let read = |name: &str| -> Result<String> {
+        std::env::var(name)
+            .map_err(|_| anyhow::anyhow!("{name} env var not set (required with --sign)"))
+    };
     Ok(SignEnv {
-        gpg_key_b64: std::env::var("BOT_GPG_KEY")
-            .map_err(|_| anyhow::anyhow!("BOT_GPG_KEY env var not set (required with --sign)"))?,
-        gpg_trust: std::env::var("BOT_TRUST")
-            .map_err(|_| anyhow::anyhow!("BOT_TRUST env var not set (required with --sign)"))?,
-        user_name: std::env::var("BOT_USER_NAME")
-            .map_err(|_| anyhow::anyhow!("BOT_USER_NAME env var not set (required with --sign)"))?,
-        user_email: std::env::var("BOT_USER_EMAIL").map_err(|_| {
-            anyhow::anyhow!("BOT_USER_EMAIL env var not set (required with --sign)")
-        })?,
-        sign_key: std::env::var("BOT_SIGN_KEY")
-            .map_err(|_| anyhow::anyhow!("BOT_SIGN_KEY env var not set (required with --sign)"))?,
+        gpg_key_b64: read(&names.gpg_key)?,
+        gpg_trust: read(&names.trust)?,
+        user_name: read(&names.user_name)?,
+        user_email: read(&names.user_email)?,
+        sign_key: read(&names.sign_key)?,
     })
 }
 
@@ -843,9 +1014,12 @@ fn run_save(
     push: bool,
     dry_run: bool,
     sign: bool,
+    config_path: &std::path::Path,
+    sign_overrides: &SignEnvNameOverrides,
 ) -> Result<()> {
     if sign {
-        let sign_env = read_sign_env()?;
+        let names = resolve_sign_env_names(config_path, sign_overrides)?;
+        let sign_env = read_sign_env(&names)?;
         pcu::import_gpg_key(&sign_env.gpg_key_b64, &sign_env.gpg_trust)
             .map_err(|e| anyhow::anyhow!("GPG import failed: {e}"))?;
         // The commit identity and signing key are passed explicitly to pcu via
@@ -1060,54 +1234,68 @@ fn resolve_publish_target(
     Ok((resolved_binary, resolved_asset))
 }
 
-fn run_publish(
-    name: Option<&str>,
-    input: &std::path::Path,
-    binary: Option<&std::path::Path>,
-    asset_name: Option<&str>,
-    tag: Option<&str>,
+/// Inputs for the `publish` command, captured so the run logic is a method on
+/// the data rather than a many-argument free function.
+struct PublishJob<'a> {
+    name: Option<&'a str>,
+    input: &'a std::path::Path,
+    binary: Option<&'a std::path::Path>,
+    asset_name: Option<&'a str>,
+    tag: Option<&'a str>,
     dry_run: bool,
-) -> Result<()> {
-    let (binary, asset_name) = resolve_publish_target(name, input, binary, asset_name)?;
-    let binary = binary.as_path();
-    let asset_name = asset_name.as_str();
-    if !binary.exists() {
-        anyhow::bail!("Binary not found: {}", binary.display());
-    }
+    config_path: &'a std::path::Path,
+    tag_env_override: Option<&'a str>,
+}
 
-    let resolved_tag = match tag {
-        Some(t) => t.to_string(),
-        None => std::env::var("CIRCLE_TAG").map_err(|_| {
-            anyhow::anyhow!("No release tag provided. Set CIRCLE_TAG or use --tag <TAG>")
-        })?,
-    };
-
-    if dry_run {
-        let owner = std::env::var("CIRCLE_PROJECT_USERNAME").unwrap_or_default();
-        let repo_name = std::env::var("CIRCLE_PROJECT_REPONAME").unwrap_or_default();
-        println!("Would upload release asset (dry run):");
-        println!("  Binary:     {}", binary.display());
-        println!("  Asset name: {asset_name}");
-        println!("  Tag:        {resolved_tag}");
-        if !owner.is_empty() && !repo_name.is_empty() {
-            println!("  Repo:       {owner}/{repo_name}");
+impl PublishJob<'_> {
+    fn run(self) -> Result<()> {
+        let (binary, asset_name) =
+            resolve_publish_target(self.name, self.input, self.binary, self.asset_name)?;
+        let binary = binary.as_path();
+        let asset_name = asset_name.as_str();
+        if !binary.exists() {
+            anyhow::bail!("Binary not found: {}", binary.display());
         }
-        return Ok(());
-    }
 
-    let pcu_config = build_pcu_config()?;
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()?
-        .block_on(async {
-            let client = pcu::Client::new_with(&pcu_config)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to create pcu client: {e}"))?;
-            client
-                .upload_release_asset(&resolved_tag, binary, asset_name)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to upload release asset: {e}"))
-        })
+        let resolved_tag = match self.tag {
+            Some(t) => t.to_string(),
+            None => {
+                let tag_env_name = resolve_tag_env_name(self.config_path, self.tag_env_override)?;
+                std::env::var(&tag_env_name).map_err(|_| {
+                    anyhow::anyhow!(
+                        "No release tag provided. Set {tag_env_name} or use --tag <TAG>"
+                    )
+                })?
+            }
+        };
+
+        if self.dry_run {
+            let owner = std::env::var("CIRCLE_PROJECT_USERNAME").unwrap_or_default();
+            let repo_name = std::env::var("CIRCLE_PROJECT_REPONAME").unwrap_or_default();
+            println!("Would upload release asset (dry run):");
+            println!("  Binary:     {}", binary.display());
+            println!("  Asset name: {asset_name}");
+            println!("  Tag:        {resolved_tag}");
+            if !owner.is_empty() && !repo_name.is_empty() {
+                println!("  Repo:       {owner}/{repo_name}");
+            }
+            return Ok(());
+        }
+
+        let pcu_config = build_pcu_config()?;
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?
+            .block_on(async {
+                let client = pcu::Client::new_with(&pcu_config)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Failed to create pcu client: {e}"))?;
+                client
+                    .upload_release_asset(&resolved_tag, binary, asset_name)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Failed to upload release asset: {e}"))
+            })
+    }
 }
 
 fn run_build(
@@ -1175,7 +1363,8 @@ fn read_crate_name(input: &std::path::Path) -> Result<String> {
         .ok_or_else(|| anyhow::anyhow!("Could not find [package] name in Cargo.toml"))
 }
 
-/// Extract the `name` field from the `[package]` section of a Cargo.toml string.
+/// Extract the `name` field from the `[package]` section of a Cargo.toml
+/// string.
 fn parse_package_name(toml: &str) -> Option<String> {
     let mut in_package = false;
     for line in toml.lines() {
@@ -1681,12 +1870,13 @@ mod tests {
     /// `src/@orb.yml` → `src` → `""` (Rust `Path::parent` of `"src"` is `""`).
     /// If the function returns `""`, `repo_abs` cannot be canonicalised, so
     /// `strip_prefix("")` on the absolute `orb_abs` returns the full absolute
-    /// path.  `worktree.join(absolute_path)` then ignores the worktree and reads
-    /// the current working copy — producing snapshots with current-version
-    /// content for every historical tag.
+    /// path.  `worktree.join(absolute_path)` then ignores the worktree and
+    /// reads the current working copy — producing snapshots with
+    /// current-version content for every historical tag.
     ///
     /// The fix: canonicalise `start` at the top of `find_git_root` so the
-    /// walk-up always operates on absolute paths and returns an absolute result.
+    /// walk-up always operates on absolute paths and returns an absolute
+    /// result.
     #[test]
     fn test_find_git_root_returns_absolute_path_for_relative_input() {
         let _cwd_guard = CWD_LOCK.lock().unwrap();
@@ -1888,6 +2078,8 @@ mod tests {
             false,
             false,
             false,
+            std::path::Path::new("gen-orb-mcp.toml"),
+            &SignEnvNameOverrides::default(),
         );
         std::env::set_current_dir(&original).unwrap();
         assert!(
@@ -1910,6 +2102,8 @@ mod tests {
             false,
             false,
             false,
+            std::path::Path::new("gen-orb-mcp.toml"),
+            &SignEnvNameOverrides::default(),
         );
         std::env::set_current_dir(&original).unwrap();
         assert!(
@@ -1933,7 +2127,8 @@ mod tests {
     fn test_save_directory_path_stages_contents() {
         let dir = TempDir::new().unwrap();
         init_git_repo(dir.path());
-        // Create a directory with files inside — mirrors the prior-versions/ and migrations/ case
+        // Create a directory with files inside — mirrors the prior-versions/ and
+        // migrations/ case
         let subdir = dir.path().join("generated");
         std::fs::create_dir(&subdir).unwrap();
         std::fs::write(subdir.join("a.json"), r#"{"v": 1}"#).unwrap();
@@ -1947,6 +2142,8 @@ mod tests {
             false,
             false,
             false,
+            std::path::Path::new("gen-orb-mcp.toml"),
+            &SignEnvNameOverrides::default(),
         );
         std::env::set_current_dir(&original).unwrap();
         assert!(
@@ -1979,6 +2176,8 @@ mod tests {
             false,
             true,
             false,
+            std::path::Path::new("gen-orb-mcp.toml"),
+            &SignEnvNameOverrides::default(),
         );
         std::env::set_current_dir(&original).unwrap();
         assert!(result.is_ok(), "dry_run should succeed: {result:?}");
@@ -2025,18 +2224,34 @@ mod tests {
     }
 
     #[test]
-    fn test_read_sign_env_missing_bot_gpg_key() {
-        let prev = std::env::var("BOT_GPG_KEY").ok();
-        std::env::remove_var("BOT_GPG_KEY");
-        let result = read_sign_env();
-        if let Some(v) = prev {
-            std::env::set_var("BOT_GPG_KEY", v);
+    fn read_sign_env_missing_var_errors_with_resolved_name() {
+        // Use a unique, definitely-absent var name so this is parallel-safe and
+        // independent of the ambient environment.
+        let names = SignEnvNames {
+            gpg_key: "T185_MISSING_GPG_KEY".to_string(),
+            trust: "T185_MISSING_TRUST".to_string(),
+            user_name: "T185_MISSING_UN".to_string(),
+            user_email: "T185_MISSING_UE".to_string(),
+            sign_key: "T185_MISSING_SK".to_string(),
+        };
+        for k in [
+            "T185_MISSING_GPG_KEY",
+            "T185_MISSING_TRUST",
+            "T185_MISSING_UN",
+            "T185_MISSING_UE",
+            "T185_MISSING_SK",
+        ] {
+            std::env::remove_var(k);
         }
-        assert!(result.is_err(), "should fail when BOT_GPG_KEY is absent");
+        let result = read_sign_env(&names);
+        assert!(
+            result.is_err(),
+            "should fail when the resolved var is absent"
+        );
         let msg = result.unwrap_err().to_string();
         assert!(
-            msg.contains("BOT_GPG_KEY"),
-            "error should mention BOT_GPG_KEY, got: {msg}"
+            msg.contains("T185_MISSING_GPG_KEY"),
+            "error should mention the resolved var name, got: {msg}"
         );
     }
 
@@ -2075,14 +2290,17 @@ mod tests {
     #[test]
     fn test_publish_missing_binary_returns_error() {
         let dir = TempDir::new().unwrap();
-        let result = run_publish(
-            None,
-            std::path::Path::new("."),
-            Some(&dir.path().join("missing-binary")),
-            Some("asset.tar.gz"),
-            None,
-            false,
-        );
+        let result = PublishJob {
+            name: None,
+            input: std::path::Path::new("."),
+            binary: Some(&dir.path().join("missing-binary")),
+            asset_name: Some("asset.tar.gz"),
+            tag: None,
+            dry_run: false,
+            config_path: std::path::Path::new("no-such-config-185.toml"),
+            tag_env_override: None,
+        }
+        .run();
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
         assert!(
@@ -2098,14 +2316,17 @@ mod tests {
         std::fs::write(&binary, b"fake binary").unwrap();
         // dry_run must succeed without credentials — no API call is made
         std::env::remove_var("GITHUB_TOKEN");
-        let result = run_publish(
-            None,
-            std::path::Path::new("."),
-            Some(&binary),
-            Some("my-asset"),
-            Some("v1.0.0"),
-            true,
-        );
+        let result = PublishJob {
+            name: None,
+            input: std::path::Path::new("."),
+            binary: Some(&binary),
+            asset_name: Some("my-asset"),
+            tag: Some("v1.0.0"),
+            dry_run: true,
+            config_path: std::path::Path::new("no-such-config-185.toml"),
+            tag_env_override: None,
+        }
+        .run();
         assert!(
             result.is_ok(),
             "dry_run should not require credentials: {result:?}"
@@ -2120,14 +2341,17 @@ mod tests {
         std::env::set_var("GITHUB_TOKEN", "fake-token");
         std::env::remove_var("CIRCLE_TAG");
         // no --tag and no CIRCLE_TAG — should fail with a clear message
-        let result = run_publish(
-            None,
-            std::path::Path::new("."),
-            Some(&binary),
-            Some("my-asset"),
-            None,
-            true,
-        );
+        let result = PublishJob {
+            name: None,
+            input: std::path::Path::new("."),
+            binary: Some(&binary),
+            asset_name: Some("my-asset"),
+            tag: None,
+            dry_run: true,
+            config_path: std::path::Path::new("no-such-config-185.toml"),
+            tag_env_override: None,
+        }
+        .run();
         std::env::remove_var("GITHUB_TOKEN");
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
@@ -2145,14 +2369,17 @@ mod tests {
         std::env::set_var("GITHUB_TOKEN", "fake-token");
         std::env::set_var("CIRCLE_PROJECT_USERNAME", "jerus-org");
         std::env::set_var("CIRCLE_PROJECT_REPONAME", "my-orb");
-        let result = run_publish(
-            None,
-            std::path::Path::new("."),
-            Some(&binary),
-            Some("my-asset-linux-x86_64"),
-            Some("v1.0.0"),
-            true,
-        );
+        let result = PublishJob {
+            name: None,
+            input: std::path::Path::new("."),
+            binary: Some(&binary),
+            asset_name: Some("my-asset-linux-x86_64"),
+            tag: Some("v1.0.0"),
+            dry_run: true,
+            config_path: std::path::Path::new("no-such-config-185.toml"),
+            tag_env_override: None,
+        }
+        .run();
         std::env::remove_var("GITHUB_TOKEN");
         std::env::remove_var("CIRCLE_PROJECT_USERNAME");
         std::env::remove_var("CIRCLE_PROJECT_REPONAME");
@@ -2417,6 +2644,126 @@ mod tests {
         } else {
             panic!("expected Build variant");
         }
+    }
+
+    // --- #185: configurable signing / publish env-var names ---
+
+    #[test]
+    fn sign_env_names_default_to_generic() {
+        let names = resolve_sign_env_names(
+            std::path::Path::new("does-not-exist-185.toml"),
+            &SignEnvNameOverrides::default(),
+        )
+        .unwrap();
+        assert_eq!(names.gpg_key, "GPG_KEY");
+        assert_eq!(names.trust, "GPG_TRUST");
+        assert_eq!(names.user_name, "GIT_USER_NAME");
+        assert_eq!(names.user_email, "GIT_USER_EMAIL");
+        assert_eq!(names.sign_key, "GPG_SIGN_KEY");
+    }
+
+    #[test]
+    fn sign_env_names_from_config_file() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("gen-orb-mcp.toml");
+        std::fs::write(
+            &path,
+            "[sign]\n\
+             gpg_key_env = \"BOT_GPG_KEY\"\n\
+             trust_env = \"BOT_TRUST\"\n\
+             user_name_env = \"BOT_USER_NAME\"\n\
+             user_email_env = \"BOT_USER_EMAIL\"\n\
+             sign_key_env = \"BOT_SIGN_KEY\"\n",
+        )
+        .unwrap();
+        let names = resolve_sign_env_names(&path, &SignEnvNameOverrides::default()).unwrap();
+        assert_eq!(names.gpg_key, "BOT_GPG_KEY");
+        assert_eq!(names.trust, "BOT_TRUST");
+        assert_eq!(names.user_name, "BOT_USER_NAME");
+        assert_eq!(names.user_email, "BOT_USER_EMAIL");
+        assert_eq!(names.sign_key, "BOT_SIGN_KEY");
+    }
+
+    #[test]
+    fn sign_env_cli_override_beats_config() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("gen-orb-mcp.toml");
+        std::fs::write(&path, "[sign]\ngpg_key_env = \"BOT_GPG_KEY\"\n").unwrap();
+        let overrides = SignEnvNameOverrides {
+            gpg_key_env: Some("CLI_GPG".to_string()),
+            ..Default::default()
+        };
+        let names = resolve_sign_env_names(&path, &overrides).unwrap();
+        assert_eq!(names.gpg_key, "CLI_GPG", "CLI override wins over config");
+        assert_eq!(
+            names.trust, "GPG_TRUST",
+            "unspecified falls back to default"
+        );
+    }
+
+    #[test]
+    fn read_sign_env_reads_resolved_names() {
+        let names = SignEnvNames {
+            gpg_key: "T185_GPG_KEY".to_string(),
+            trust: "T185_TRUST".to_string(),
+            user_name: "T185_UN".to_string(),
+            user_email: "T185_UE".to_string(),
+            sign_key: "T185_SK".to_string(),
+        };
+        for (k, v) in [
+            ("T185_GPG_KEY", "key"),
+            ("T185_TRUST", "trust"),
+            ("T185_UN", "Bot"),
+            ("T185_UE", "bot@example.com"),
+            ("T185_SK", "ABCD"),
+        ] {
+            std::env::set_var(k, v);
+        }
+        let se = read_sign_env(&names).unwrap();
+        assert_eq!(se.gpg_key_b64, "key");
+        assert_eq!(se.user_email, "bot@example.com");
+        for k in [
+            "T185_GPG_KEY",
+            "T185_TRUST",
+            "T185_UN",
+            "T185_UE",
+            "T185_SK",
+        ] {
+            std::env::remove_var(k);
+        }
+    }
+
+    #[test]
+    fn read_sign_env_error_names_the_resolved_var() {
+        let names = SignEnvNames {
+            gpg_key: "T185_ABSENT_KEY".to_string(),
+            trust: "x".to_string(),
+            user_name: "x".to_string(),
+            user_email: "x".to_string(),
+            sign_key: "x".to_string(),
+        };
+        std::env::remove_var("T185_ABSENT_KEY");
+        let err = read_sign_env(&names).unwrap_err().to_string();
+        assert!(
+            err.contains("T185_ABSENT_KEY"),
+            "error should name the resolved var, got: {err}"
+        );
+    }
+
+    #[test]
+    fn tag_env_name_resolution() {
+        assert_eq!(
+            resolve_tag_env_name(std::path::Path::new("nope-185.toml"), None).unwrap(),
+            "CIRCLE_TAG"
+        );
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("gen-orb-mcp.toml");
+        std::fs::write(&path, "[publish]\ntag_env = \"MY_TAG\"\n").unwrap();
+        assert_eq!(resolve_tag_env_name(&path, None).unwrap(), "MY_TAG");
+        assert_eq!(
+            resolve_tag_env_name(&path, Some("CLI_TAG")).unwrap(),
+            "CLI_TAG"
+        );
     }
 }
 
