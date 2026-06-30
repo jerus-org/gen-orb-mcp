@@ -35,7 +35,7 @@ parameters:
     default: false
   rename_map:
     type: string
-    description: '<OLD=NEW> Override git rename detection for a specific job (repeatable). Format: `OLD=NEW`, e.g. `--rename-map common_tests_rolling=common_tests`. Manual entries take precedence over git-detected hints for matching old names.  Use this when commits cannot be restructured to follow the two-commit rename rule'
+    description: '<OLD=NEW> Override git rename detection for a specific job (repeatable). Format: `OLD=NEW`, e.g. `--rename-map common_tests_rolling=common_tests`. Manual entries take precedence over git-detected hints for matching old names. Use this when commits cannot be restructured to follow the two-commit rename rule'
     default: ''
   dry_run:
     type: boolean

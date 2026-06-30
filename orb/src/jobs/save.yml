@@ -25,8 +25,32 @@ parameters:
     default: false
   sign:
     type: boolean
-    description: 'Use GPG-signed commit and GitHub App token push.  Reads: BOT_GPG_KEY (base64 GPG key), BOT_TRUST (ownertrust), BOT_USER_NAME, BOT_USER_EMAIL, BOT_SIGN_KEY (key ID), GITHUB_TOKEN (GitHub App installation token), CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME, CIRCLE_BRANCH.'
+    description: Use GPG-signed commit and GitHub App token push.  Reads the GPG key, ownertrust, commit name/email and signing key id from env vars whose NAMES default to GPG_KEY / GPG_TRUST / GIT_USER_NAME / GIT_USER_EMAIL / GPG_SIGN_KEY and are configurable via gen-orb-mcp.toml (`[sign]`) or the --*-env flags. Also reads GITHUB_TOKEN (GitHub App token), CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME, CIRCLE_BRANCH.
     default: false
+  config:
+    type: string
+    description: 'Path to the config file (default: gen-orb-mcp.toml in cwd)'
+    default: ''
+  gpg_key_env:
+    type: string
+    description: Env var NAME for the base64 GPG key (default GPG_KEY; `[sign].gpg_key_env`)
+    default: ''
+  trust_env:
+    type: string
+    description: Env var NAME for the GPG ownertrust (default GPG_TRUST; `[sign].trust_env`)
+    default: ''
+  user_name_env:
+    type: string
+    description: Env var NAME for the commit author name (default GIT_USER_NAME; `[sign].user_name_env`)
+    default: ''
+  user_email_env:
+    type: string
+    description: Env var NAME for the commit author email (default GIT_USER_EMAIL; `[sign].user_email_env`)
+    default: ''
+  sign_key_env:
+    type: string
+    description: Env var NAME for the GPG signing key id (default GPG_SIGN_KEY; `[sign].sign_key_env`)
+    default: ''
   attach_workspace:
     type: boolean
     description: Attach a workspace before running the command (use when the binary was built in a prior job).
@@ -55,3 +79,9 @@ steps:
     no_push: << parameters.no_push >>
     dry_run: << parameters.dry_run >>
     sign: << parameters.sign >>
+    config: << parameters.config >>
+    gpg_key_env: << parameters.gpg_key_env >>
+    trust_env: << parameters.trust_env >>
+    user_name_env: << parameters.user_name_env >>
+    user_email_env: << parameters.user_email_env >>
+    sign_key_env: << parameters.sign_key_env >>

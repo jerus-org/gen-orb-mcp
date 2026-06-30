@@ -4,5 +4,7 @@ set -- gen-orb-mcp publish
 [[ -n "${BINARY:-}" ]] && set -- "$@" --binary "${BINARY}"
 [[ -n "${ASSET_NAME:-}" ]] && set -- "$@" --asset-name "${ASSET_NAME}"
 [[ -n "${TAG:-}" ]] && set -- "$@" --tag "${TAG}"
+[[ -n "${TAG_ENV:-}" ]] && set -- "$@" --tag-env "${TAG_ENV}"
+[[ -n "${CONFIG:-}" ]] && set -- "$@" --config "${CONFIG}"
 [[ "${DRY_RUN:-false}" = "true" ]] && set -- "$@" --dry-run
 "$@"
