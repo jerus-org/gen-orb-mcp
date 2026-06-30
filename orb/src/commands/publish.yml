@@ -18,7 +18,15 @@ parameters:
     default: ''
   tag:
     type: string
-    description: 'Release tag to publish to (default: $CIRCLE_TAG)'
+    description: Release tag to publish to. When omitted, read from the env var named by --tag-env / [publish].tag_env (default CIRCLE_TAG)
+    default: ''
+  tag_env:
+    type: string
+    description: Env var NAME holding the release tag when --tag is not given (default CIRCLE_TAG; config [publish].tag_env)
+    default: ''
+  config:
+    type: string
+    description: 'Path to the config file (default: gen-orb-mcp.toml in cwd)'
     default: ''
   dry_run:
     type: boolean
@@ -40,3 +48,5 @@ steps:
       BINARY: << parameters.binary >>
       ASSET_NAME: << parameters.asset_name >>
       TAG: << parameters.tag >>
+      TAG_ENV: << parameters.tag_env >>
+      CONFIG: << parameters.config >>
