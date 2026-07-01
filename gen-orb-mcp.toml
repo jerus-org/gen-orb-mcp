@@ -1,0 +1,14 @@
+# gen-orb-mcp configuration for THIS repository.
+#
+# Maps gen-orb-mcp's generic signing env-var NAMES (the #185 defaults —
+# GPG_KEY / GPG_TRUST / GIT_USER_NAME / GIT_USER_EMAIL / GPG_SIGN_KEY) to the
+# env-var names this project actually provides via its CircleCI release
+# context. Only the NAMES live here (safe to commit); the secret values stay
+# in the context. Auto-discovered in the working directory by `save --sign`
+# (e.g. the build_mcp_server job's commit-back).
+[sign]
+gpg_key_env    = "BOT_GPG_KEY"
+trust_env      = "BOT_TRUST"
+user_name_env  = "BOT_USER_NAME"
+user_email_env = "BOT_USER_EMAIL"
+sign_key_env   = "BOT_SIGN_KEY"
