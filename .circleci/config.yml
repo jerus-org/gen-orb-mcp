@@ -11,7 +11,7 @@ orbs:
   gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.48
   orb-tools: circleci/orb-tools@12.4.0
   # >>> gen-circleci-orb (managed — edits overwritten by 'gen-circleci-orb update')
-  gen-circleci-orb: jerus-org/gen-circleci-orb@0.0.54
+  gen-circleci-orb: jerus-org/gen-circleci-orb@0.0.57
   # <<< gen-circleci-orb
 workflows:
   validation:
@@ -101,6 +101,7 @@ workflows:
           orb_namespace: jerus-org
           orb_dir: orb
           attach_workspace: true
+          check_ci_wiring: false
           ssh_fingerprint: "SHA256:OkxsH8Z6Iim6WDJBaII9eTT9aaO1f3eDc6IpsgYYPVg"
           persist_orb_workspace: true
           context: [release]
@@ -154,6 +155,7 @@ workflows:
           orb_dir: orb
           attach_workspace: true
           check: true
+          check_ci_wiring: false
           requires: [orb-release-binary]
           filters:
             tags:

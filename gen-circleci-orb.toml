@@ -3,6 +3,10 @@ binary = "gen-orb-mcp"
 namespaces = ["jerus-org"]
 orb_dir = "orb"
 git_push_subcommands = ["save"]
+# Native build deps for the runtime image, where build_mcp_server COMPILES the
+# generated MCP server crate. Its dep tree (rmcp/reqwest → openssl-sys, aws-lc-sys)
+# uses bindgen/cmake, which need libclang + cmake on trixie's newer OpenSSL.
+apt_packages = ["build-essential", "clang", "cmake"]
 # The Rust executor base and build deps (cargo, gnupg, libssl-dev, pkg-config)
 # are provisioned automatically by gen-circleci-orb because [ci].mcp = true.
 
