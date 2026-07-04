@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - clang+cmake for the MCP build image on trixie(pr [#223])
+- pin orb image digests in config(pr [#224])
 
 ## [0.1.57] - 2026-07-01
 
@@ -767,6 +768,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#221]: https://github.com/jerus-org/gen-orb-mcp/pull/221
 [#222]: https://github.com/jerus-org/gen-orb-mcp/pull/222
 [#223]: https://github.com/jerus-org/gen-orb-mcp/pull/223
+[#224]: https://github.com/jerus-org/gen-orb-mcp/pull/224
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.57...HEAD
 [0.1.57]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.56...v0.1.57
 [0.1.56]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.55...v0.1.56
