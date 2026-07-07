@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- deps: update rust crate pmcp to 2.13.0(pr [#230])
+
 ## [0.1.58] - 2026-07-04
 
 ### Fixed
@@ -779,6 +785,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#227]: https://github.com/jerus-org/gen-orb-mcp/pull/227
 [#228]: https://github.com/jerus-org/gen-orb-mcp/pull/228
 [#229]: https://github.com/jerus-org/gen-orb-mcp/pull/229
+[#230]: https://github.com/jerus-org/gen-orb-mcp/pull/230
+[Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.58...HEAD
 [0.1.58]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.57...v0.1.58
 [0.1.57]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.56...v0.1.57
 [0.1.56]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.55...v0.1.56
