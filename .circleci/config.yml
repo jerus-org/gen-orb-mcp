@@ -95,13 +95,14 @@ workflows:
       - gen-circleci-orb/build_rust_binary:
           name: build-binary
           package: gen-orb-mcp
+          rust_image: jerusdp/ci-rust:rolling-6mo@sha256:2256d29b9b92041dd29b9575aeac5c45abe539696c9db670c685b47f67df1f01
       - gen-circleci-orb/generate:
           name: regenerate-orb
           binary: gen-orb-mcp
           orb_namespace: jerus-org
           orb_dir: orb
           attach_workspace: true
-          check_ci_wiring: false
+          check_ci_wiring: true
           ssh_fingerprint: "SHA256:OkxsH8Z6Iim6WDJBaII9eTT9aaO1f3eDc6IpsgYYPVg"
           persist_orb_workspace: true
           context: [release]
@@ -142,6 +143,7 @@ workflows:
       - gen-circleci-orb/build_rust_binary:
           name: orb-release-binary
           package: gen-orb-mcp
+          rust_image: jerusdp/ci-rust:rolling-6mo@sha256:2256d29b9b92041dd29b9575aeac5c45abe539696c9db670c685b47f67df1f01
           filters:
             tags:
               only: /^gen-orb-mcp-v.*/
