@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deps: update dependency toolkit to v6.5.1(pr [#233])
 - deps: update dependency gen-circleci-orb to v0.0.61(pr [#234])
 - rust_image for build binary jobs (libclang)(pr [#236])
+- deps: lock file maintenance(pr [#235])
 
 ## [0.1.58] - 2026-07-04
 
@@ -796,6 +797,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#233]: https://github.com/jerus-org/gen-orb-mcp/pull/233
 [#234]: https://github.com/jerus-org/gen-orb-mcp/pull/234
 [#236]: https://github.com/jerus-org/gen-orb-mcp/pull/236
+[#235]: https://github.com/jerus-org/gen-orb-mcp/pull/235
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.58...HEAD
 [0.1.58]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.57...v0.1.58
 [0.1.57]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.56...v0.1.57
