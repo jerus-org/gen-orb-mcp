@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- deps: update dependency gen-orb-mcp to v0.1.51(pr [#239])
+
 ## [0.1.59] - 2026-07-09
 
 ### Fixed
@@ -800,6 +806,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#236]: https://github.com/jerus-org/gen-orb-mcp/pull/236
 [#235]: https://github.com/jerus-org/gen-orb-mcp/pull/235
 [#237]: https://github.com/jerus-org/gen-orb-mcp/pull/237
+[#239]: https://github.com/jerus-org/gen-orb-mcp/pull/239
+[Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.59...HEAD
 [0.1.59]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.58...v0.1.59
 [0.1.58]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.57...v0.1.58
 [0.1.57]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.56...v0.1.57
