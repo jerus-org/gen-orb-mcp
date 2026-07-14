@@ -126,7 +126,7 @@ Five jobs cover the complete journey from orb YAML to a compiled binary attached
 
 ```yaml
 orbs:
-  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.11
+  gen-orb-mcp: jerus-org/gen-orb-mcp@0.2.0
 
 workflows:
   release:

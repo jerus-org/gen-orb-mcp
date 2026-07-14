@@ -14,6 +14,13 @@ commands, jobs, and executors as MCP Resources. When conformance rules are provi
 generated server also gains `plan_migration` and `apply_migration` MCP Tools, allowing an AI
 assistant to guide users through orb version migrations interactively.
 
+gen-orb-mcp also ships as a **public CircleCI orb** (`jerus-org/gen-orb-mcp`) that **any orb
+author can add to their own release pipeline** — not just jerus-org projects. Adopting the orb
+gives your orb an automatically generated, version-aware MCP server (and AI-guided migrations)
+with no local tooling to install and no jerus-org-specific setup: the env-var names it reads are
+configurable, so you map them to your own CI secrets. See
+[Adopt the orb in your own pipeline](#adopt-the-orb-in-your-own-pipeline).
+
 ## Features
 
 - **Parse any CircleCI orb** — supports commands, jobs, executors, and parameters
@@ -140,16 +147,21 @@ gen-orb-mcp migrate \
 
 ## CircleCI Orb
 
-gen-orb-mcp is published as a CircleCI orb at `jerus-org/gen-orb-mcp`. The orb exposes each
-subcommand as a reusable job running inside the pre-built Docker image with gen-orb-mcp
-pre-installed — no manual installation required.
+gen-orb-mcp is published as a **public** CircleCI orb at `jerus-org/gen-orb-mcp` — usable by any
+CircleCI project, not only jerus-org's. The orb exposes each subcommand as a reusable job running
+inside the pre-built Docker image with gen-orb-mcp pre-installed — no manual installation
+required.
 
 ### Add to your config
 
 ```yaml
 orbs:
-  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.11
+  gen-orb-mcp: jerus-org/gen-orb-mcp@0.2.0
 ```
+
+Pin a concrete version and let [Renovate](https://docs.renovatebot.com/) (CircleCI orb
+datasource) keep it current; check the [registry](https://circleci.com/developer/orbs/orb/jerus-org/gen-orb-mcp)
+for the latest release.
 
 ### Available jobs
 
@@ -168,7 +180,7 @@ orbs:
 
 ```yaml
 orbs:
-  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.11
+  gen-orb-mcp: jerus-org/gen-orb-mcp@0.2.0
 
 workflows:
   build:
@@ -185,7 +197,7 @@ Generate, compile, upload, and save in one automated workflow:
 
 ```yaml
 orbs:
-  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.11
+  gen-orb-mcp: jerus-org/gen-orb-mcp@0.2.0
 
 workflows:
   release:
@@ -225,6 +237,37 @@ does not block the binary upload.
 The orb source is regenerated automatically on every build by
 [gen-circleci-orb](https://github.com/jerus-org/gen-circleci-orb), which introspects
 gen-orb-mcp's `--help` output and keeps the orb in sync whenever the CLI changes.
+
+### Adopt the orb in your own pipeline
+
+The orb is public, so **any orb author** can add it to their release pipeline to ship an MCP
+server for their own orb — the pipeline above works for any orb, not just gen-orb-mcp's. Two
+jobs need credentials, and the env-var **names** they read are configurable so they map to
+whatever your CI secrets are called (there is no jerus-org-specific convention to adopt):
+
+- `publish` reads `GITHUB_TOKEN` (plus CircleCI's own `CIRCLE_*` vars) to attach the binary to
+  a GitHub release. Override the tag source with `--tag-env` or `[publish].tag_env` in
+  `gen-orb-mcp.toml` (default `CIRCLE_TAG`).
+- `save` GPG-signs and pushes the regenerated artifacts. It reads the signing material from env
+  vars whose names default to `GPG_KEY`, `GPG_TRUST`, `GIT_USER_NAME`, `GIT_USER_EMAIL`, and
+  `GPG_SIGN_KEY`, each overridable via a `--*-env` flag or the `[sign]` section.
+
+Only the **names** are configured (via flag or file); the secret **values** always come from the
+CI context at runtime — nothing sensitive is committed. Resolution precedence is
+`--*-env flag > gen-orb-mcp.toml > built-in default`. A minimal mapping to existing secrets:
+
+```toml
+# gen-orb-mcp.toml — map the generic names onto your own CI secret names
+[sign]
+gpg_key_env    = "MY_GPG_KEY"
+trust_env      = "MY_GPG_TRUST"
+user_name_env  = "MY_BOT_NAME"
+user_email_env = "MY_BOT_EMAIL"
+sign_key_env   = "MY_GPG_SIGN_KEY"
+
+[publish]
+tag_env = "CIRCLE_TAG"
+```
 
 ## CLI Reference
 
@@ -325,6 +368,8 @@ Options:
   -b, --binary <PATH>       Path to the compiled binary file (required)
   -a, --asset-name <NAME>   Name of the release asset as it appears on GitHub (required)
       --tag <TAG>            Git tag identifying the release [default: $CIRCLE_TAG]
+      --tag-env <NAME>       Env-var NAME holding the tag (overrides [publish].tag_env
+                             in gen-orb-mcp.toml; built-in default CIRCLE_TAG)
       --dry-run              Print what would be uploaded without calling the API
 ```
 
@@ -347,11 +392,20 @@ Arguments:
   <PATHS>...   Paths to stage (files or directories)
 
 Options:
-  -m, --message <MSG>   Commit message [default: "chore: update generated MCP server artifacts [skip ci]"]
-      --push            Push to origin after committing [default: true]
-      --no-push         Skip the push step
-      --dry-run         Stage and diff without creating a commit
+  -m, --message <MSG>       Commit message [default: "chore: update generated MCP server artifacts [skip ci]"]
+      --push                Push to origin after committing [default: true]
+      --no-push             Skip the push step
+      --gpg-key-env <NAME>  Env-var NAME for the base64 GPG key      (default GPG_KEY)
+      --trust-env <NAME>    Env-var NAME for the GPG ownertrust      (default GPG_TRUST)
+      --user-name-env <N>   Env-var NAME for the commit author name  (default GIT_USER_NAME)
+      --user-email-env <N>  Env-var NAME for the commit author email (default GIT_USER_EMAIL)
+      --sign-key-env <NAME> Env-var NAME for the GPG signing key id  (default GPG_SIGN_KEY)
+      --dry-run             Stage and diff without creating a commit
 ```
+
+Each `--*-env` flag overrides the matching `[sign]` entry in `gen-orb-mcp.toml`; unset, the
+built-in generic defaults apply. Only names are configured — the secret values are read from
+the named env vars at runtime.
 
 Idempotent: if the working tree is clean after staging all paths (no changes), `save` exits 0
 without creating a commit. The default commit message includes `[skip ci]` to prevent CI

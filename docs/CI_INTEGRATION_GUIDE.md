@@ -68,7 +68,7 @@ preferred approach — no tool installation, no custom scripts.
 
 ```yaml
 orbs:
-  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.11
+  gen-orb-mcp: jerus-org/gen-orb-mcp@0.2.0
 ```
 
 Available jobs: `generate`, `validate`, `diff`, `migrate`, `prime`, `build`, `publish`, `save`.
