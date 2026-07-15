@@ -148,9 +148,8 @@ gen-orb-mcp migrate \
 ## CircleCI Orb
 
 gen-orb-mcp is published as a **public** CircleCI orb at `jerus-org/gen-orb-mcp` — usable by any
-CircleCI project, not only jerus-org's. The orb exposes each subcommand as a reusable job running
-inside the pre-built Docker image with gen-orb-mcp pre-installed — no manual installation
-required.
+CircleCI project, not only jerus-org's. It runs inside a pre-built Docker image with gen-orb-mcp
+pre-installed, so there is nothing to install at build time.
 
 ### Add to your config
 
@@ -165,16 +164,26 @@ for the latest release.
 
 ### Available jobs
 
-| Job | Required parameters | Description |
-|-----|---------------------|-------------|
-| `generate` | `orb_path` | Generate an MCP server from an orb YAML file |
-| `validate` | `orb_path` | Validate an orb definition |
-| `diff` | `current`, `previous`, `since_version` | Compute conformance rules between two orb versions |
-| `migrate` | `orb`, `rules` | Apply migration rules to a consumer CI directory |
-| `prime` | — | Populate `prior-versions/` and `migrations/` from git history |
-| `build` | `input` | Compile generated MCP server source to a native binary |
-| `publish` | `binary`, `asset_name` | Upload compiled binary to an existing GitHub release |
-| `save` | `paths` | Stage, commit, and push generated artifacts back to the repo |
+The orb offers the individual subcommands as jobs, plus one composed job that runs the whole
+MCP-release pipeline as a single step:
+
+| Job | Description |
+|-----|-------------|
+| `build_mcp_server` | **Composite** — prime prior versions, generate and compile the MCP server, publish the binary to a GitHub release, and commit the artifacts back, in one job |
+| `generate` | Generate an MCP server (source or binary) from an orb YAML file |
+| `validate` | Validate an orb definition |
+| `diff` | Compute conformance rules between two orb versions |
+| `migrate` | Apply migration rules to a consumer CI directory |
+| `build` | Compile generated MCP server source to a native binary |
+
+The standalone jobs map one-to-one to the CLI subcommands (`gen-orb-mcp <subcommand> --help`).
+`build_mcp_server` does **not** — it has no matching subcommand. It is a *composed* job assembled
+from several of gen-orb-mcp's commands (`prime`, `generate`, `publish`, `save`) plus checkout,
+workspace, and git-setup steps, authored in gen-circleci-orb's configuration rather than derived
+from `--help`. That is what lets a consumer treat "build and publish my MCP server" as one
+activity instead of wiring five jobs. See gen-circleci-orb's
+[Advanced Configuration Guide](https://github.com/jerus-org/gen-circleci-orb/blob/main/docs/advanced-configuration.md)
+for how such a job is composed — `build_mcp_server` is its worked example.
 
 ### Example: generate an MCP server from your orb in CI
 
@@ -191,9 +200,9 @@ workflows:
           version: "1.0.0"
 ```
 
-### Example: complete release pipeline
+### Example: the full release pipeline in one job
 
-Generate, compile, upload, and save in one automated workflow:
+`build_mcp_server` primes, generates, compiles, publishes, and commits back — one job:
 
 ```yaml
 orbs:
@@ -202,37 +211,12 @@ orbs:
 workflows:
   release:
     jobs:
-      - gen-orb-mcp/prime:
-          orb_path: src/@orb.yml
+      - gen-orb-mcp/build_mcp_server:
+          binary_name: my-orb-mcp
+          tag_prefix: my-orb-v
           earliest_version: "1.0.0"
-          ephemeral: true
-
-      - gen-orb-mcp/generate:
-          requires: [gen-orb-mcp/prime]
-          orb_path: src/@orb.yml
-          output: /tmp/mcp-build
-          version: "${CIRCLE_TAG#v}"
-          migrations: /tmp/gen-orb-mcp-prime/migrations
-          prior_versions: /tmp/gen-orb-mcp-prime/prior-versions
-
-      - gen-orb-mcp/build:
-          requires: [gen-orb-mcp/generate]
-          input: /tmp/mcp-build
-
-      - gen-orb-mcp/publish:
-          requires: [gen-orb-mcp/build]
-          binary: /tmp/mcp-build/target/release/my_orb_mcp
-          asset_name: my-orb-mcp-linux-x86_64
-          context: github-release  # must provide GITHUB_TOKEN
-
-      - gen-orb-mcp/save:
-          requires: [gen-orb-mcp/generate]
-          paths: prior-versions migrations
-          context: github-push     # must provide push credentials
+          context: [my-release-context]   # signing + GitHub release credentials
 ```
-
-`save` runs in parallel with `build` (both require `generate`), so the artifact commit
-does not block the binary upload.
 
 The orb source is regenerated automatically on every build by
 [gen-circleci-orb](https://github.com/jerus-org/gen-circleci-orb), which introspects
@@ -240,17 +224,17 @@ gen-orb-mcp's `--help` output and keeps the orb in sync whenever the CLI changes
 
 ### Adopt the orb in your own pipeline
 
-The orb is public, so **any orb author** can add it to their release pipeline to ship an MCP
-server for their own orb — the pipeline above works for any orb, not just gen-orb-mcp's. Two
-jobs need credentials, and the env-var **names** they read are configurable so they map to
-whatever your CI secrets are called (there is no jerus-org-specific convention to adopt):
+The orb is public, so **any orb author** can add `build_mcp_server` to their release pipeline to
+ship an MCP server for their own orb — it works for any orb, not just gen-orb-mcp's. Its `publish`
+and `save` steps need credentials, and the env-var **names** they read are configurable so they
+map to whatever your CI secrets are called (there is no jerus-org-specific convention to adopt):
 
-- `publish` reads `GITHUB_TOKEN` (plus CircleCI's own `CIRCLE_*` vars) to attach the binary to
-  a GitHub release. Override the tag source with `--tag-env` or `[publish].tag_env` in
+- The **publish** step reads `GITHUB_TOKEN` (plus CircleCI's own `CIRCLE_*` vars) to attach the
+  binary to a GitHub release. Override the tag source with `--tag-env` or `[publish].tag_env` in
   `gen-orb-mcp.toml` (default `CIRCLE_TAG`).
-- `save` GPG-signs and pushes the regenerated artifacts. It reads the signing material from env
-  vars whose names default to `GPG_KEY`, `GPG_TRUST`, `GIT_USER_NAME`, `GIT_USER_EMAIL`, and
-  `GPG_SIGN_KEY`, each overridable via a `--*-env` flag or the `[sign]` section.
+- The **save** step GPG-signs and pushes the regenerated artifacts. It reads the signing material
+  from env vars whose names default to `GPG_KEY`, `GPG_TRUST`, `GIT_USER_NAME`, `GIT_USER_EMAIL`,
+  and `GPG_SIGN_KEY`, each overridable via a `--*-env` flag or the `[sign]` section.
 
 Only the **names** are configured (via flag or file); the secret **values** always come from the
 CI context at runtime — nothing sensitive is committed. Resolution precedence is
