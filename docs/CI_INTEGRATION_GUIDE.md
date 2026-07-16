@@ -77,7 +77,7 @@ orbs:
 ```
 
 Available jobs include the composite `build_mcp_server` (the whole release pipeline in one job)
-and the individual `generate`, `validate`, `diff`, `migrate`, and `build` jobs. See the
+and the individual `generate`, `validate`, `diff`, and `migrate` jobs. See the
 [README](../crates/gen-orb-mcp/README.md#circleci-orb) for the full job reference.
 
 ## CircleCI Pipeline Configuration

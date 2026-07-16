@@ -174,7 +174,6 @@ MCP-release pipeline as a single step:
 | `validate` | Validate an orb definition |
 | `diff` | Compute conformance rules between two orb versions |
 | `migrate` | Apply migration rules to a consumer CI directory |
-| `build` | Compile generated MCP server source to a native binary |
 
 The standalone jobs map one-to-one to the CLI subcommands (`gen-orb-mcp <subcommand> --help`).
 `build_mcp_server` does **not** — it has no matching subcommand. It is a *composed* job assembled

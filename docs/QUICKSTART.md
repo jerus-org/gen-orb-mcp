@@ -144,7 +144,7 @@ workflows:
 **Prerequisite**: the GitHub release for the tag must already exist before the publish step
 runs — create it earlier in your workflow (e.g. via `pcu` or `gh release create`).
 
-The individual subcommand jobs (`generate`, `validate`, `diff`, `migrate`, `build`) are also
+The individual subcommand jobs (`generate`, `validate`, `diff`, `migrate`) are also
 available when you want a single step; see the
 [README](../crates/gen-orb-mcp/README.md#circleci-orb) for the full job reference.
 `build_mcp_server` is a composed job — how it is assembled is covered in gen-circleci-orb's
