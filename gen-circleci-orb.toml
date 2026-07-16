@@ -69,20 +69,37 @@ rust_image = "jerusdp/ci-rust:rolling-6mo@sha256:09205391fdc1a899519f539dd4ce080
 [subcommand.help]
 generate_job = false
 
-# Curated, human-readable run-step names for the orb commands (used by
-# build_mcp_server's steps and the standalone command jobs). Without these the
-# generator falls back to each command's short --help line, then the bare name.
+# Curated, human-readable run-step names for the orb commands. The labels name
+# each command's step inside build_mcp_server (and generate's own standalone
+# job); without them the generator falls back to the command's short --help line,
+# then the bare name.
+#
+# generate_job = false suppresses the STANDALONE job for the commands that only
+# make sense as steps of build_mcp_server (prime, publish, save) — the commands
+# themselves are kept so the composite can still use them. `generate` keeps its
+# standalone job: a consumer may validly want to produce an MCP server (source or
+# binary) without the full prime/publish/save release flow.
 [subcommand.prime]
+generate_job = false
 label = "Prime prior versions and migrations"
 
 [subcommand.generate]
 label = "Generate and compile MCP server"
 
 [subcommand.publish]
+generate_job = false
 label = "Publish MCP server binary to GitHub release"
 
 [subcommand.save]
+generate_job = false
 label = "Commit back generated artifacts"
+
+# build's standalone job is suppressed too, for a different reason: it is not used
+# inside build_mcp_server (which compiles via `generate --format binary`), and
+# standalone `generate --format binary` already produces a binary — so a separate
+# build job has no distinct valid CI scenario.
+[subcommand.build]
+generate_job = false
 
 # build_mcp_server: a goal-oriented composite job assembled from this orb's own
 # commands (set_https_remote, prime, generate, publish, save) plus a small git
