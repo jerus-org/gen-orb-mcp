@@ -12,6 +12,11 @@ Three components are involved:
 2. **CI pipeline** - Job that generates the binary and uploads it to the release
 3. **Release assets** - Binary attached to the GitHub release for download
 
+On CircleCI, the `jerus-org/gen-orb-mcp` orb wires all of this for you — see
+[QUICKSTART.md](QUICKSTART.md#integrating-into-a-release-pipeline). This guide covers the
+underlying steps, which you can wire manually on CircleCI or translate to any other CI system
+(GitHub Actions, GitLab CI, …) for which no orb is provided.
+
 ## CI Tool Installation
 
 Two approaches to making gen-orb-mcp available in CI:
@@ -68,24 +73,28 @@ preferred approach — no tool installation, no custom scripts.
 
 ```yaml
 orbs:
-  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.11
+  gen-orb-mcp: jerus-org/gen-orb-mcp@0.2.0
 ```
 
-Available jobs: `generate`, `validate`, `diff`, `migrate`, `prime`, `build`, `publish`, `save`.
-See the [README](../crates/gen-orb-mcp/README.md) for the full job reference.
+Available jobs include the composite `build_mcp_server` (the whole release pipeline in one job)
+and the individual `generate`, `validate`, `diff`, and `migrate` jobs. See the
+[README](../crates/gen-orb-mcp/README.md#circleci-orb) for the full job reference.
 
 ## CircleCI Pipeline Configuration
 
 ### Using the orb (recommended)
 
-The `jerus-org/gen-orb-mcp` orb provides ready-made jobs. See the
-[QUICKSTART.md](QUICKSTART.md#integrating-into-a-release-pipeline) for the complete
-5-job workflow (`prime → generate → build → publish → save`).
+The `jerus-org/gen-orb-mcp` orb provides ready-made jobs, including the composite
+`build_mcp_server` that runs the whole pipeline (prime → generate → compile → publish → commit
+back) in one step. See [QUICKSTART.md](QUICKSTART.md#integrating-into-a-release-pipeline) for the
+orb workflow.
 
 ### Manual approach (without the orb)
 
-If you cannot use the orb (e.g. not using CircleCI, or need custom behaviour), the sections
-below show how to wire the equivalent steps manually using reusable commands.
+If you cannot use the orb — because you are on a CI system other than CircleCI, or need custom
+behaviour — the sections below show how to wire the equivalent steps manually. The pattern
+(generate the binary, then upload it to the release) translates to any CI; the examples happen to
+use CircleCI reusable commands.
 
 #### generate_mcp_server
 

@@ -121,55 +121,41 @@ gen-orb-mcp migrate \
 
 ## Integrating into a release pipeline
 
-Use the `jerus-org/gen-orb-mcp` orb for a fully automated release pipeline.
-Five jobs cover the complete journey from orb YAML to a compiled binary attached to the release:
+### On CircleCI: use the orb
+
+The fastest path on CircleCI is the public `jerus-org/gen-orb-mcp` orb. Its `build_mcp_server`
+job runs the whole journey — prime prior versions, generate and compile the MCP server, publish
+the binary to the release, and commit the artifacts back — in a single step:
 
 ```yaml
 orbs:
-  gen-orb-mcp: jerus-org/gen-orb-mcp@0.1.11
+  gen-orb-mcp: jerus-org/gen-orb-mcp@0.2.0
 
 workflows:
   release:
     jobs:
-      # 1. Snapshot prior versions and compute migration rules from git tags
-      - gen-orb-mcp/prime:
-          orb_path: src/@orb.yml
+      - gen-orb-mcp/build_mcp_server:
+          binary_name: my-orb-mcp
+          tag_prefix: my-orb-v
           earliest_version: "1.0.0"
-          ephemeral: true
-
-      # 2. Generate the MCP server source with history and migrations embedded
-      - gen-orb-mcp/generate:
-          requires: [gen-orb-mcp/prime]
-          orb_path: src/@orb.yml
-          output: /tmp/mcp-build
-          version: "${CIRCLE_TAG#v}"
-          migrations: /tmp/gen-orb-mcp-prime/migrations
-          prior_versions: /tmp/gen-orb-mcp-prime/prior-versions
-
-      # 3. Compile the generated source to a native binary
-      - gen-orb-mcp/build:
-          requires: [gen-orb-mcp/generate]
-          input: /tmp/mcp-build
-
-      # 4. Upload the binary to the existing GitHub release
-      - gen-orb-mcp/publish:
-          requires: [gen-orb-mcp/build]
-          binary: /tmp/mcp-build/target/release/my_orb_mcp
-          asset_name: my-orb-mcp-linux-x86_64
-          context: github-release  # must provide GITHUB_TOKEN
-
-      # 5. Commit the generated artifacts (prior-versions, migrations) back to the repo
-      - gen-orb-mcp/save:
-          requires: [gen-orb-mcp/generate]
-          paths: prior-versions migrations
-          context: github-push     # must provide push credentials
+          context: [my-release-context]   # signing + GitHub release credentials
 ```
 
-`save` runs in parallel with `build` — both depend only on `generate`, so the artifact commit
-and the binary upload happen simultaneously.
+**Prerequisite**: the GitHub release for the tag must already exist before the publish step
+runs — create it earlier in your workflow (e.g. via `pcu` or `gh release create`).
 
-**Prerequisite for `publish`**: the GitHub release for `$CIRCLE_TAG` must already exist before
-this job runs. Create it earlier in your workflow (e.g. via `pcu` or `gh release create`).
+The individual subcommand jobs (`generate`, `validate`, `diff`, `migrate`) are also
+available when you want a single step; see the
+[README](../crates/gen-orb-mcp/README.md#circleci-orb) for the full job reference.
+`build_mcp_server` is a composed job — how it is assembled is covered in gen-circleci-orb's
+[Advanced Configuration Guide](https://github.com/jerus-org/gen-circleci-orb/blob/main/docs/advanced-configuration.md).
+
+### On other CI systems
+
+gen-orb-mcp is a plain CLI, so it integrates with any CI (GitHub Actions, GitLab CI, and others
+for which no orb is provided). The [CI Integration Guide](CI_INTEGRATION_GUIDE.md) shows the
+manual pattern — generate the binary and upload it to the release — as reusable steps you can
+translate to your platform.
 
 ---
 
