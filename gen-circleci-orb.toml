@@ -18,8 +18,8 @@ apt_packages = ["build-essential", "clang", "cmake"]
 # to date via customManagers (renovate.json), which also disables Renovate's
 # dockerfile manager on the generated orb/Dockerfile so this toml is the single
 # source of truth. Same image + digest for both stages (both rust:1-slim-trixie).
-builder_image = "rust:1-slim-trixie@sha256:31ee7fc65186be7e0e0ccb3f2ca305f14e4739e7642a1ae65753aa5d7b874523"
-base_image = "rust:1-slim-trixie@sha256:31ee7fc65186be7e0e0ccb3f2ca305f14e4739e7642a1ae65753aa5d7b874523"
+builder_image = "rust:1-slim-trixie@sha256:34fb2f168c432d421a09883c663b275b33cbb30f6b18642fbd09a684c6546d0e"
+base_image = "rust:1-slim-trixie@sha256:34fb2f168c432d421a09883c663b275b33cbb30f6b18642fbd09a684c6546d0e"
 
 # Auto-record: after `generate` regenerates the orb, the regenerate-orb CI job
 # GPG-signs a commit of the orb source and pushes it to the PR branch (for
@@ -64,7 +64,7 @@ mcp_earliest_version = "0.1.11"
 # is the toolkit's clang-equipped compile image. Digest-pinned so it survives
 # regeneration and CircleCI can't serve a stale moving tag from cache; Renovate
 # updates the digest via a customManager (renovate.json).
-rust_image = "jerusdp/ci-rust:rolling-6mo@sha256:2256d29b9b92041dd29b9575aeac5c45abe539696c9db670c685b47f67df1f01"
+rust_image = "jerusdp/ci-rust:rolling-6mo@sha256:09205391fdc1a899519f539dd4ce080315c60922ebd8d91b08fe9f6a0abefdad"
 
 [subcommand.help]
 generate_job = false
