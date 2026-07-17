@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deps: update rust crate tokio to 1.52.4(pr [#247])
 - deps: update pinned containers(pr [#244])
 - deps: update rust crate tokio to 1.53.0(pr [#249])
+- deps: update dependency gen-circleci-orb to v0.1.0(pr [#251])
 
 ## [0.1.59] - 2026-07-09
 
@@ -834,6 +835,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#244]: https://github.com/jerus-org/gen-orb-mcp/pull/244
 [#249]: https://github.com/jerus-org/gen-orb-mcp/pull/249
 [#250]: https://github.com/jerus-org/gen-orb-mcp/pull/250
+[#251]: https://github.com/jerus-org/gen-orb-mcp/pull/251
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.59...HEAD
 [0.1.59]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.58...v0.1.59
 [0.1.58]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.57...v0.1.58
