@@ -1913,7 +1913,7 @@ dependencies = [
 
 [[package]]
 name = "gen-orb-mcp"
-version = "0.1.51"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "chrono",
