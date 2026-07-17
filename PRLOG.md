@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deps: update rust crate handlebars to 6.4.3(pr [#246])
 - deps: update rust crate tokio to 1.52.4(pr [#247])
 - deps: update pinned containers(pr [#244])
+- deps: update rust crate tokio to 1.53.0(pr [#249])
 
 ## [0.1.59] - 2026-07-09
 
@@ -830,6 +831,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#247]: https://github.com/jerus-org/gen-orb-mcp/pull/247
 [#248]: https://github.com/jerus-org/gen-orb-mcp/pull/248
 [#244]: https://github.com/jerus-org/gen-orb-mcp/pull/244
+[#249]: https://github.com/jerus-org/gen-orb-mcp/pull/249
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.59...HEAD
 [0.1.59]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.58...v0.1.59
 [0.1.58]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.57...v0.1.58
