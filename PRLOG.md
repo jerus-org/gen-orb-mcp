@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - chore-inherit renovate pin managers from shared config(pr [#248])
+- docs-lead with public orb availability for v0.2.0(pr [#250])
 
 ### Fixed
 
@@ -832,6 +833,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#248]: https://github.com/jerus-org/gen-orb-mcp/pull/248
 [#244]: https://github.com/jerus-org/gen-orb-mcp/pull/244
 [#249]: https://github.com/jerus-org/gen-orb-mcp/pull/249
+[#250]: https://github.com/jerus-org/gen-orb-mcp/pull/250
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.59...HEAD
 [0.1.59]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.58...v0.1.59
 [0.1.58]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.57...v0.1.58
