@@ -1,0 +1,30 @@
+[
+  {
+    "type": "JobRemoved",
+    "data": {
+      "name": "build",
+      "since_version": "0.2.0"
+    }
+  },
+  {
+    "type": "JobRemoved",
+    "data": {
+      "name": "save",
+      "since_version": "0.2.0"
+    }
+  },
+  {
+    "type": "JobRemoved",
+    "data": {
+      "name": "publish",
+      "since_version": "0.2.0"
+    }
+  },
+  {
+    "type": "JobRemoved",
+    "data": {
+      "name": "prime",
+      "since_version": "0.2.0"
+    }
+  }
+]
