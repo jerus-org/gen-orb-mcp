@@ -18,8 +18,8 @@ apt_packages = ["build-essential", "clang", "cmake"]
 # to date via customManagers (renovate.json), which also disables Renovate's
 # dockerfile manager on the generated orb/Dockerfile so this toml is the single
 # source of truth. Same image + digest for both stages (both rust:1-slim-trixie).
-builder_image = "rust:1-slim-trixie@sha256:34fb2f168c432d421a09883c663b275b33cbb30f6b18642fbd09a684c6546d0e"
-base_image = "rust:1-slim-trixie@sha256:34fb2f168c432d421a09883c663b275b33cbb30f6b18642fbd09a684c6546d0e"
+builder_image = "rust:1-slim-trixie@sha256:5c6f46a6e4472ab1ca7ba7d494e6677f2f219ebc02f32025d3986f057635ec9c"
+base_image = "rust:1-slim-trixie@sha256:5c6f46a6e4472ab1ca7ba7d494e6677f2f219ebc02f32025d3986f057635ec9c"
 
 # Auto-record: after `generate` regenerates the orb, the regenerate-orb CI job
 # GPG-signs a commit of the orb source and pushes it to the PR branch (for
