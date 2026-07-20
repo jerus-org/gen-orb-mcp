@@ -16,8 +16,8 @@ categories = ["development-tools", "command-line-utilities"]
 pmcp = "2.15.0"
 
 # YAML Processing
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.150"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
 serde_yaml = "0.9.34"
 
 # CLI
