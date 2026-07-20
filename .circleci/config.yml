@@ -11,7 +11,7 @@ orbs:
   gen-orb-mcp: jerus-org/gen-orb-mcp@0.2.0
   orb-tools: circleci/orb-tools@12.4.0
   # >>> gen-circleci-orb (managed — edits overwritten by 'gen-circleci-orb update')
-  gen-circleci-orb: jerus-org/gen-circleci-orb@0.1.0
+  gen-circleci-orb: jerus-org/gen-circleci-orb@0.1.2
   # <<< gen-circleci-orb
 workflows:
   validation:
