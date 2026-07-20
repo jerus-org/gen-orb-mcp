@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deps: update rust crate thiserror to 2.0.19(pr [#254])
 - deps: update serde packages(pr [#255])
 - deps: update dependency gen-orb-mcp to v0.2.0(pr [#256])
+- deps: update rust crate pmcp to 2.17.0(pr [#257])
 
 ## [0.2.0] - 2026-07-17
 
@@ -851,6 +852,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#254]: https://github.com/jerus-org/gen-orb-mcp/pull/254
 [#255]: https://github.com/jerus-org/gen-orb-mcp/pull/255
 [#256]: https://github.com/jerus-org/gen-orb-mcp/pull/256
+[#257]: https://github.com/jerus-org/gen-orb-mcp/pull/257
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.0...HEAD
 [0.2.0]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.59...v0.2.0
 [0.1.59]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.1.58...v0.1.59
