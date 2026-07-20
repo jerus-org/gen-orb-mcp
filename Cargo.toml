@@ -13,7 +13,7 @@ categories = ["development-tools", "command-line-utilities"]
 
 [workspace.dependencies]
 # MCP Protocol
-pmcp = "2.15.0"
+pmcp = "2.17.0"
 
 # YAML Processing
 serde = { version = "1.0.229", features = ["derive"] }
