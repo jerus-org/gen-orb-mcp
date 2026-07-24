@@ -28,7 +28,7 @@ anyhow = "1.0.104"
 thiserror = "2.0.19"
 
 # Async Runtime
-tokio = { version = "1.53.0", features = ["full"] }
+tokio = { version = "1.53.1", features = ["full"] }
 
 # Template Engine
 handlebars = "6.4.3"
