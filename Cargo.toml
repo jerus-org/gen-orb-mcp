@@ -66,5 +66,5 @@ config = { version = "0.15.25", default-features = false, features = ["toml"] }
 
 # Testing
 tempfile = "3.27.0"
-trycmd = "1.2.0"
+trycmd = "1.2.1"
 criterion = "0.8.2"
