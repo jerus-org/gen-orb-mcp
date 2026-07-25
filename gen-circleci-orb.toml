@@ -169,14 +169,8 @@ NAME = "<< parameters.binary_name >>"
 TAG_PREFIX = "<< parameters.tag_prefix >>"
 WORKSPACE_BIN_PATH = "<< parameters.workspace_root >>"
 
-# set_https_remote MUST run AFTER the fetch above, not before. CircleCI checkout
-# injects an insteadOf rule (HTTPS->SSH) that authenticates `git fetch` via the
-# deploy key on PRIVATE repos; set_https_remote removes that rule and switches
-# origin to literal HTTPS. Running it first left the fetch with no credentials on
-# private repos ("could not read Username for https://github.com"). Fetching
-# first (SSH auth intact) then switching to HTTPS keeps private-repo fetch working
-# while still giving pcu the HTTPS App-token remote for the commit-back in save.
-# Public repos are unaffected either way (anonymous HTTPS fetch also works).
+# set_https_remote must run AFTER the fetch above, not before, or private-repo
+# checkout breaks. See jerus-org/gen-orb-mcp#266.
 [[job_group.step]]
 command = "set_https_remote"
 
