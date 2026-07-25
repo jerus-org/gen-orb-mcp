@@ -149,9 +149,6 @@ builtin = "checkout"
 builtin = "attach_workspace"
 
 [[job_group.step]]
-command = "set_https_remote"
-
-[[job_group.step]]
 run = "Set up git and environment"
 script = '''
 # Use the freshly-built binary if it was attached from the workspace,
@@ -171,6 +168,11 @@ git checkout -B main origin/main
 NAME = "<< parameters.binary_name >>"
 TAG_PREFIX = "<< parameters.tag_prefix >>"
 WORKSPACE_BIN_PATH = "<< parameters.workspace_root >>"
+
+# set_https_remote must run AFTER the fetch above, not before, or private-repo
+# checkout breaks. See jerus-org/gen-orb-mcp#266.
+[[job_group.step]]
+command = "set_https_remote"
 
 [[job_group.step]]
 command = "prime"

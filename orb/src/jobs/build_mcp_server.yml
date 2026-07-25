@@ -42,7 +42,6 @@ steps:
         command: <<include(scripts/add-workspace-to-path.sh)>>
         environment:
           WORKSPACE_ROOT: << parameters.workspace_root >>
-- set_https_remote
 - run:
     name: Set up git and environment
     command: <<include(scripts/build_mcp_server_set_up_git_and_environment.sh)>>
@@ -50,6 +49,7 @@ steps:
       NAME: << parameters.binary_name >>
       TAG_PREFIX: << parameters.tag_prefix >>
       WORKSPACE_BIN_PATH: << parameters.workspace_root >>
+- set_https_remote
 - prime:
     earliest_version: << parameters.earliest_version >>
     orb_path: << parameters.orb_path >>
