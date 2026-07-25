@@ -149,9 +149,6 @@ builtin = "checkout"
 builtin = "attach_workspace"
 
 [[job_group.step]]
-command = "set_https_remote"
-
-[[job_group.step]]
 run = "Set up git and environment"
 script = '''
 # Use the freshly-built binary if it was attached from the workspace,
@@ -171,6 +168,17 @@ git checkout -B main origin/main
 NAME = "<< parameters.binary_name >>"
 TAG_PREFIX = "<< parameters.tag_prefix >>"
 WORKSPACE_BIN_PATH = "<< parameters.workspace_root >>"
+
+# set_https_remote MUST run AFTER the fetch above, not before. CircleCI checkout
+# injects an insteadOf rule (HTTPS->SSH) that authenticates `git fetch` via the
+# deploy key on PRIVATE repos; set_https_remote removes that rule and switches
+# origin to literal HTTPS. Running it first left the fetch with no credentials on
+# private repos ("could not read Username for https://github.com"). Fetching
+# first (SSH auth intact) then switching to HTTPS keeps private-repo fetch working
+# while still giving pcu the HTTPS App-token remote for the commit-back in save.
+# Public repos are unaffected either way (anonymous HTTPS fetch also works).
+[[job_group.step]]
+command = "set_https_remote"
 
 [[job_group.step]]
 command = "prime"
