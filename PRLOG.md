@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - deps: lock file maintenance(pr [#268])
+- deps: update dependency toolkit to v7(pr [#267])
 
 ## [0.2.2] - 2026-07-25
 
@@ -879,6 +880,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#264]: https://github.com/jerus-org/gen-orb-mcp/pull/264
 [#265]: https://github.com/jerus-org/gen-orb-mcp/pull/265
 [#268]: https://github.com/jerus-org/gen-orb-mcp/pull/268
+[#267]: https://github.com/jerus-org/gen-orb-mcp/pull/267
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.2...HEAD
 [0.2.2]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.0...v0.2.1
