@@ -6,59 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **gen-orb-mcp** generates Model Context Protocol (MCP) servers from CircleCI orb definitions. This enables AI coding assistants to understand and work with private CircleCI orbs by exposing orb commands, jobs, and executors as MCP resources.
 
-## Development Commands
-
-```bash
-cargo build                    # Build the project
-cargo test                     # Run all tests
-cargo clippy                   # Lint
-cargo fmt                      # Format code
-cargo doc --no-deps            # Generate documentation
-
-# Run the CLI
-cargo run -- generate --orb-path <path> --output ./dist
-cargo run -- validate --orb-path <path>
-
-# Run a single test
-cargo test test_name
-cargo test -p gen-orb-mcp test_name
-```
-
 ## Architecture
 
 ### Pipeline Overview
 
 ```
 Orb YAML → Parser → Generator → MCP Server Source → (optional) Binary
-```
-
-### Workspace Structure
-
-```
-gen-orb-mcp/
-├── Cargo.toml                 # Workspace manifest
-├── crates/
-│   └── gen-orb-mcp/           # Main crate
-│       ├── src/
-│       │   ├── main.rs        # CLI entry point with tracing setup
-│       │   ├── lib.rs         # CLI definition (Cli struct, Commands enum)
-│       │   ├── parser/        # Orb YAML parsing
-│       │   │   ├── mod.rs     # OrbParser implementation
-│       │   │   ├── types.rs   # OrbDefinition, Command, Job, Executor types
-│       │   │   └── error.rs   # Parser error types
-│       │   └── generator/     # MCP server code generation
-│       │       ├── mod.rs     # CodeGenerator implementation
-│       │       ├── templates.rs # Handlebars templates (embedded)
-│       │       ├── context.rs # Template context types
-│       │       └── error.rs   # Generator error types
-│       └── tests/
-├── docs/                      # Documentation
-│   ├── QUICKSTART.md          # Usage scenarios and pipeline integration guide
-│   ├── CI_INTEGRATION_GUIDE.md # CircleCI orb integration reference
-│   ├── ORB_AUTHOR_RENAME_GUIDE.md # Guide for orb authors on job renames
-│   ├── NEXT_PHASE_PLAN.md     # Active development phase plan
-│   └── archive/               # Historical planning and design documents
-└── AI_DILIGENCE.md            # AI assistance transparency statement
 ```
 
 ### CLI Commands
@@ -71,37 +24,6 @@ gen-orb-mcp/
   describing what changed. Used to produce the rules files consumed by `--migrations` and `migrate`.
 - **migrate**: Apply conformance rules to a consumer's `.circleci/` directory.
   Supports `--dry-run` to preview changes without writing files.
-
-### Key Dependencies
-
-| Crate | Purpose |
-|-------|---------|
-| `rmcp` | MCP protocol SDK (used in generated servers) |
-| `serde_yaml` | CircleCI orb YAML parsing |
-| `clap` | CLI argument parsing with derive macros |
-| `handlebars` | Template engine for code generation |
-| `tracing` | Structured logging |
-| `anyhow`/`thiserror` | Error handling |
-
-### Module Structure
-
-```rust
-// Parser layer - parse orb YAML into typed structs
-pub mod parser {
-    pub struct OrbParser;           // Parses orb YAML files
-    pub struct OrbDefinition {      // Parsed orb representation
-        commands: HashMap<String, Command>,
-        jobs: HashMap<String, Job>,
-        executors: HashMap<String, Executor>,
-    }
-}
-
-// Generator layer - produce MCP server code from OrbDefinition
-pub mod generator {
-    pub struct CodeGenerator;       // Generates Rust source code
-    pub struct GeneratedServer;     // Output containing generated files
-}
-```
 
 ## Implementation Status
 
