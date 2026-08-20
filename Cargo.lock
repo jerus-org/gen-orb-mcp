@@ -1779,9 +1779,9 @@ dependencies = [
 
 [[package]]
 name = "gen-bsky"
-version = "0.1.33"
+version = "0.1.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d0aabb4e8390dac1fc16d564da5a2a137e2c8cdc6e05016d7c85b09ab4032a6"
+checksum = "7aebc059228c08ce0a8e6e7798fd707d1838f66b2b10892d22a33a1e878044c9"
 dependencies = [
  "base62",
  "bsky-sdk",
@@ -1801,9 +1801,9 @@ dependencies = [
 
 [[package]]
 name = "gen-linkedin"
-version = "0.1.26"
+version = "0.1.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7c213638b5201c93d66e07e0d119fae4d1e3512725043df2dd2cb60929e465a"
+checksum = "d57dac51b26e0dcfb1ee5960b0972bfee2edc7fec549542bd08584ba64236227"
 dependencies = [
  "chrono",
  "log",
@@ -3489,13 +3489,12 @@ dependencies = [
 
 [[package]]
 name = "pcu"
-version = "0.6.30"
+version = "0.6.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "459ac99d525dfb08a04b3679a276593b556e7e881b7989473ed4eefbb8256aec"
+checksum = "6e789fa13686cda24f540204d697ef92e5fa5e83b255b37f77f9446e1cc6c191"
 dependencies = [
  "base62",
  "base64 0.23.1",
- "bsky-sdk",
  "cargo_toml",
  "chrono",
  "clap",
@@ -3515,6 +3514,7 @@ dependencies = [
  "octocrate",
  "openidconnect",
  "owo-colors",
+ "pcu-release-assets",
  "regex",
  "reqwest 0.13.4",
  "serde",
@@ -3530,6 +3530,21 @@ dependencies = [
  "tracing-subscriber",
  "unicode-segmentation",
  "url",
+]
+
+[[package]]
+name = "pcu-release-assets"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e17c5858b42db2b17b2a473b95970503fd4351e93207aacf64338b9d58f975e"
+dependencies = [
+ "gql_client",
+ "log",
+ "octocrate",
+ "reqwest 0.13.4",
+ "serde",
+ "thiserror 2.0.20",
+ "tokio",
 ]
 
 [[package]]
