@@ -79,14 +79,20 @@ fn generated_server_compiles() {
     let tmp = TempDir::new().expect("TempDir::new");
     server.write_to(tmp.path()).expect("write_to");
 
-    let status = Command::new("cargo")
+    let output = Command::new("cargo")
         .args(["build", "--color", "never"])
         .current_dir(tmp.path())
-        .status()
+        .output()
         .expect("failed to run cargo build");
+    let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert!(
-        status.success(),
-        "generated MCP server did not compile — check template rmcp version and import paths"
+        output.status.success(),
+        "generated MCP server did not compile — check template rmcp version and import paths:\n{stderr}"
+    );
+
+    assert!(
+        !stderr.contains("warning:"),
+        "generated MCP server compiled with warnings:\n{stderr}"
     );
 }
