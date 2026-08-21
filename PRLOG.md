@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deps: update dependency toolkit to v7.2.0(pr [#272])
 - drop unused mut in generated tools vec(pr [#284])
 - pin gen-orb-mcp dep, compile tools branch(pr [#286])
+- deps: update pinned containers(pr [#274])
 
 ## [0.2.2] - 2026-07-25
 
@@ -896,6 +897,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#270]: https://github.com/jerus-org/gen-orb-mcp/pull/270
 [#284]: https://github.com/jerus-org/gen-orb-mcp/pull/284
 [#286]: https://github.com/jerus-org/gen-orb-mcp/pull/286
+[#274]: https://github.com/jerus-org/gen-orb-mcp/pull/274
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.2...HEAD
 [0.2.2]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.0...v0.2.1
