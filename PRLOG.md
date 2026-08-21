@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deps: lock file maintenance(pr [#269])
 - deps: update rust crate pcu to 0.6.33(pr [#271])
 - deps: update dependency toolkit to v7.2.0(pr [#272])
+- drop unused mut in generated tools vec(pr [#284])
 
 ## [0.2.2] - 2026-07-25
 
@@ -892,6 +893,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#271]: https://github.com/jerus-org/gen-orb-mcp/pull/271
 [#272]: https://github.com/jerus-org/gen-orb-mcp/pull/272
 [#270]: https://github.com/jerus-org/gen-orb-mcp/pull/270
+[#284]: https://github.com/jerus-org/gen-orb-mcp/pull/284
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.2...HEAD
 [0.2.2]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.0...v0.2.1
