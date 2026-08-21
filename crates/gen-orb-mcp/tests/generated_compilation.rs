@@ -3,7 +3,7 @@
 /// This test exercises the full generation pipeline — template rendering plus
 /// dependency resolution — to catch rmcp API or feature-flag mismatches that
 /// content-only string assertions cannot detect.
-use std::{collections::HashMap, process::Command};
+use std::{collections::HashMap, path::Path, process::Command};
 
 use gen_orb_mcp::{
     generator::CodeGenerator,
@@ -68,22 +68,14 @@ fn fixture_orb() -> OrbDefinition {
     orb
 }
 
-#[test]
-fn generated_server_compiles() {
-    let generator = CodeGenerator::new().expect("CodeGenerator::new");
-    let orb = fixture_orb();
-    let server = generator
-        .generate(&orb, "fixture-orb", "1.0.0")
-        .expect("generate");
-
-    let tmp = TempDir::new().expect("TempDir::new");
-    server.write_to(tmp.path()).expect("write_to");
-
+/// Run `cargo build` in `dir` and assert it succeeds with zero compiler
+/// warnings, printing captured stderr on failure for diagnosability.
+fn assert_compiles_without_warnings(dir: &Path) {
     let output = Command::new("cargo")
-        .args(["build", "--color", "never"])
-        .current_dir(tmp.path())
+        .args(["check", "--color", "never"])
+        .current_dir(dir)
         .output()
-        .expect("failed to run cargo build");
+        .expect("failed to run cargo check");
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert!(
@@ -95,4 +87,54 @@ fn generated_server_compiles() {
         !stderr.contains("warning:"),
         "generated MCP server compiled with warnings:\n{stderr}"
     );
+}
+
+/// Redirect the generated fixture's crates.io dependency on gen-orb-mcp to
+/// this local checkout, so the has_tools=true branch compiles against
+/// current source instead of fetching a published release. This only proves
+/// the generated code and gen-orb-mcp's library API are compatible — it
+/// can't prove the exact-pinned version in Cargo.toml is actually published
+/// on crates.io, since that can't be known before this crate itself is
+/// released.
+fn patch_gen_orb_mcp_dependency(crate_dir: &Path) {
+    // Cargo accepts forward slashes in paths on every platform including
+    // Windows; normalising avoids emitting invalid TOML when
+    // CARGO_MANIFEST_DIR contains backslashes.
+    let local_path = env!("CARGO_MANIFEST_DIR").replace('\\', "/");
+    let patch = format!("\n[patch.crates-io]\ngen-orb-mcp = {{ path = \"{local_path}\" }}\n");
+    let cargo_toml = crate_dir.join("Cargo.toml");
+    let mut contents = std::fs::read_to_string(&cargo_toml).expect("read Cargo.toml");
+    contents.push_str(&patch);
+    std::fs::write(&cargo_toml, contents).expect("write Cargo.toml");
+}
+
+#[test]
+fn generated_server_compiles() {
+    let generator = CodeGenerator::new().expect("CodeGenerator::new");
+    let orb = fixture_orb();
+    let server = generator
+        .generate(&orb, "fixture-orb", "1.0.0")
+        .expect("generate");
+
+    let tmp = TempDir::new().expect("TempDir::new");
+    server.write_to(tmp.path()).expect("write_to");
+
+    assert_compiles_without_warnings(tmp.path());
+}
+
+#[test]
+fn generated_server_with_tools_compiles() {
+    let generator = CodeGenerator::new()
+        .expect("CodeGenerator::new")
+        .with_conformance_rules_json("[]".to_string());
+    let orb = fixture_orb();
+    let server = generator
+        .generate(&orb, "fixture-orb", "1.0.0")
+        .expect("generate");
+
+    let tmp = TempDir::new().expect("TempDir::new");
+    server.write_to(tmp.path()).expect("write_to");
+    patch_gen_orb_mcp_dependency(tmp.path());
+
+    assert_compiles_without_warnings(tmp.path());
 }

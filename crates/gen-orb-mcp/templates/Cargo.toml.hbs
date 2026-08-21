@@ -17,7 +17,7 @@ anyhow = "1.0"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde_json = "1.0"
 {{#if has_tools}}
-gen-orb-mcp = { git = "https://github.com/jerus-org/gen-orb-mcp", branch = "main" }
+gen-orb-mcp = "={{generator_version}}"
 {{/if}}
 
 [[bin]]
