@@ -31,7 +31,7 @@ thiserror = "2.0.19"
 tokio = { version = "1.53.1", features = ["full"] }
 
 # Template Engine
-handlebars = "6.4.3"
+handlebars = "6.4.4"
 
 # Logging
 tracing = "0.1.44"
