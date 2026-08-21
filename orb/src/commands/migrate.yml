@@ -1,4 +1,4 @@
-description: Apply conformance-based migration to a consumer's .circleci/ directory  Reads conformance rules from a JSON file (produced by `diff`) and applies them to the consumer's CI config. Reports planned changes before applying.
+description: Apply conformance-based migration to a consumer's .circleci/ directory Reads conformance rules from a JSON file (produced by `diff`) and applies them to the consumer's CI config. Reports planned changes before applying.
 parameters:
   ci_dir:
     type: string
@@ -22,7 +22,7 @@ steps:
         name: Set DRY_RUN flag
         command: echo 'export DRY_RUN=true' >> "$BASH_ENV"
 - run:
-    name: Apply conformance-based migration to a consumer's .circleci/ directory
+    name: Apply conformance-based migration to a consumer's .circleci/ directory Reads conformance rules from a JSON file (produced by `diff`) and applies them to the consumer's CI config. Reports planned changes before applying.
     command: <<include(scripts/migrate.sh)>>
     environment:
       CI_DIR: << parameters.ci_dir >>

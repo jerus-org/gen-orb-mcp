@@ -5,12 +5,27 @@ parameters:
     description: Directory containing generated MCP server source
   build_name:
     type: string
-    description: 'Override the binary name (default: derived from Cargo.toml) --target <TARGET>  Rust target triple (default: host) --dry-run          Print the cargo command without running it'
+    description: 'Override the binary name (default: derived from Cargo.toml)'
     default: ''
+  target:
+    type: string
+    description: 'Rust target triple (default: host)'
+    default: ''
+  dry_run:
+    type: boolean
+    description: Print the cargo command without running it
+    default: false
 steps:
+- when:
+    condition: << parameters.dry_run >>
+    steps:
+    - run:
+        name: Set DRY_RUN flag
+        command: echo 'export DRY_RUN=true' >> "$BASH_ENV"
 - run:
     name: Compile generated MCP server source to a native binary
     command: <<include(scripts/build.sh)>>
     environment:
       INPUT: << parameters.input >>
       BUILD_NAME: << parameters.build_name >>
+      TARGET: << parameters.target >>
