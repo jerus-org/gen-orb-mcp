@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- docs-trim derivable content from CLAUDE.md(pr [#270])
+
 ### Fixed
 
 - deps: lock file maintenance(pr [#268])
@@ -887,6 +891,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#269]: https://github.com/jerus-org/gen-orb-mcp/pull/269
 [#271]: https://github.com/jerus-org/gen-orb-mcp/pull/271
 [#272]: https://github.com/jerus-org/gen-orb-mcp/pull/272
+[#270]: https://github.com/jerus-org/gen-orb-mcp/pull/270
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.2...HEAD
 [0.2.2]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.0...v0.2.1
