@@ -55,6 +55,13 @@ pub struct GeneratorContext {
     /// Serialised JSON of `Vec<ConformanceRule>` to embed in the generated
     /// server. Empty string when `has_tools` is false.
     pub conformance_rules_json: String,
+
+    /// Version of the gen-orb-mcp crate that generated this server. Used to
+    /// pin the generated crate's own `gen-orb-mcp` dependency to an exact
+    /// crates.io release, so rebuilding an already-generated server can't
+    /// silently pick up a newer, potentially API- or behavior-incompatible
+    /// gen-orb-mcp.
+    pub generator_version: String,
 }
 
 /// A snapshot of one prior orb version's documentation, embedded alongside the
@@ -255,6 +262,7 @@ impl GeneratorContext {
             has_prior_versions: false,
             has_tools: false,
             conformance_rules_json: String::new(),
+            generator_version: env!("CARGO_PKG_VERSION").to_string(),
         }
     }
 
