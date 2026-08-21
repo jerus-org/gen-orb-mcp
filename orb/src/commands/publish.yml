@@ -1,4 +1,4 @@
-description: Upload a compiled binary to an existing GitHub release as a release asset  The GitHub release must already exist before this command is run. Set GITHUB_TOKEN, CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME, and CIRCLE_TAG (or use --tag) in the environment.
+description: Upload a compiled binary to an existing GitHub release as a release asset The GitHub release must already exist before this command is run. Set GITHUB_TOKEN, CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME, and CIRCLE_TAG (or use --tag) in the environment.
 parameters:
   publish_name:
     type: string

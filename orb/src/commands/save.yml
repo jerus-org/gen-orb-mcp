@@ -1,8 +1,8 @@
-description: 'Stage, commit, and push generated artifacts back to the repository  Idempotent: if the working tree is clean after staging the specified paths, exits successfully without creating an empty commit. The default commit message includes [skip ci] to prevent CI re-triggering.'
+description: 'Stage, commit, and push generated artifacts back to the repository Idempotent: if the working tree is clean after staging the specified paths, exits successfully without creating an empty commit. The default commit message includes [skip ci] to prevent CI re-triggering.'
 parameters:
   paths:
     type: string
-    description: Paths to stage and commit (relative to repository root).  Repeatable (`--paths a --paths b`) or comma-separated (`--paths a,b`) so a single orb parameter can carry multiple paths.
+    description: Paths to stage and commit (relative to repository root). Repeatable (`--paths a --paths b`) or comma-separated (`--paths a,b`) so a single orb parameter can carry multiple paths.
   message:
     type: string
     description: Commit message
@@ -24,7 +24,7 @@ parameters:
     default: false
   sign:
     type: boolean
-    description: Use GPG-signed commit and GitHub App token push.  Reads the GPG key, ownertrust, commit name/email and signing key id from env vars whose NAMES default to GPG_KEY / GPG_TRUST / GIT_USER_NAME / GIT_USER_EMAIL / GPG_SIGN_KEY and are configurable via gen-orb-mcp.toml (`[sign]`) or the --*-env flags. Also reads GITHUB_TOKEN (GitHub App token), CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME, CIRCLE_BRANCH.
+    description: Use GPG-signed commit and GitHub App token push. Reads the GPG key, ownertrust, commit name/email and signing key id from env vars whose NAMES default to GPG_KEY / GPG_TRUST / GIT_USER_NAME / GIT_USER_EMAIL / GPG_SIGN_KEY and are configurable via gen-orb-mcp.toml (`[sign]`) or the --*-env flags. Also reads GITHUB_TOKEN (GitHub App token), CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME, CIRCLE_BRANCH.
     default: false
   config:
     type: string
