@@ -49,11 +49,11 @@ steps:
       NAME: << parameters.binary_name >>
       TAG_PREFIX: << parameters.tag_prefix >>
       WORKSPACE_BIN_PATH: << parameters.workspace_root >>
-- set_https_remote
 - prime:
     earliest_version: << parameters.earliest_version >>
     orb_path: << parameters.orb_path >>
     tag_prefix: << parameters.tag_prefix >>
+- set_https_remote
 - generate:
     force: true
     format: binary
