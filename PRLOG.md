@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deps: update dependency gen-circleci-orb to v0.1.8(pr [#275])
 - deps: update dependency gen-orb-mcp to v0.2.2(pr [#276])
 - deps: update rust crate clap to 4.6.6(pr [#277])
+- deps: update rust crate handlebars to 6.4.4(pr [#278])
 
 ## [0.2.2] - 2026-07-25
 
@@ -904,6 +905,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#275]: https://github.com/jerus-org/gen-orb-mcp/pull/275
 [#276]: https://github.com/jerus-org/gen-orb-mcp/pull/276
 [#277]: https://github.com/jerus-org/gen-orb-mcp/pull/277
+[#278]: https://github.com/jerus-org/gen-orb-mcp/pull/278
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.2...HEAD
 [0.2.2]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.0...v0.2.1
