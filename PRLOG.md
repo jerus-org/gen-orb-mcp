@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deps: update dependency orb-tools to v12.5.0(pr [#280])
 - deps: update rust crate pmcp to 2.19.0(pr [#281])
 - deps: lock file maintenance(pr [#282])
+- add missing binstall signing scaffold(pr [#287])
 
 ## [0.2.2] - 2026-07-25
 
@@ -914,6 +915,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#280]: https://github.com/jerus-org/gen-orb-mcp/pull/280
 [#281]: https://github.com/jerus-org/gen-orb-mcp/pull/281
 [#282]: https://github.com/jerus-org/gen-orb-mcp/pull/282
+[#287]: https://github.com/jerus-org/gen-orb-mcp/pull/287
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.2...HEAD
 [0.2.2]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.0...v0.2.1
