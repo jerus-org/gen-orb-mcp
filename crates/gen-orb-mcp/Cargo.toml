@@ -1,6 +1,6 @@
 [package]
 name = "gen-orb-mcp"
-version = "0.2.2"
+version = "0.2.3"
 description = "Generate MCP servers from CircleCI orb definitions"
 edition.workspace = true
 authors.workspace = true
@@ -78,4 +78,4 @@ bin-dir = "{ bin }{ binary-ext }"
 # pcu has nothing to replace and the signature is published unverifiable.
 [package.metadata.binstall.signing]
 algorithm = "minisign"
-pubkey = "RWPLACEHOLDER0000000000000000000000000000000"
+pubkey = "RWQkW2DudUwYrJHQfPUJxLNjcVEqbHka6GJT1IFEyHOZYCEfHKvIEY9L"
