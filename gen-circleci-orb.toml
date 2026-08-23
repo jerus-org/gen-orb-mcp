@@ -169,11 +169,14 @@ NAME = "<< parameters.binary_name >>"
 TAG_PREFIX = "<< parameters.tag_prefix >>"
 WORKSPACE_BIN_PATH = "<< parameters.workspace_root >>"
 
-# set_https_remote must run AFTER the fetch above, not before, or private-repo
-# checkout breaks. See jerus-org/gen-orb-mcp#266.
-[[job_group.step]]
-command = "set_https_remote"
-
+# prime must run BEFORE set_https_remote too: it walks prior version tags via
+# `git worktree add`, which on a partial/shallow CircleCI checkout can trigger
+# an on-demand fetch from the promisor remote for objects not yet local. That
+# fetch needs the same authenticated (SSH-backed) remote the earlier `git
+# fetch origin main` used — set_https_remote strips that auth in favour of an
+# unauthenticated HTTPS remote (only needed later, for `save`'s push). Running
+# prime after set_https_remote breaks on private repos with the same class of
+# failure as jerus-org/gen-orb-mcp#266, just one step later.
 [[job_group.step]]
 command = "prime"
 
@@ -181,6 +184,10 @@ command = "prime"
 orb_path = "<< parameters.orb_path >>"
 tag_prefix = "<< parameters.tag_prefix >>"
 earliest_version = "<< parameters.earliest_version >>"
+
+# Must stay after prime above — see the comment there.
+[[job_group.step]]
+command = "set_https_remote"
 
 [[job_group.step]]
 command = "generate"
