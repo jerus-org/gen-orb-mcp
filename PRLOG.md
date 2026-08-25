@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - run prime before set_https_remote(pr [#288])
 - deps: update dependency toolkit to v7.3.0(pr [#293])
+- deps: update jerusdp/ci-rust:rolling-6mo docker digest to b48a099(pr [#290])
 
 ## [0.2.3] - 2026-08-22
 
@@ -925,6 +926,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#287]: https://github.com/jerus-org/gen-orb-mcp/pull/287
 [#288]: https://github.com/jerus-org/gen-orb-mcp/pull/288
 [#293]: https://github.com/jerus-org/gen-orb-mcp/pull/293
+[#290]: https://github.com/jerus-org/gen-orb-mcp/pull/290
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.3...HEAD
 [0.2.3]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.1...v0.2.2
