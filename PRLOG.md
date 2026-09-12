@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- chore-add ci-skip marker to release commit(pr [#295])
+
 ### Fixed
 
 - run prime before set_https_remote(pr [#288])
@@ -935,6 +939,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#292]: https://github.com/jerus-org/gen-orb-mcp/pull/292
 [#294]: https://github.com/jerus-org/gen-orb-mcp/pull/294
 [#296]: https://github.com/jerus-org/gen-orb-mcp/pull/296
+[#295]: https://github.com/jerus-org/gen-orb-mcp/pull/295
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.3...HEAD
 [0.2.3]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.1...v0.2.2
