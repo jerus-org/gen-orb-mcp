@@ -96,6 +96,14 @@ workflows:
           name: build-binary
           package: gen-orb-mcp
           executor: toolkit/rust_env_rolling
+          pre-steps:
+            - run:
+                name: Check post-merge-regen branch
+                command: |
+                  case "$CIRCLE_BRANCH" in
+                    renovate/*) echo "Relocated to post-merge regen ($CIRCLE_BRANCH) - nothing to do here."; circleci-agent step halt ;;
+                    *) ;;
+                  esac
       - gen-circleci-orb/generate:
           name: regenerate-orb
           binary: gen-orb-mcp
@@ -110,6 +118,14 @@ workflows:
             branches:
               ignore:
                 - main
+          pre-steps:
+            - run:
+                name: Check post-merge-regen branch
+                command: |
+                  case "$CIRCLE_BRANCH" in
+                    renovate/*) echo "Relocated to post-merge regen ($CIRCLE_BRANCH) - nothing to do here."; circleci-agent step halt ;;
+                    *) ;;
+                  esac
       - gen-circleci-orb/update:
           name: check-ci-wiring
           check: true
@@ -122,6 +138,13 @@ workflows:
           checkout: false
           source_dir: orb/src
           pre-steps:
+            - run:
+                name: Check post-merge-regen branch
+                command: |
+                  case "$CIRCLE_BRANCH" in
+                    renovate/*) echo "Relocated to post-merge regen ($CIRCLE_BRANCH) - nothing to do here."; circleci-agent step halt ;;
+                    *) ;;
+                  esac
             - attach_workspace:
                 at: .
           requires: [regenerate-orb]
@@ -134,6 +157,13 @@ workflows:
           checkout: false
           source_dir: orb/src
           pre-steps:
+            - run:
+                name: Check post-merge-regen branch
+                command: |
+                  case "$CIRCLE_BRANCH" in
+                    renovate/*) echo "Relocated to post-merge regen ($CIRCLE_BRANCH) - nothing to do here."; circleci-agent step halt ;;
+                    *) ;;
+                  esac
             - attach_workspace:
                 at: .
           requires: [pack-orb]
