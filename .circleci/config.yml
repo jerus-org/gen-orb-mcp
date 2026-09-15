@@ -11,7 +11,7 @@ orbs:
   gen-orb-mcp: jerus-org/gen-orb-mcp@0.2.3
   orb-tools: circleci/orb-tools@12.5.0
   # >>> gen-circleci-orb (managed — edits overwritten by 'gen-circleci-orb update')
-  gen-circleci-orb: jerus-org/gen-circleci-orb@0.1.9
+  gen-circleci-orb: jerus-org/gen-circleci-orb@0.1.18
   # <<< gen-circleci-orb
 workflows:
   validation:
@@ -95,18 +95,24 @@ workflows:
       - gen-circleci-orb/build_rust_binary:
           name: build-binary
           package: gen-orb-mcp
-          rust_image: jerusdp/ci-rust:rolling-6mo@sha256:b48a099fe67725fde4adf84144f3bb5061323e069566dd763871e09aefd29d59
+          executor: toolkit/rust_env_rolling
       - gen-circleci-orb/generate:
           name: regenerate-orb
           binary: gen-orb-mcp
           orb_namespace: jerus-org
           orb_dir: orb
           attach_workspace: true
-          check_ci_wiring: true
           ssh_fingerprint: "SHA256:OkxsH8Z6Iim6WDJBaII9eTT9aaO1f3eDc6IpsgYYPVg"
           persist_orb_workspace: true
           context: [release]
           requires: [build-binary, toolkit/common_tests]
+          filters:
+            branches:
+              ignore:
+                - main
+      - gen-circleci-orb/update:
+          name: check-ci-wiring
+          check: true
           filters:
             branches:
               ignore:
