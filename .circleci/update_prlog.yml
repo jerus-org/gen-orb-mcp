@@ -7,7 +7,7 @@ parameters:
     description: "If true, pcu is updated from its main github branch before running."
 
 orbs:
-  toolkit: jerus-org/circleci-toolkit@7.3.0
+  toolkit: jerus-org/circleci-toolkit@7.4.0
 
   orb-tools: circleci/orb-tools@12.3.3
   # >>> gen-circleci-orb (managed — edits overwritten by 'gen-circleci-orb update')
