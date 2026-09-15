@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deps: update dependency gen-orb-mcp to v0.2.3(pr [#292])
 - deps: lock file maintenance(pr [#294])
 - deps: lock file maintenance(pr [#296])
+- deps: lock file maintenance(pr [#297])
 
 ## [0.2.3] - 2026-08-22
 
@@ -942,6 +943,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#296]: https://github.com/jerus-org/gen-orb-mcp/pull/296
 [#295]: https://github.com/jerus-org/gen-orb-mcp/pull/295
 [#298]: https://github.com/jerus-org/gen-orb-mcp/pull/298
+[#297]: https://github.com/jerus-org/gen-orb-mcp/pull/297
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.3...HEAD
 [0.2.3]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.1...v0.2.2
