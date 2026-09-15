@@ -56,15 +56,18 @@ mcp_context = [
     "pcu-app",
 ]
 mcp_earliest_version = "0.1.11"
-# Image the build_rust_binary CI jobs (build-binary, orb-release-binary) compile
-# in. This configures the CI pipeline, not the orb's own container ([orb].base_image
-# / builder_image do that). Overrides the job default (rust:latest), which has NO
-# libclang — bindgen fails there (openssl-sys via sequoia-openpgp's OpenSSL backend
-# once it pulls the ossl crate, reached transitively through pcu). ci-rust:rolling-6mo
-# is the toolkit's clang-equipped compile image. Digest-pinned so it survives
-# regeneration and CircleCI can't serve a stale moving tag from cache; Renovate
-# updates the digest via a customManager (renovate.json).
-rust_image = "jerusdp/ci-rust:rolling-6mo@sha256:b48a099fe67725fde4adf84144f3bb5061323e069566dd763871e09aefd29d59"
+# Orb executor the build_rust_binary CI jobs (build-binary, orb-release-binary)
+# compile in. This configures the CI pipeline, not the orb's own container
+# ([orb].base_image / builder_image do that). The job default (rust:latest) has
+# NO libclang — bindgen fails there (openssl-sys via sequoia-openpgp's OpenSSL
+# backend once it pulls the ossl crate, reached transitively through pcu).
+# `[ci].rust_image` (a raw pinned image string) was removed by the generator in
+# favor of this orb-executor reference (matching gen-circleci-orb's own
+# cutover) — rust_image is silently ignored by the current generator, which
+# would have dropped libclang from build-binary with no warning. toolkit's
+# rust_env_rolling resolves to the exact same digest-pinned
+# jerusdp/ci-rust:rolling-6mo image rust_image previously named directly.
+build_executor = "toolkit/rust_env_rolling"
 
 [subcommand.help]
 generate_job = false
