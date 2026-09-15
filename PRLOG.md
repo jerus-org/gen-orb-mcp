@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- cut over to post-merge regen (#328)(pr [#299])
+
 ### Changed
 
 - chore-add ci-skip marker to release commit(pr [#295])
@@ -944,6 +948,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#295]: https://github.com/jerus-org/gen-orb-mcp/pull/295
 [#298]: https://github.com/jerus-org/gen-orb-mcp/pull/298
 [#297]: https://github.com/jerus-org/gen-orb-mcp/pull/297
+[#299]: https://github.com/jerus-org/gen-orb-mcp/pull/299
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.3...HEAD
 [0.2.3]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.1...v0.2.2
