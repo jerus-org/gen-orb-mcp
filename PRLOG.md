@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deps: update rust:1-slim-trixie docker digest to bce1476(pr [#300])
 - deps: update rust crate clap to 4.6.7(pr [#302])
 - deps: update rust crate pcu to 0.6.34(pr [#303])
+- deps: update rust crate pmcp to 2.20.0(pr [#304])
 
 ## [0.2.3] - 2026-08-22
 
@@ -959,6 +960,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#300]: https://github.com/jerus-org/gen-orb-mcp/pull/300
 [#302]: https://github.com/jerus-org/gen-orb-mcp/pull/302
 [#303]: https://github.com/jerus-org/gen-orb-mcp/pull/303
+[#304]: https://github.com/jerus-org/gen-orb-mcp/pull/304
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.3...HEAD
 [0.2.3]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.1...v0.2.2
