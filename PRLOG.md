@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deps: lock file maintenance(pr [#297])
 - deps: update dependency toolkit to v7.4.0(pr [#306])
 - deps: update dependency gen-circleci-orb to v0.1.19(pr [#301])
+- deps: update rust:1-slim-trixie docker digest to bce1476(pr [#300])
 
 ## [0.2.3] - 2026-08-22
 
@@ -953,6 +954,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#299]: https://github.com/jerus-org/gen-orb-mcp/pull/299
 [#306]: https://github.com/jerus-org/gen-orb-mcp/pull/306
 [#301]: https://github.com/jerus-org/gen-orb-mcp/pull/301
+[#300]: https://github.com/jerus-org/gen-orb-mcp/pull/300
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.3...HEAD
 [0.2.3]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.1...v0.2.2
