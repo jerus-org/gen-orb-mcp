@@ -1,11 +1,11 @@
 set -- gen-orb-mcp generate
-[[ -n "${ORB_PATH:-}" ]] && set -- "$@" --orb-path "${ORB_PATH}"
-[[ -n "${OUTPUT:-}" ]] && set -- "$@" --output "${OUTPUT}"
-[[ -n "${FORMAT:-}" ]] && set -- "$@" --format "${FORMAT}"
-[[ -n "${GENERATE_NAME:-}" ]] && set -- "$@" --name "${GENERATE_NAME}"
-[[ -n "${CRATE_VERSION:-}" ]] && set -- "$@" --crate-version "${CRATE_VERSION}"
-[[ "${FORCE:-false}" = "true" ]] && set -- "$@" --force
-[[ -n "${MIGRATIONS:-}" ]] && set -- "$@" --migrations "${MIGRATIONS}"
-[[ -n "${PRIOR_VERSIONS:-}" ]] && set -- "$@" --prior-versions "${PRIOR_VERSIONS}"
-[[ -n "${TAG_PREFIX:-}" ]] && set -- "$@" --tag-prefix "${TAG_PREFIX}"
+[[ -n "${GCO_ORB_PATH:-}" ]] && set -- "$@" --orb-path "${GCO_ORB_PATH}"
+[[ -n "${GCO_OUTPUT:-}" ]] && set -- "$@" --output "${GCO_OUTPUT}"
+[[ -n "${GCO_FORMAT:-}" ]] && set -- "$@" --format "${GCO_FORMAT}"
+[[ -n "${GCO_GENERATE_NAME:-}" ]] && set -- "$@" --name "${GCO_GENERATE_NAME}"
+[[ -n "${GCO_CRATE_VERSION:-}" ]] && set -- "$@" --crate-version "${GCO_CRATE_VERSION}"
+[[ "${GCO_FORCE:-false}" = "true" ]] && set -- "$@" --force
+[[ -n "${GCO_MIGRATIONS:-}" ]] && set -- "$@" --migrations "${GCO_MIGRATIONS}"
+[[ -n "${GCO_PRIOR_VERSIONS:-}" ]] && set -- "$@" --prior-versions "${GCO_PRIOR_VERSIONS}"
+[[ -n "${GCO_TAG_PREFIX:-}" ]] && set -- "$@" --tag-prefix "${GCO_TAG_PREFIX}"
 "$@"

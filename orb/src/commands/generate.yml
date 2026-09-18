@@ -44,17 +44,17 @@ steps:
     condition: << parameters.force >>
     steps:
     - run:
-        name: Set FORCE flag
-        command: echo 'export FORCE=true' >> "$BASH_ENV"
+        name: Set GCO_FORCE flag
+        command: echo 'export GCO_FORCE=true' >> "$BASH_ENV"
 - run:
     name: Generate and compile MCP server
     command: <<include(scripts/generate.sh)>>
     environment:
-      ORB_PATH: << parameters.orb_path >>
-      OUTPUT: << parameters.output >>
-      FORMAT: << parameters.format >>
-      GENERATE_NAME: << parameters.generate_name >>
-      CRATE_VERSION: << parameters.crate_version >>
-      MIGRATIONS: << parameters.migrations >>
-      PRIOR_VERSIONS: << parameters.prior_versions >>
-      TAG_PREFIX: << parameters.tag_prefix >>
+      GCO_ORB_PATH: << parameters.orb_path >>
+      GCO_OUTPUT: << parameters.output >>
+      GCO_FORMAT: << parameters.format >>
+      GCO_GENERATE_NAME: << parameters.generate_name >>
+      GCO_CRATE_VERSION: << parameters.crate_version >>
+      GCO_MIGRATIONS: << parameters.migrations >>
+      GCO_PRIOR_VERSIONS: << parameters.prior_versions >>
+      GCO_TAG_PREFIX: << parameters.tag_prefix >>

@@ -37,16 +37,16 @@ steps:
     condition: << parameters.dry_run >>
     steps:
     - run:
-        name: Set DRY_RUN flag
-        command: echo 'export DRY_RUN=true' >> "$BASH_ENV"
+        name: Set GCO_DRY_RUN flag
+        command: echo 'export GCO_DRY_RUN=true' >> "$BASH_ENV"
 - run:
     name: Publish MCP server binary to GitHub release
     command: <<include(scripts/publish.sh)>>
     environment:
-      PUBLISH_NAME: << parameters.publish_name >>
-      INPUT: << parameters.input >>
-      BINARY: << parameters.binary >>
-      ASSET_NAME: << parameters.asset_name >>
-      TAG: << parameters.tag >>
-      TAG_ENV: << parameters.tag_env >>
-      CONFIG: << parameters.config >>
+      GCO_PUBLISH_NAME: << parameters.publish_name >>
+      GCO_INPUT: << parameters.input >>
+      GCO_BINARY: << parameters.binary >>
+      GCO_ASSET_NAME: << parameters.asset_name >>
+      GCO_TAG: << parameters.tag >>
+      GCO_TAG_ENV: << parameters.tag_env >>
+      GCO_CONFIG: << parameters.config >>
