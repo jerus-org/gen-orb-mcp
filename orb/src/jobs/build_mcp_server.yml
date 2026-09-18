@@ -30,26 +30,6 @@ parameters:
     type: string
     description: Path at which to attach the workspace; also prepended to PATH (only used when attach_workspace is true).
     default: /tmp/workspace
-  gpg_key_env:
-    type: string
-    description: Env var NAME for the base64 GPG key (default GPG_KEY; `[sign].gpg_key_env`)
-    default: ''
-  trust_env:
-    type: string
-    description: Env var NAME for the GPG ownertrust (default GPG_TRUST; `[sign].trust_env`)
-    default: ''
-  user_name_env:
-    type: string
-    description: Env var NAME for the commit author name (default GIT_USER_NAME; `[sign].user_name_env`)
-    default: ''
-  user_email_env:
-    type: string
-    description: Env var NAME for the commit author email (default GIT_USER_EMAIL; `[sign].user_email_env`)
-    default: ''
-  sign_key_env:
-    type: string
-    description: Env var NAME for the GPG signing key id (default GPG_SIGN_KEY; `[sign].sign_key_env`)
-    default: ''
 steps:
 - checkout
 - when:
@@ -89,8 +69,3 @@ steps:
 - save:
     paths: << parameters.prior_versions_dir >>,<< parameters.migrations_dir >>
     sign: true
-    gpg_key_env: << parameters.gpg_key_env >>
-    trust_env: << parameters.trust_env >>
-    user_name_env: << parameters.user_name_env >>
-    user_email_env: << parameters.user_email_env >>
-    sign_key_env: << parameters.sign_key_env >>
