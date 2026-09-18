@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - orb: forward sign env-var names to save(pr [#309])
 - deps: update dependency toolkit to v8(pr [#314])
+- deps: update rust:1-slim-trixie docker digest to 3999a7f(pr [#310])
 
 ## [0.2.4] - 2026-09-17
 
@@ -974,6 +975,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#307]: https://github.com/jerus-org/gen-orb-mcp/pull/307
 [#309]: https://github.com/jerus-org/gen-orb-mcp/pull/309
 [#314]: https://github.com/jerus-org/gen-orb-mcp/pull/314
+[#310]: https://github.com/jerus-org/gen-orb-mcp/pull/310
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.4...HEAD
 [0.2.4]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.2...v0.2.3
