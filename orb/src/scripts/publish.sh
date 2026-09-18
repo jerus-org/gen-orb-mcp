@@ -1,10 +1,10 @@
 set -- gen-orb-mcp publish
-[[ -n "${PUBLISH_NAME:-}" ]] && set -- "$@" --name "${PUBLISH_NAME}"
-[[ -n "${INPUT:-}" ]] && set -- "$@" --input "${INPUT}"
-[[ -n "${BINARY:-}" ]] && set -- "$@" --binary "${BINARY}"
-[[ -n "${ASSET_NAME:-}" ]] && set -- "$@" --asset-name "${ASSET_NAME}"
-[[ -n "${TAG:-}" ]] && set -- "$@" --tag "${TAG}"
-[[ -n "${TAG_ENV:-}" ]] && set -- "$@" --tag-env "${TAG_ENV}"
-[[ -n "${CONFIG:-}" ]] && set -- "$@" --config "${CONFIG}"
-[[ "${DRY_RUN:-false}" = "true" ]] && set -- "$@" --dry-run
+[[ -n "${GCO_PUBLISH_NAME:-}" ]] && set -- "$@" --name "${GCO_PUBLISH_NAME}"
+[[ -n "${GCO_INPUT:-}" ]] && set -- "$@" --input "${GCO_INPUT}"
+[[ -n "${GCO_BINARY:-}" ]] && set -- "$@" --binary "${GCO_BINARY}"
+[[ -n "${GCO_ASSET_NAME:-}" ]] && set -- "$@" --asset-name "${GCO_ASSET_NAME}"
+[[ -n "${GCO_TAG:-}" ]] && set -- "$@" --tag "${GCO_TAG}"
+[[ -n "${GCO_TAG_ENV:-}" ]] && set -- "$@" --tag-env "${GCO_TAG_ENV}"
+[[ -n "${GCO_CONFIG:-}" ]] && set -- "$@" --config "${GCO_CONFIG}"
+[[ "${GCO_DRY_RUN:-false}" = "true" ]] && set -- "$@" --dry-run
 "$@"

@@ -20,12 +20,12 @@ steps:
     condition: << parameters.dry_run >>
     steps:
     - run:
-        name: Set DRY_RUN flag
-        command: echo 'export DRY_RUN=true' >> "$BASH_ENV"
+        name: Set GCO_DRY_RUN flag
+        command: echo 'export GCO_DRY_RUN=true' >> "$BASH_ENV"
 - run:
     name: Compile generated MCP server source to a native binary
     command: <<include(scripts/build.sh)>>
     environment:
-      INPUT: << parameters.input >>
-      BUILD_NAME: << parameters.build_name >>
-      TARGET: << parameters.target >>
+      GCO_INPUT: << parameters.input >>
+      GCO_BUILD_NAME: << parameters.build_name >>
+      GCO_TARGET: << parameters.target >>

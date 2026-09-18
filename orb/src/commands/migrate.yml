@@ -19,12 +19,12 @@ steps:
     condition: << parameters.dry_run >>
     steps:
     - run:
-        name: Set DRY_RUN flag
-        command: echo 'export DRY_RUN=true' >> "$BASH_ENV"
+        name: Set GCO_DRY_RUN flag
+        command: echo 'export GCO_DRY_RUN=true' >> "$BASH_ENV"
 - run:
     name: Apply conformance-based migration to a consumer's .circleci/ directory
     command: <<include(scripts/migrate.sh)>>
     environment:
-      CI_DIR: << parameters.ci_dir >>
-      ORB: << parameters.orb >>
-      RULES: << parameters.rules >>
+      GCO_CI_DIR: << parameters.ci_dir >>
+      GCO_ORB: << parameters.orb >>
+      GCO_RULES: << parameters.rules >>

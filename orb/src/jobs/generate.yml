@@ -16,6 +16,10 @@ parameters:
     enum:
     - binary
     - source
+  generate_name:
+    type: string
+    description: Name for the generated orb server (defaults to filename)
+    default: ''
   crate_version:
     type: string
     description: Version for the generated MCP server crate (e.g., "1.0.0") Required when regenerating an existing output directory. For CI workflows, this should match the orb release version.
@@ -60,6 +64,7 @@ steps:
     orb_path: << parameters.orb_path >>
     output: << parameters.output >>
     format: << parameters.format >>
+    generate_name: << parameters.generate_name >>
     crate_version: << parameters.crate_version >>
     force: << parameters.force >>
     migrations: << parameters.migrations >>
