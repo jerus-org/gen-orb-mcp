@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deps: update rust crate pmcp to 2.22.7(pr [#328])
 - ci: address all build_mcp_server step options for gen-circleci-orb(pr [#332])
 - deps: update dependency gen-circleci-orb to v0.2.6(pr [#330])
+- deps: update rust crate tokio to 1.54.1(pr [#333])
 
 ## [0.2.5] - 2026-09-19
 
@@ -1021,6 +1022,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#328]: https://github.com/jerus-org/gen-orb-mcp/pull/328
 [#332]: https://github.com/jerus-org/gen-orb-mcp/pull/332
 [#330]: https://github.com/jerus-org/gen-orb-mcp/pull/330
+[#333]: https://github.com/jerus-org/gen-orb-mcp/pull/333
 [Unreleased]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.5...HEAD
 [0.2.5]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/jerus-org/gen-orb-mcp/compare/v0.2.3...v0.2.4
