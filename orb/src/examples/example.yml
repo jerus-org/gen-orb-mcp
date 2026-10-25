@@ -3,7 +3,7 @@ description: >
 usage:
   version: 2.1
   orbs:
-    gen-orb-mcp: jerus-org/gen-orb-mcp@1.0
+    gen-orb-mcp: jerus-org/gen-orb-mcp@0.2
   workflows:
     use-my-orb:
       jobs:
