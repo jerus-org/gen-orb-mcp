@@ -4,4 +4,8 @@ ignore = [
     # Pulled in transitively by pcu → sigstore → openidconnect → rsa.
     # Cannot be resolved without upstream pcu/sigstore/rsa patches.
     "RUSTSEC-2023-0071",
+    # RUSTSEC-2024-0449: unsafe-libyaml suppporting serde-yaml reported
+    # as unmaintained with accompanying risks as unsafe. Migration to 
+    # safe yaml will require additional work so accetpted in the interim.
+    "RUSTSEC-2024-0449",
 ]
