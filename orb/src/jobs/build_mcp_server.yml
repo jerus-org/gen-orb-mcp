@@ -51,7 +51,9 @@ steps:
       WORKSPACE_BIN_PATH: << parameters.workspace_root >>
 - prime:
     earliest_version: << parameters.earliest_version >>
+    migrations_dir: << parameters.migrations_dir >>
     orb_path: << parameters.orb_path >>
+    prior_versions_dir: << parameters.prior_versions_dir >>
     tag_prefix: << parameters.tag_prefix >>
 - set_https_remote
 - generate:
