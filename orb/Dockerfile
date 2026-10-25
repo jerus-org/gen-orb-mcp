@@ -1,4 +1,4 @@
-FROM rust:1-slim-trixie@sha256:f47a8de237dcbb0b0ce1099901e60a89728e3d51f24e664b40e947171538ade7 AS builder
+FROM rust:1-slim-trixie@sha256:1a939748a7cbab172de91a014e3804a97af1394a8c844faa67fce9401c4e40fb AS builder
 ARG CRATE_VERSION
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -24,7 +24,7 @@ RUN apt-get update \
          sleep 15; \
        done; }
 
-FROM rust:1-slim-trixie@sha256:f47a8de237dcbb0b0ce1099901e60a89728e3d51f24e664b40e947171538ade7
+FROM rust:1-slim-trixie@sha256:1a939748a7cbab172de91a014e3804a97af1394a8c844faa67fce9401c4e40fb
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
     build-essential \
